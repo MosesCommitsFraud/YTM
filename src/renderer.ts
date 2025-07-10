@@ -1,5 +1,3 @@
-import i18next from 'i18next';
-
 import { startingPages } from './providers/extracted-data';
 import setupSongInfo from './providers/song-info-front';
 import {
@@ -22,6 +20,7 @@ import type { QueueElement } from '@/types/queue';
 import type { QueueResponse } from '@/types/youtube-music-desktop-internal';
 import type { YouTubeMusicAppElement } from '@/types/youtube-music-app-element';
 import type { SearchBoxElement } from '@/types/search-box-element';
+import { showOverlaySearch } from './overlay-search';
 
 let api: (Element & YoutubePlayer) | null = null;
 let isPluginLoaded = false;
@@ -386,6 +385,46 @@ async function onApiLoaded() {
 
     document.head.appendChild(style);
   }
+
+  // --- Custom: Add Ctrl+K shortcut for search bar and update placeholder ---
+  const setSearchBarShortcut = () => {
+    const searchBox = document.querySelector('ytmusic-search-box');
+    if (!searchBox) return;
+    // Try to get the input inside the shadow DOM
+    let input = null;
+    if (searchBox.shadowRoot) {
+      input = searchBox.shadowRoot.querySelector('input');
+    } else {
+      // fallback: try direct child input
+      input = searchBox.querySelector('input');
+    }
+    if (input) {
+      // Set placeholder to indicate shortcut
+      input.setAttribute('placeholder', 'Search (Ctrl+K)');
+    }
+  };
+
+  // Set placeholder on load and when search bar is re-rendered
+  setSearchBarShortcut();
+  // Observe for search bar changes (in case of SPA navigation)
+  const searchBarObserver = new MutationObserver(setSearchBarShortcut);
+  const navBar = document.querySelector('ytmusic-nav-bar');
+  if (navBar) {
+    searchBarObserver.observe(navBar, { childList: true, subtree: true });
+  }
+
+  // Remove previous Ctrl+K search bar logic and instead show the overlay
+  window.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k' && !e.repeat) {
+      // Only trigger if not in an input/textarea already
+      const active = document.activeElement;
+      if (!active || (active.tagName !== 'INPUT' && active.tagName !== 'TEXTAREA' && (active as HTMLElement).contentEditable !== 'true')) {
+        e.preventDefault();
+        showOverlaySearch();
+      }
+    }
+  });
+  // --- End Custom ---
 }
 
 /**
