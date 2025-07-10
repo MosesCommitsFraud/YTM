@@ -13,12 +13,14 @@ let selectedIndex = -1;
 function createKeycap(text: string) {
   const span = document.createElement('span');
   span.textContent = text;
-  span.style.display = 'inline-block';
+  span.style.display = 'inline-flex';
+  span.style.justifyContent = 'center';
+  span.style.alignItems = 'center';
   span.style.background = 'rgba(40,40,40,0.9)';
   span.style.border = '1px solid #888';
-  span.style.borderRadius = '6px';
+  span.style.borderRadius = '6px'; // YT Music subtle roundness
   span.style.padding = '2px 8px';
-  span.style.marginLeft = '6px';
+  span.style.marginLeft = '0';
   span.style.fontFamily = 'inherit';
   span.style.fontSize = '0.95em';
   span.style.color = '#fff';
@@ -78,7 +80,7 @@ function showOverlaySearch() {
   // Search bar container
   const bar = document.createElement('div');
   bar.style.background = '#222';
-  bar.style.borderRadius = '32px';
+  bar.style.borderRadius = '6px'; // YT Music subtle roundness
   bar.style.boxShadow = '0 4px 32px #000a';
   bar.style.display = 'flex';
   bar.style.alignItems = 'center';
@@ -93,7 +95,7 @@ function showOverlaySearch() {
   // Input
   input = document.createElement('input');
   input.type = 'text';
-  input.placeholder = 'Search YouTube Music';
+  input.placeholder = 'Search (Ctrl+K)';
   input.style.background = 'transparent';
   input.style.border = 'none';
   input.style.outline = 'none';
@@ -106,12 +108,28 @@ function showOverlaySearch() {
   input.style.width = '100%';
   input.style.maxWidth = '100%';
 
-  // Keycap visual
-  const keycapCtrl = createKeycap('Ctrl');
-  const keycapK = createKeycap('K');
+  // Keycap visual (Ctrl + K) to the right of the input, outside the input
   bar.appendChild(input);
-  bar.appendChild(keycapCtrl);
-  bar.appendChild(keycapK);
+  const keycapRow = document.createElement('div');
+  keycapRow.style.display = 'flex';
+  keycapRow.style.alignItems = 'center';
+  keycapRow.style.marginLeft = 'auto';
+  keycapRow.style.gap = '0';
+  keycapRow.style.height = '100%';
+  keycapRow.style.paddingRight = '2px';
+  const keycapCtrl = createKeycap('Ctrl');
+  const plus = document.createElement('span');
+  plus.textContent = '+';
+  plus.style.margin = '0 4px';
+  plus.style.color = '#888';
+  plus.style.fontWeight = 'bold';
+  plus.style.display = 'inline-flex';
+  plus.style.alignItems = 'center';
+  const keycapK = createKeycap('K');
+  keycapRow.appendChild(keycapCtrl);
+  keycapRow.appendChild(plus);
+  keycapRow.appendChild(keycapK);
+  bar.appendChild(keycapRow);
 
   // Legend row (keycap instructions)
   const legend = document.createElement('div');
@@ -130,16 +148,35 @@ function showOverlaySearch() {
     const wrap = document.createElement('span');
     wrap.style.display = 'inline-flex';
     wrap.style.alignItems = 'center';
-    keys.forEach((k, i) => {
-      wrap.appendChild(createKeycap(k));
-      if (i < keys.length - 1) {
-        const plus = document.createElement('span');
-        plus.textContent = '+';
-        plus.style.margin = '0 2px';
-        plus.style.color = '#888';
-        wrap.appendChild(plus);
-      }
-    });
+    if (keys.length === 2 && keys[0] === '↑' && keys[1] === '↓') {
+      // Special case: center plus between arrows
+      const keycapUp = createKeycap('↑');
+      const keycapDown = createKeycap('↓');
+      const plus = document.createElement('span');
+      plus.textContent = '+';
+      plus.style.margin = '0 4px';
+      plus.style.color = '#888';
+      plus.style.fontWeight = 'bold';
+      plus.style.display = 'inline-flex';
+      plus.style.alignItems = 'center';
+      wrap.appendChild(keycapUp);
+      wrap.appendChild(plus);
+      wrap.appendChild(keycapDown);
+    } else {
+      keys.forEach((k, i) => {
+        wrap.appendChild(createKeycap(k));
+        if (i < keys.length - 1) {
+          const plus = document.createElement('span');
+          plus.textContent = '+';
+          plus.style.margin = '0 4px';
+          plus.style.color = '#888';
+          plus.style.fontWeight = 'bold';
+          plus.style.display = 'inline-flex';
+          plus.style.alignItems = 'center';
+          wrap.appendChild(plus);
+        }
+      });
+    }
     const txt = document.createElement('span');
     txt.textContent = ' ' + label;
     txt.style.marginLeft = '6px';
@@ -155,7 +192,7 @@ function showOverlaySearch() {
   suggestionBox = document.createElement('div');
   suggestionBox.className = 'ytm-overlay-suggestion-scroll';
   suggestionBox.style.background = '#222';
-  suggestionBox.style.borderRadius = '16px';
+  suggestionBox.style.borderRadius = '6px'; // YT Music subtle roundness
   suggestionBox.style.marginTop = '12px';
   suggestionBox.style.boxShadow = '0 2px 16px #0007';
   suggestionBox.style.width = '100%';
@@ -259,7 +296,7 @@ async function fetchSuggestions(query: string): Promise<Array<{text: string, url
   return suggestions;
 }
 
-// Update renderSuggestions to use icons, subtitles, and type badges
+// Update renderSuggestions to use round icon for artists
 function renderSuggestions() {
   suggestionBox!.innerHTML = '';
   if (!suggestions.length) {
@@ -274,7 +311,7 @@ function renderSuggestions() {
     item.style.padding = '10px 24px';
     item.style.cursor = 'pointer';
     item.style.background = i === selectedIndex ? 'rgba(255,255,255,0.08)' : 'transparent';
-    item.style.borderRadius = '8px';
+    item.style.borderRadius = '4px';
     item.style.margin = '2px 0';
     item.style.transition = 'background 0.15s';
     // Icon/thumbnail
@@ -284,7 +321,7 @@ function renderSuggestions() {
       img.style.width = '40px';
       img.style.height = '40px';
       img.style.objectFit = 'cover';
-      img.style.borderRadius = '6px';
+      img.style.borderRadius = (s.type && s.type.toLowerCase().includes('artist')) ? '50%' : '4px';
       img.style.marginRight = '16px';
       item.appendChild(img);
     } else {
@@ -292,6 +329,8 @@ function renderSuggestions() {
       placeholder.style.width = '40px';
       placeholder.style.height = '40px';
       placeholder.style.marginRight = '16px';
+      placeholder.style.borderRadius = (s.type && s.type.toLowerCase().includes('artist')) ? '50%' : '4px';
+      placeholder.style.background = '#333';
       item.appendChild(placeholder);
     }
     // Texts
