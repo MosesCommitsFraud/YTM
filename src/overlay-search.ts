@@ -34,15 +34,23 @@ function injectScrollbarStyle() {
   style.id = 'ytm-overlay-scrollbar-style';
   style.textContent = `
     .ytm-overlay-suggestion-scroll::-webkit-scrollbar {
-      width: 8px;
-      background: #181818;
+      width: 10px;
+      background: transparent;
     }
     .ytm-overlay-suggestion-scroll::-webkit-scrollbar-thumb {
       background: #333;
       border-radius: 8px;
+      border: 2px solid #222;
+      min-height: 32px;
+      box-sizing: border-box;
+    }
+    .ytm-overlay-suggestion-scroll::-webkit-scrollbar-track {
+      background: transparent;
+      margin: 8px 0;
+      border-radius: 12px;
     }
     .ytm-overlay-suggestion-scroll::-webkit-scrollbar-corner {
-      background: #181818;
+      background: transparent;
     }
   `;
   document.head.appendChild(style);
@@ -158,6 +166,7 @@ function showOverlaySearch() {
   suggestionBox.style.zIndex = '100000';
   suggestionBox.style.overflowY = 'auto';
   suggestionBox.style.maxHeight = '50vh'; // never exceed half the viewport
+  suggestionBox.style.paddingRight = '6px'; // space for scrollbar
 
   overlay.appendChild(bar);
   overlay.appendChild(legend);
