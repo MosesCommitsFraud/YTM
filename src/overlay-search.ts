@@ -27,8 +27,31 @@ function createKeycap(text: string) {
   return span;
 }
 
+// Inject custom scrollbar style for suggestionBox to match YTM
+function injectScrollbarStyle() {
+  if (document.getElementById('ytm-overlay-scrollbar-style')) return;
+  const style = document.createElement('style');
+  style.id = 'ytm-overlay-scrollbar-style';
+  style.textContent = `
+    .ytm-overlay-suggestion-scroll::-webkit-scrollbar {
+      width: 8px;
+      background: #181818;
+    }
+    .ytm-overlay-suggestion-scroll::-webkit-scrollbar-thumb {
+      background: #333;
+      border-radius: 8px;
+    }
+    .ytm-overlay-suggestion-scroll::-webkit-scrollbar-corner {
+      background: #181818;
+    }
+  `;
+  document.head.appendChild(style);
+}
+
 function showOverlaySearch() {
   if (overlay) return; // Already open
+
+  injectScrollbarStyle();
 
   overlay = document.createElement('div');
   overlay.style.position = 'fixed';
@@ -122,6 +145,7 @@ function showOverlaySearch() {
 
   // Suggestion dropdown
   suggestionBox = document.createElement('div');
+  suggestionBox.className = 'ytm-overlay-suggestion-scroll';
   suggestionBox.style.background = '#222';
   suggestionBox.style.borderRadius = '16px';
   suggestionBox.style.marginTop = '12px';
@@ -310,6 +334,12 @@ function renderSuggestions() {
       chooseSuggestion(i);
     });
     suggestionBox!.appendChild(item);
+    // Scroll selected item into view if needed
+    if (i === selectedIndex) {
+      setTimeout(() => {
+        item.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }, 0);
+    }
   });
 }
 
