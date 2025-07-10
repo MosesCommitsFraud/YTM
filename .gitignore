@@ -1,0 +1,17 @@
+node_modules
+/dist
+/pack
+electron-builder.yml
+.vscode/settings.json
+.idea
+
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
+.vite-inspect
+
+.DS_Store
