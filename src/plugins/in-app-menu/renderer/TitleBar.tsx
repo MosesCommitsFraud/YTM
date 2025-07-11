@@ -358,11 +358,31 @@ export const TitleBar = (props: TitleBarProps) => {
           />
         </Show>
         {/* Back arrow */}
-        <button style={`width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; background: none; border: none; cursor: pointer; border-radius: 6px; transition: background 0.15s; -webkit-app-region: no-drag;`} onClick={() => window.history.back()} title="Back">
+        <button
+          style={`width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; background: none; border: none; cursor: pointer; border-radius: 6px; transition: background 0.15s; -webkit-app-region: no-drag;`}
+          onClick={() => {
+            if (window.navigation && typeof window.navigation.back === 'function') {
+              window.navigation.back();
+            } else {
+              window.history.back();
+            }
+          }}
+          title="Back"
+        >
           <svg width="20" height="20" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
         </button>
         {/* Forward arrow */}
-        <button style={`width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; background: none; border: none; cursor: pointer; border-radius: 6px; transition: background 0.15s; -webkit-app-region: no-drag;`} onClick={() => window.history.forward()} title="Forward">
+        <button
+          style={`width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; background: none; border: none; cursor: pointer; border-radius: 6px; transition: background 0.15s; -webkit-app-region: no-drag;`}
+          onClick={() => {
+            if (window.navigation && typeof window.navigation.forward === 'function') {
+              window.navigation.forward();
+            } else {
+              window.history.forward();
+            }
+          }}
+          title="Forward"
+        >
           <svg width="20" height="20" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
         </button>
       </div>
