@@ -642,3 +642,329 @@ const initObserver = async () => {
 };
 
 initObserver().then(preload).then(main);
+
+// --- Custom: Replace YT Music search bar with our own ---
+const replaceSearchBar = () => {
+  const oldSearchBox = document.querySelector('ytmusic-search-box');
+  if (!oldSearchBox) return;
+  if ((oldSearchBox as HTMLElement).dataset.customReplaced === 'true') return;
+  const customBar = document.createElement('div');
+  customBar.className = 'ytm-custom-search-bar';
+  customBar.style.display = 'flex';
+  customBar.style.alignItems = 'center';
+  customBar.style.background = '#181818';
+  customBar.style.borderRadius = '10px';
+  customBar.style.boxShadow = 'none';
+  customBar.style.border = '1.5px solid #333';
+  customBar.style.padding = '0 12px';
+  customBar.style.minHeight = '48px';
+  customBar.style.position = 'relative';
+  customBar.style.width = (oldSearchBox as HTMLElement).offsetWidth + 'px';
+  const icon = document.createElement('span');
+  icon.innerHTML = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#aaa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>`;
+  icon.style.marginRight = '8px';
+  customBar.appendChild(icon);
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.placeholder = 'What do you want to listen to?';
+  input.style.background = 'transparent';
+  input.style.color = '#eee';
+  input.style.border = 'none';
+  input.style.outline = 'none';
+  input.style.fontSize = '1.6em';
+  input.style.fontFamily = 'inherit';
+  input.style.boxShadow = 'none';
+  input.style.padding = '0 8px';
+  input.style.height = '40px';
+  input.style.flex = '1';
+  // Suggestions dropdown
+  const suggestionBox = document.createElement('div');
+  suggestionBox.className = 'ytm-overlay-suggestion-scroll';
+  suggestionBox.style.background = '#222';
+  suggestionBox.style.borderRadius = '6px';
+  suggestionBox.style.marginTop = '4px';
+  suggestionBox.style.boxShadow = '0 2px 16px #0007';
+  suggestionBox.style.width = '100%';
+  suggestionBox.style.maxWidth = '600px';
+  suggestionBox.style.minWidth = '420px';
+  suggestionBox.style.display = 'none';
+  suggestionBox.style.position = 'absolute';
+  suggestionBox.style.left = '0';
+  suggestionBox.style.top = '100%';
+  suggestionBox.style.zIndex = '100000';
+  suggestionBox.style.overflowY = 'auto';
+  suggestionBox.style.maxHeight = '50vh';
+  suggestionBox.style.paddingRight = '6px';
+  type Suggestion = { text: string, url?: string, icon?: string, subtitle?: string, type?: string };
+  let suggestions: Suggestion[] = [];
+  let selectedIndex = -1;
+  // Keycap row
+  const keycapRow = document.createElement('div');
+  keycapRow.style.display = 'flex';
+  keycapRow.style.alignItems = 'center';
+  keycapRow.style.gap = '0';
+  keycapRow.style.marginRight = '8px';
+  function createKeycap(text: string) {
+    const span = document.createElement('span');
+    span.textContent = text;
+    span.style.display = 'inline-flex';
+    span.style.justifyContent = 'center';
+    span.style.alignItems = 'center';
+    span.style.background = 'rgba(40,40,40,0.9)';
+    span.style.border = '1px solid #888';
+    span.style.borderRadius = '6px';
+    span.style.padding = '2px 8px';
+    span.style.marginLeft = '0';
+    span.style.fontFamily = 'inherit';
+    span.style.fontSize = '0.95em';
+    span.style.color = '#fff';
+    span.style.boxShadow = '0 1px 2px #0003';
+    span.style.verticalAlign = 'middle';
+    return span;
+  }
+  const keycapCtrl = createKeycap('Ctrl');
+  const plus = document.createElement('span');
+  plus.textContent = '+';
+  plus.style.margin = '0 4px';
+  plus.style.color = '#888';
+  plus.style.fontWeight = 'bold';
+  plus.style.display = 'inline-flex';
+  plus.style.alignItems = 'center';
+  const keycapK = createKeycap('K');
+  keycapRow.appendChild(keycapCtrl);
+  keycapRow.appendChild(plus);
+  keycapRow.appendChild(keycapK);
+  // Add to bar
+  customBar.appendChild(input);
+  customBar.appendChild(keycapRow);
+  customBar.appendChild(suggestionBox);
+  // Inject custom scrollbar style for suggestionBox to match overlay searchbar
+  if (!document.getElementById('ytm-overlay-scrollbar-style')) {
+    const style = document.createElement('style');
+    style.id = 'ytm-overlay-scrollbar-style';
+    style.textContent = `
+      .ytm-overlay-suggestion-scroll::-webkit-scrollbar {
+        width: 10px;
+        background: transparent;
+      }
+      .ytm-overlay-suggestion-scroll::-webkit-scrollbar-thumb {
+        background: #333;
+        border-radius: 8px;
+        border: 2px solid #222;
+        min-height: 32px;
+        box-sizing: border-box;
+      }
+      .ytm-overlay-suggestion-scroll::-webkit-scrollbar-track {
+        background: transparent;
+        margin: 8px 0;
+        border-radius: 12px;
+      }
+      .ytm-overlay-suggestion-scroll::-webkit-scrollbar-corner {
+        background: transparent;
+      }
+    `;
+    document.head.appendChild(style);
+  }
+  // Replace old search box
+  if (oldSearchBox.parentNode) {
+    oldSearchBox.parentNode.replaceChild(customBar, oldSearchBox);
+  }
+  (customBar as HTMLElement).dataset.customReplaced = 'true';
+  // Suggestion logic
+  async function fetchSuggestions(query: string) {
+    const app = document.querySelector('ytmusic-app');
+    if (!app || !(app as any).networkManager) return [];
+    let result: any;
+    try {
+      result = await (app as any).networkManager.fetch('/search', { query });
+    } catch (e) {
+      return [];
+    }
+    const suggestions: Array<{text: string, url?: string, icon?: string, subtitle?: string, type?: string}> = [];
+    try {
+      const tabs = result?.contents?.tabbedSearchResultsRenderer?.tabs || [];
+      for (const tab of tabs) {
+        const sectionList = tab.tabRenderer?.content?.sectionListRenderer;
+        if (!sectionList) continue;
+        for (const section of sectionList.contents || []) {
+          if (section.musicShelfRenderer) {
+            const type = section.musicShelfRenderer.title?.runs?.[0]?.text || '';
+            for (const item of section.musicShelfRenderer.contents || []) {
+              const renderer = item.musicResponsiveListItemRenderer;
+              if (!renderer) continue;
+              const text = renderer.flexColumns?.[0]?.musicResponsiveListItemFlexColumnRenderer?.text?.runs?.[0]?.text || '';
+              const subtitle = renderer.flexColumns?.[1]?.musicResponsiveListItemFlexColumnRenderer?.text?.runs?.map((r: any) => r.text).join(', ');
+              const icon = renderer.thumbnail?.musicThumbnailRenderer?.thumbnail?.thumbnails?.[0]?.url;
+              let url = '';
+              if (renderer.navigationEndpoint?.watchEndpoint?.videoId) {
+                url = `https://music.youtube.com/watch?v=${renderer.navigationEndpoint.watchEndpoint.videoId}`;
+              } else if (renderer.navigationEndpoint?.browseEndpoint?.browseId) {
+                url = `https://music.youtube.com/browse/${renderer.navigationEndpoint.browseEndpoint.browseId}`;
+              }
+              suggestions.push({ text, url, icon, subtitle, type });
+            }
+          }
+        }
+      }
+    } catch (e) {}
+    // Sort: artists first, then others
+    suggestions.sort((a, b) => {
+      const aIsArtist = a.type && a.type.toLowerCase().includes('artist');
+      const bIsArtist = b.type && b.type.toLowerCase().includes('artist');
+      if (aIsArtist && !bIsArtist) return -1;
+      if (!aIsArtist && bIsArtist) return 1;
+      return 0;
+    });
+    return suggestions;
+  }
+  function renderSuggestions() {
+    suggestionBox.innerHTML = '';
+    if (!suggestions.length) {
+      suggestionBox.style.display = 'none';
+      return;
+    }
+    suggestionBox.style.display = 'block';
+    suggestions.forEach((s, i) => {
+      const item = document.createElement('div');
+      item.style.display = 'flex';
+      item.style.alignItems = 'center';
+      item.style.padding = '10px 24px';
+      item.style.cursor = 'pointer';
+      item.style.background = i === selectedIndex ? 'rgba(255,255,255,0.08)' : 'transparent';
+      item.style.borderRadius = '4px';
+      item.style.margin = '2px 0';
+      item.style.transition = 'background 0.15s';
+      if (s.icon) {
+        const img = document.createElement('img');
+        img.src = s.icon;
+        img.style.width = '40px';
+        img.style.height = '40px';
+        img.style.objectFit = 'cover';
+        img.style.borderRadius = (s.type && s.type.toLowerCase().includes('artist')) ? '50%' : '4px';
+        img.style.marginRight = '16px';
+        item.appendChild(img);
+      } else {
+        const placeholder = document.createElement('div');
+        placeholder.style.width = '40px';
+        placeholder.style.height = '40px';
+        placeholder.style.marginRight = '16px';
+        placeholder.style.borderRadius = (s.type && s.type.toLowerCase().includes('artist')) ? '50%' : '4px';
+        placeholder.style.background = '#333';
+        item.appendChild(placeholder);
+      }
+      const textCol = document.createElement('div');
+      textCol.style.flex = '1';
+      textCol.style.display = 'flex';
+      textCol.style.flexDirection = 'column';
+      const title = document.createElement('div');
+      title.textContent = s.text;
+      title.style.fontWeight = '500';
+      title.style.fontSize = '1.25em';
+      title.style.color = '#fff';
+      textCol.appendChild(title);
+      if (s.subtitle) {
+        const subtitle = document.createElement('div');
+        subtitle.textContent = s.subtitle;
+        subtitle.style.fontSize = '1.1em';
+        subtitle.style.color = '#aaa';
+        subtitle.style.marginTop = '2px';
+        textCol.appendChild(subtitle);
+      }
+      item.appendChild(textCol);
+      if (s.type) {
+        const badge = document.createElement('span');
+        badge.textContent = s.type;
+        badge.style.background = 'rgba(255,255,255,0.12)';
+        badge.style.color = '#fff';
+        badge.style.fontSize = '0.92em';
+        badge.style.padding = '2px 10px';
+        badge.style.borderRadius = '6px';
+        badge.style.marginLeft = '16px';
+        badge.style.fontWeight = '400';
+        badge.style.letterSpacing = '0.03em';
+        item.appendChild(badge);
+      }
+      item.addEventListener('mouseenter', () => {
+        selectedIndex = i;
+        renderSuggestions();
+      });
+      item.addEventListener('mouseleave', () => {
+        selectedIndex = -1;
+        renderSuggestions();
+      });
+      item.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        chooseSuggestion(i);
+      });
+      suggestionBox.appendChild(item);
+      if (i === selectedIndex) {
+        setTimeout(() => {
+          item.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        }, 0);
+      }
+    });
+  }
+  async function onInput() {
+    const query = input.value.trim();
+    if (!query) {
+      suggestions = [];
+      renderSuggestions();
+      return;
+    }
+    suggestions = await fetchSuggestions(query);
+    selectedIndex = -1;
+    renderSuggestions();
+  }
+  function chooseSuggestion(i: number) {
+    const s = suggestions[i];
+    if (s && s.url) {
+      window.location.href = s.url;
+    } else if (s && s.text) {
+      input.value = s.text;
+      input.focus();
+      renderSuggestions();
+    }
+  }
+  input.addEventListener('input', onInput);
+  input.addEventListener('focus', renderSuggestions);
+  input.addEventListener('blur', () => {
+    setTimeout(() => { suggestionBox.style.display = 'none'; }, 120);
+  });
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown') {
+      if (suggestions.length) {
+        selectedIndex = (selectedIndex + 1) % suggestions.length;
+        renderSuggestions();
+      }
+      e.preventDefault();
+    } else if (e.key === 'ArrowUp') {
+      if (suggestions.length) {
+        selectedIndex = (selectedIndex - 1 + suggestions.length) % suggestions.length;
+        renderSuggestions();
+      }
+      e.preventDefault();
+    } else if (e.key === 'Enter') {
+      if (selectedIndex >= 0) {
+        chooseSuggestion(selectedIndex);
+        e.preventDefault();
+      } else if (input.value.trim()) {
+        window.location.href = `https://music.youtube.com/search?q=${encodeURIComponent(input.value.trim())}`;
+        // Do NOT clear input, keep it for editing
+      }
+    } else if (e.key === 'Tab' || e.key === 'ArrowRight') {
+      if (selectedIndex >= 0 && suggestions[selectedIndex]) {
+        input.value = suggestions[selectedIndex].text;
+        input.focus();
+        renderSuggestions();
+        e.preventDefault();
+      }
+    }
+  });
+};
+// Run on load and on SPA navigation
+replaceSearchBar();
+const navBar = document.querySelector('ytmusic-nav-bar');
+if (navBar) {
+  const observer = new MutationObserver(replaceSearchBar);
+  observer.observe(navBar, { childList: true, subtree: true });
+}
