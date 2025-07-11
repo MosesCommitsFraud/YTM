@@ -548,6 +548,7 @@ function SearchBar() {
   const [value, setValue] = createSignal('');
   const [suggestions, setSuggestions] = createSignal<Suggestion[]>([]);
   const [selectedIndex, setSelectedIndex] = createSignal(-1);
+  const [isFocused, setIsFocused] = createSignal(false); // <-- Add focus state
   let inputRef: HTMLInputElement | undefined;
   let suggestionBoxRef: HTMLDivElement | undefined;
   let barRef: HTMLDivElement | undefined;
@@ -563,6 +564,23 @@ function SearchBar() {
   createEffect(() => {
     syncDropdownWidth();
   });
+
+  // --- Blur input when clicking outside ---
+  onMount(() => {
+    const handleClick = (e: PointerEvent) => {
+      if (barRef && inputRef) {
+        if (!barRef.contains(e.target as Node)) {
+          console.log('Blurring search input due to outside click');
+          inputRef.blur();
+        }
+      }
+    };
+    document.addEventListener('pointerdown', handleClick);
+    onCleanup(() => {
+      document.removeEventListener('pointerdown', handleClick);
+    });
+  });
+  // --- End blur logic ---
 
   type Suggestion = { text: string; url?: string; icon?: string; subtitle?: string; type?: string };
 
@@ -676,8 +694,8 @@ function SearchBar() {
         'align-items': 'center',
         background: '#181818',
         'border-radius': '10px',
-        'box-shadow': 'none',
-        border: '1.5px solid #333',
+        'box-shadow': isFocused() ? '0 0 0 2px #ff2d5522, 0 2px 8px #0002' : 'none',
+        border: isFocused() ? '1.5px solid #ff2d55' : '1.5px solid #333',
         padding: '0 12px',
         height: '40px',
         'min-height': '40px',
@@ -687,6 +705,7 @@ function SearchBar() {
         'min-width': '320px',
         flex: '1 1 180px',
         margin: '0 16px',
+        transition: 'border 0.15s, box-shadow 0.15s',
       } as JSX.CSSProperties}
     >
       <span style={{ 'margin-right': '8px' }}>
@@ -699,6 +718,8 @@ function SearchBar() {
         value={value()}
         onInput={onInput}
         onKeyDown={onKeyDown}
+        onFocus={() => setIsFocused(true)} // <-- Set focus
+        onBlur={() => setIsFocused(false)} // <-- Unset focus
         style={{
           background: 'transparent',
           color: '#eee',

@@ -343,8 +343,8 @@ async function createMainWindow() {
     delete decorations.titleBarStyle;
   }
 
-  const minWidth = 600; // Minimum width for usability, can be adjusted
-  const minHeight = 400;
+  const minWidth = 1100; // Minimum width for usability, can be adjusted
+  const minHeight = 600;
   const win = new BrowserWindow({
     icon,
     width: windowSize.width,
