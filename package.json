@@ -1,19 +1,17 @@
 {
-  "name": "youtube-music",
-  "desktopName": "com.github.th_ch.youtube_music",
+  "name": "YTM",
+  "desktopName": "com.github.mosescommitsfraud.ytm",
   "productName": "YouTube Music",
-  "version": "3.9.0",
-  "description": "YouTube Music Desktop App - including custom plugins",
+  "version": "0.4.0",
+  "description": "YouTube Music Desktop App",
   "main": "./dist/main/index.js",
-  "license": "MIT",
-  "repository": "th-ch/youtube-music",
+  "repository": "mosescommitsfraud/YTM",
   "author": {
-    "name": "th-ch",
-    "email": "th-ch@users.noreply.github.com",
-    "url": "https://github.com/th-ch/youtube-music"
+    "name": "mosescommitsfraud",
+    "url": "https://github.com/mosescommitsfraud/YTM"
   },
   "build": {
-    "appId": "com.github.th-ch.youtube-music",
+    "appId": "com.github.mosescommitsfraud.ytm",
     "productName": "YouTube Music",
     "files": [
       "!*",
@@ -74,7 +72,7 @@
       "category": "AudioVideo",
       "desktop": {
         "entry": {
-          "StartupWMClass": "com.github.th_ch.youtube_music"
+          "StartupWMClass": "com.github.mosescommitsfraud.ytm"
         }
       },
       "target": [
@@ -132,11 +130,11 @@
       ]
     },
     "appImage": {
-      "description": "YouTube Music Desktop App bundled with custom plugins (and built-in ad blocker / downloader)",
+      "description": "YouTube Music Desktop App",
       "category": "AudioVideo"
     },
     "flatpak": {
-      "description": "YouTube Music Desktop App bundled with custom plugins (and built-in ad blocker / downloader)",
+      "description": "YouTube Music Desktop App",
       "category": "AudioVideo",
       "runtimeVersion": "24.08",
       "baseVersion": "24.08",
