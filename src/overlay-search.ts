@@ -95,7 +95,7 @@ function showOverlaySearch() {
   // Input
   input = document.createElement('input');
   input.type = 'text';
-  input.placeholder = 'Search (Ctrl+K)';
+  input.placeholder = 'What do you want to listen to?';
   input.style.background = 'transparent';
   input.style.border = 'none';
   input.style.outline = 'none';
@@ -391,6 +391,8 @@ function renderSuggestions() {
   });
 }
 
+// Only trigger navigation (and thus saving to recent searches) on Enter or suggestion click.
+// Do NOT trigger navigation or search on input events.
 function onKeyDown(e: KeyboardEvent) {
   if (!suggestions.length) return;
   if (e.key === 'ArrowDown') {
@@ -404,6 +406,11 @@ function onKeyDown(e: KeyboardEvent) {
   } else if (e.key === 'Enter') {
     if (selectedIndex >= 0) {
       chooseSuggestion(selectedIndex);
+      e.preventDefault();
+    } else if (input && input.value.trim()) {
+      // Only now trigger navigation for a raw search (not a suggestion)
+      window.location.href = `https://music.youtube.com/search?q=${encodeURIComponent(input.value.trim())}`;
+      closeOverlay();
       e.preventDefault();
     }
   }

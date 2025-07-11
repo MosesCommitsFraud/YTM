@@ -392,15 +392,88 @@ async function onApiLoaded() {
     if (!searchBox) return;
     // Try to get the input inside the shadow DOM
     let input = null;
-    if (searchBox.shadowRoot) {
-      input = searchBox.shadowRoot.querySelector('input');
-    } else {
-      // fallback: try direct child input
-      input = searchBox.querySelector('input');
-    }
+    let root = searchBox.shadowRoot || searchBox;
+    input = root.querySelector('input');
     if (input) {
       // Set placeholder to indicate shortcut
-      input.setAttribute('placeholder', 'Search (Ctrl+K)');
+      input.setAttribute('placeholder', 'What do you want to listen to?');
+
+      // Remove any previous overlay keycap row
+      const prevOverlay = document.getElementById('ytm-keycap-overlay');
+      if (prevOverlay) prevOverlay.remove();
+
+      // Get the bounding rect of the search box (relative to viewport)
+      const rect = searchBox.getBoundingClientRect();
+      // Create overlay element
+      const overlay = document.createElement('div');
+      overlay.id = 'ytm-keycap-overlay';
+      overlay.style.position = 'fixed';
+      overlay.style.pointerEvents = 'none'; // allow clicks to pass through
+      overlay.style.zIndex = '10000';
+      overlay.style.top = rect.top + 'px';
+      overlay.style.left = rect.left + 'px';
+      overlay.style.width = rect.width + 'px';
+      overlay.style.height = rect.height + 'px';
+      overlay.style.display = 'flex';
+      overlay.style.alignItems = 'center';
+      overlay.style.justifyContent = 'flex-end';
+      overlay.style.paddingRight = '32px'; // Add more space to the right
+      // Create keycap element (copied from overlay-search)
+      function createKeycap(text: string) {
+        const span = document.createElement('span');
+        span.textContent = text;
+        span.style.display = 'inline-flex';
+        span.style.justifyContent = 'center';
+        span.style.alignItems = 'center';
+        span.style.background = 'rgba(40,40,40,0.9)';
+        span.style.border = '1px solid #888';
+        span.style.borderRadius = '6px';
+        span.style.padding = '2px 8px';
+        span.style.marginLeft = '0';
+        span.style.fontFamily = 'inherit';
+        span.style.fontSize = '0.95em';
+        span.style.color = '#fff';
+        span.style.boxShadow = '0 1px 2px #0003';
+        span.style.verticalAlign = 'middle';
+        return span;
+      }
+      // Create the keycap row
+      const keycapRow = document.createElement('div');
+      keycapRow.style.display = 'flex';
+      keycapRow.style.alignItems = 'center';
+      keycapRow.style.gap = '0';
+      keycapRow.style.height = '70%';
+      keycapRow.style.marginRight = '8px'; // Add a little margin from the right edge
+      // Build keycap icons
+      const keycapCtrl = createKeycap('Ctrl');
+      const plus = document.createElement('span');
+      plus.textContent = '+';
+      plus.style.margin = '0 4px';
+      plus.style.color = '#888';
+      plus.style.fontWeight = 'bold';
+      plus.style.display = 'inline-flex';
+      plus.style.alignItems = 'center';
+      const keycapK = createKeycap('K');
+      keycapRow.appendChild(keycapCtrl);
+      keycapRow.appendChild(plus);
+      keycapRow.appendChild(keycapK);
+      overlay.appendChild(keycapRow);
+      document.body.appendChild(overlay);
+
+      // Function to update overlay position on resize/scroll
+      function updateOverlayPosition() {
+        const sb = document.querySelector('ytmusic-search-box');
+        if (!sb || !document.body.contains(overlay)) return;
+        const rect = sb.getBoundingClientRect();
+        overlay.style.top = rect.top + 'px';
+        overlay.style.left = rect.left + 'px';
+        overlay.style.width = rect.width + 'px';
+        overlay.style.height = rect.height + 'px';
+      }
+      // Listen for window resize/scroll to reposition overlay
+      window.addEventListener('resize', updateOverlayPosition);
+      window.addEventListener('scroll', updateOverlayPosition, true);
+      // Also update on SPA navigation (MutationObserver already calls setSearchBarShortcut)
     }
   };
 
