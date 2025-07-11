@@ -416,8 +416,26 @@ function onKeyDown(e: KeyboardEvent) {
       chooseSuggestion(selectedIndex);
       e.preventDefault();
     } else if (input && input.value.trim()) {
-      // Only now trigger navigation for a raw search (not a suggestion)
-      window.location.href = `https://music.youtube.com/search?q=${encodeURIComponent(input.value.trim())}`;
+      // Instead of navigating directly, set the value of the main search bar and dispatch Enter
+      const mainSearchBox = document.querySelector('ytmusic-search-box');
+      let mainInput: HTMLInputElement | null = null;
+      if (mainSearchBox) {
+        if (mainSearchBox.shadowRoot) {
+          mainInput = mainSearchBox.shadowRoot.querySelector('input');
+        } else {
+          mainInput = mainSearchBox.querySelector('input');
+        }
+      }
+      if (mainInput) {
+        mainInput.value = input.value.trim();
+        // Dispatch input event so YTM updates its internal state
+        mainInput.dispatchEvent(new Event('input', { bubbles: true }));
+        // Dispatch Enter key event to trigger search and save to recents
+        mainInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      } else {
+        // fallback: submit search (will save to recents, but only once)
+        window.location.href = `https://music.youtube.com/search?q=${encodeURIComponent(input.value.trim())}`;
+      }
       closeOverlay();
       e.preventDefault();
     }

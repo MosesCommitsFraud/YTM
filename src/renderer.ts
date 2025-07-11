@@ -402,6 +402,28 @@ async function onApiLoaded() {
       const prevOverlay = document.getElementById('ytm-keycap-overlay');
       if (prevOverlay) prevOverlay.remove();
 
+      // Hide the recent searches dropdown in the main searchbar
+      if (!document.getElementById('ytm-hide-search-dropdown-style')) {
+        const style = document.createElement('style');
+        style.id = 'ytm-hide-search-dropdown-style';
+        style.textContent = `
+          ytmusic-search-box ytmusic-suggestions,
+          ytmusic-search-box .suggestions,
+          ytmusic-search-box #suggestions,
+          ytmusic-search-box tp-yt-paper-listbox,
+          ytmusic-search-box .suggestion,
+          ytmusic-search-box .suggestion-list,
+          ytmusic-search-box .searchbox-suggestions,
+          ytmusic-search-box .searchbox-suggestion,
+          ytmusic-search-box .searchbox-recent,
+          ytmusic-search-box .searchbox-recent-list,
+          ytmusic-search-box .searchbox-recent-suggestion {
+            display: none !important;
+          }
+        `;
+        document.head.appendChild(style);
+      }
+
       // Get the bounding rect of the search box (relative to viewport)
       const rect = searchBox.getBoundingClientRect();
       // Create overlay element
