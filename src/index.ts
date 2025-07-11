@@ -331,13 +331,9 @@ async function createMainWindow() {
   };
 
   const decorations: Partial<BrowserWindowConstructorOptions> = {
-    frame: !is.macOS() && !useInlineMenu,
+    frame: false,
+    titleBarStyle: 'hidden',
     titleBarOverlay: defaultTitleBarOverlayOptions,
-    titleBarStyle: useInlineMenu
-      ? 'hidden'
-      : is.macOS()
-        ? 'hiddenInset'
-        : 'default',
     autoHideMenuBar: config.get('options.hideMenu'),
   };
 
@@ -347,10 +343,14 @@ async function createMainWindow() {
     delete decorations.titleBarStyle;
   }
 
+  const minWidth = 600; // Minimum width for usability, can be adjusted
+  const minHeight = 400;
   const win = new BrowserWindow({
     icon,
     width: windowSize.width,
     height: windowSize.height,
+    minWidth,
+    minHeight,
     backgroundColor: '#000',
     show: false,
     webPreferences: {

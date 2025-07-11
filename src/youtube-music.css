@@ -92,3 +92,7 @@ tp-yt-iron-dropdown,
 tp-yt-paper-dialog {
   app-region: no-drag;
 }
+
+yt-music-search-box, ytmusic-search-box {
+  display: none !important;
+}#

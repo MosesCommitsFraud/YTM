@@ -9,16 +9,38 @@ const containerStyle = cacheNoArgs(
     display: flex;
     justify-content: flex-end;
     align-items: center;
-
-    & > *:last-of-type {
-      border-top-right-radius: 4px;
-
-      &:hover {
-        background: rgba(255, 0, 0, 0.5);
-      }
-    }
+    z-index: 10000001;
+    background: #fff;
+    border: 2px solid #f45c5c;
+    box-shadow: 0 2px 12px #0003;
+    padding: 0 4px;
+    border-radius: 10px;
+    position: relative;
+    min-width: 120px;
+    min-height: 36px;
+    overflow: visible;
   `,
 );
+
+const buttonStyle = cacheNoArgs(() => css`
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  margin: 0 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: box-shadow 0.18s, background 0.18s;
+  border: 1.5px solid #232323;
+  background: #181818;
+  box-shadow: 0 1px 4px #0002;
+  padding: 0;
+  cursor: pointer;
+  &:hover {
+    background: #232323;
+    box-shadow: 0 2px 8px #0003;
+  }
+`);
 
 export type WindowControllerProps = {
   isMaximize?: boolean;
@@ -30,66 +52,22 @@ export type WindowControllerProps = {
 export const WindowController = (props: WindowControllerProps) => {
   return (
     <div class={containerStyle()}>
-      <IconButton onClick={props.onMinimize}>
-        <svg
-          width={16}
-          height={16}
-          fill="none"
-          viewBox="0 0 24 24"
-          xmlns="http://www.w3.org/2000/svg"
-        >
-          <path
-            fill="currentColor"
-            d="M3.755 12.5h16.492a.75.75 0 0 0 0-1.5H3.755a.75.75 0 0 0 0 1.5Z"
-          />
+      <button class={buttonStyle()} onClick={props.onMinimize} title="Minimize">
+        <svg width={16} height={16} viewBox="0 0 16 16">
+          <rect x="3" y="7.5" width="10" height="1.5" rx="0.75" fill="#f4c542" />
         </svg>
-      </IconButton>
-      <IconButton onClick={props.onToggleMaximize}>
-        <Show
-          when={props.isMaximize}
-          fallback={
-            <svg
-              width={16}
-              height={16}
-              fill="none"
-              viewBox="0 0 24 24"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                fill="currentColor"
-                d="M6 3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V6a3 3 0 0 1 3-3Zm0 2a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1H6Z"
-              />
-            </svg>
-          }
-        >
-          <svg
-            width={16}
-            height={16}
-            fill="none"
-            viewBox="0 0 24 24"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <path
-              fill="currentColor"
-              d="M7.518 5H6.009a3.25 3.25 0 0 1 3.24-3h8.001A4.75 4.75 0 0 1 22 6.75v8a3.25 3.25 0 0 1-3 3.24v-1.508a1.75 1.75 0 0 0 1.5-1.732v-8a3.25 3.25 0 0 0-3.25-3.25h-8A1.75 1.75 0 0 0 7.518 5ZM5.25 6A3.25 3.25 0 0 0 2 9.25v9.5A3.25 3.25 0 0 0 5.25 22h9.5A3.25 3.25 0 0 0 18 18.75v-9.5A3.25 3.25 0 0 0 14.75 6h-9.5ZM3.5 9.25c0-.966.784-1.75 1.75-1.75h9.5c.967 0 1.75.784 1.75 1.75v9.5a1.75 1.75 0 0 1-1.75 1.75h-9.5a1.75 1.75 0 0 1-1.75-1.75v-9.5Z"
-            />
-          </svg>
-        </Show>
-      </IconButton>
-      <IconButton onClick={props.onClose}>
-        <svg
-          width={16}
-          height={16}
-          fill="none"
-          viewBox="0 0 24 24"
-          xmlns="http://www.w3.org/2000/svg"
-        >
-          <path
-            fill="currentColor"
-            d="m4.21 4.387.083-.094a1 1 0 0 1 1.32-.083l.094.083L12 10.585l6.293-6.292a1 1 0 1 1 1.414 1.414L13.415 12l6.292 6.293a1 1 0 0 1 .083 1.32l-.083.094a1 1 0 0 1-1.32.083l-.094-.083L12 13.415l-6.293 6.292a1 1 0 0 1-1.414-1.414L10.585 12 4.293 5.707a1 1 0 0 1-.083-1.32l.083-.094-.083.094Z"
-          />
+      </button>
+      <button class={buttonStyle()} onClick={props.onToggleMaximize} title="Maximize/Restore">
+        <svg width={16} height={16} viewBox="0 0 16 16">
+          <rect x="3" y="3" width="10" height="10" rx="2" fill="#5fc86b" />
         </svg>
-      </IconButton>
+      </button>
+      <button class={buttonStyle()} onClick={props.onClose} title="Close">
+        <svg width={16} height={16} viewBox="0 0 16 16">
+          <line x1="4" y1="4" x2="12" y2="12" stroke="#f45c5c" stroke-width="2" stroke-linecap="round"/>
+          <line x1="12" y1="4" x2="4" y2="12" stroke="#f45c5c" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </button>
     </div>
   );
 };

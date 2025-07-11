@@ -1,6 +1,6 @@
 :root {
   --titlebar-background-color: var(--ytmusic-color-black3);
-  --menu-bar-height: 32px;
+  --menu-bar-height: 56px;
 }
 
 /* youtube-music style */
@@ -86,4 +86,16 @@ ytmusic-browse-response .ytmusic-responsive-list-item-renderer {
 /* fix fullscreen style */
 ytmusic-player[player-ui-state='FULLSCREEN'] {
   margin-top: calc(var(--menu-bar-height, 32px) * -1) !important;
+}
+
+.ytm-custom-search-bar {
+  min-width: 240px;
+  max-width: 540px;
+  width: min(480px, 40vw);
+  margin: 0 16px;
+  min-height: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }

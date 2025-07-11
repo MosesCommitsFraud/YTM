@@ -12,21 +12,26 @@ const menuStyle = cacheNoArgs(
     align-items: center;
     align-self: stretch;
 
-    padding: 2px 8px;
-    border-radius: 4px;
-
+    height: 32px;
+    line-height: 32px;
+    min-width: 40px;
+    padding: 0 8px;
+    border-radius: 8px;
+    font-size: 1.15em;
+    font-weight: 600;
+    letter-spacing: 0.01em;
     cursor: pointer;
     transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 
     &:hover {
-      background-color: rgba(255, 255, 255, 0.1);
+      background-color: rgba(255, 255, 255, 0.13);
     }
     &:active {
-      scale: 0.9;
+      scale: 0.95;
     }
 
     &[data-selected='true'] {
-      background-color: rgba(255, 255, 255, 0.2);
+      background-color: rgba(255, 255, 255, 0.22);
     }
   `,
 );
