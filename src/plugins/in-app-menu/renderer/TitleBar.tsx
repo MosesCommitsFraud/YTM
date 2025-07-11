@@ -344,7 +344,7 @@ export const TitleBar = (props: TitleBarProps) => {
           </button>
           {menuOpen() && menu() && (
             <div style={`position: absolute; top: 40px; left: 0; background: #232323; color: #fff; border-radius: 8px; box-shadow: 0 2px 12px #0008; padding: 8px 0; min-width: 180px; z-index: 10000; -webkit-app-region: no-drag;`} onMouseLeave={handleMenuClose}>
-              <PanelRenderer items={menu().items} onClick={handleItemClick} />
+              {menu() && <PanelRenderer items={menu()?.items ?? []} onClick={handleItemClick} />}
             </div>
           )}
         </div>
@@ -514,6 +514,7 @@ function SearchBar() {
         position: 'relative',
         width: 'min(480px, 40vw)',
         'max-width': '540px',
+        'min-width': '320px',
         flex: '1 1 180px',
         margin: '0 16px',
       } as JSX.CSSProperties}
