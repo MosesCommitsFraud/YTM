@@ -32,7 +32,7 @@ const titleStyle = cacheNoArgs(
 
     position: fixed;
     top: 0;
-    z-index: 10000000;
+    z-index: 1000;
 
     width: 100%;
     height: var(--menu-bar-height, 32px);
@@ -205,6 +205,47 @@ export const TitleBar = (props: TitleBarProps) => {
   const [menuHover, setMenuHover] = createSignal(false);
   let closeMenuTimeout: number | null = null;
 
+  // Account info state
+  const [accountAvatar, setAccountAvatar] = createSignal<string | null>(null);
+  const [accountName, setAccountName] = createSignal<string | null>(null);
+
+  // Hide the original account button
+  function hideOriginalAccountButton() {
+    const orig = document.querySelector('#right-content > ytmusic-settings-button');
+    if (orig) (orig as HTMLElement).style.display = 'none';
+  }
+
+  // Fetch account info (avatar, name)
+  async function fetchAccountInfo() {
+    // Wait for the account button to exist
+    const waitForElement = async (selector: string, maxRetry = 10000) => {
+      let el = null;
+      let waited = 0;
+      while (!el && waited < maxRetry) {
+        el = document.querySelector(selector);
+        if (!el) await new Promise(r => setTimeout(r, 100));
+        waited += 100;
+      }
+      return el;
+    };
+    const accountButton = await waitForElement('#right-content > ytmusic-settings-button *:where(tp-yt-paper-icon-button,yt-icon-button,.ytmusic-settings-button)');
+    if (!accountButton) return;
+    (accountButton as HTMLElement).click();
+    setTimeout(async () => {
+      const renderer = await waitForElement('ytd-active-account-header-renderer');
+      if (!renderer) return;
+      // Try to extract data from the renderer
+      const data = (renderer as any).data;
+      if (data && data.accountPhoto && data.accountPhoto.thumbnails && data.accountPhoto.thumbnails[0]) {
+        setAccountAvatar(data.accountPhoto.thumbnails[0].url);
+      }
+      if (data && data.accountName && data.accountName.runs && data.accountName.runs[0]) {
+        setAccountName(data.accountName.runs[0].text);
+      }
+      (accountButton as HTMLElement).click(); // close menu
+    }, 0);
+  }
+
   const handleMenuClick = () => setMenuOpen(!menuOpen());
   const handleMenuClose = () => setMenuOpen(false);
 
@@ -347,6 +388,78 @@ export const TitleBar = (props: TitleBarProps) => {
         ytmusicAppLayout.classList.remove('content-scrolled');
       }
     });
+    hideOriginalAccountButton();
+    fetchAccountInfo();
+
+    // Robustly move the original account button next to the search bar
+    const moveOriginalAccountButton = () => {
+      const maxTries = 100;
+      let tries = 0;
+      const tryMove = () => {
+        const orig = document.querySelector('#right-content > ytmusic-settings-button');
+        const searchBarWrapper = document.querySelector('.ytm-custom-search-bar')?.parentElement;
+        if (orig && searchBarWrapper) {
+          const origEl = orig as HTMLElement;
+          // Remove any previous wrapper
+          let avatarWrapper = document.getElementById('ytm-titlebar-avatar-wrapper');
+          if (!avatarWrapper) {
+            avatarWrapper = document.createElement('div');
+            avatarWrapper.id = 'ytm-titlebar-avatar-wrapper';
+            avatarWrapper.style.display = 'flex';
+            avatarWrapper.style.alignItems = 'center';
+            avatarWrapper.style.marginLeft = '12px';
+          }
+          // Style the button and image
+          origEl.style.display = 'flex';
+          origEl.style.alignItems = 'center';
+          origEl.style.justifyContent = 'center';
+          origEl.style.width = '36px';
+          origEl.style.height = '36px';
+          origEl.style.borderRadius = '50%';
+          origEl.style.overflow = 'hidden';
+          origEl.style.background = '#444'; // or use another color like '#1976d2' for blue
+          origEl.style.boxShadow = '0 1px 4px #0003';
+          origEl.style.zIndex = '100001';
+          // Style the image inside
+          const img = orig.querySelector('img');
+          if (img) {
+            img.style.width = '100%';
+            img.style.height = '100%';
+            img.style.objectFit = 'cover';
+            img.style.borderRadius = '50%';
+          }
+          // Move the button
+          avatarWrapper.appendChild(origEl);
+          if (!searchBarWrapper.contains(avatarWrapper)) {
+            searchBarWrapper.appendChild(avatarWrapper);
+          }
+        } else if (tries < maxTries) {
+          tries++;
+          setTimeout(tryMove, 100);
+        } else {
+          console.warn('Account button (ytmusic-settings-button) not found after 10 seconds.');
+        }
+      };
+      tryMove();
+    };
+    moveOriginalAccountButton();
+
+    // MutationObserver to raise account dropdown z-index
+    const raiseAccountDropdownZ = () => {
+      const setDropdownZ = () => {
+        // Try both dialog and account header renderer
+        const dropdown = document.querySelector('tp-yt-paper-dialog[role="dialog"], ytd-active-account-header-renderer');
+        if (dropdown && dropdown instanceof HTMLElement) {
+          dropdown.style.zIndex = '30000';
+        }
+      };
+      // Observe body for new children
+      const observer = new MutationObserver(() => setDropdownZ());
+      observer.observe(document.body, { childList: true, subtree: true });
+      // Also try immediately in case already present
+      setDropdownZ();
+    };
+    raiseAccountDropdownZ();
   });
 
   createEffect(() => {
@@ -365,7 +478,7 @@ export const TitleBar = (props: TitleBarProps) => {
       class={titleStyle()}
       data-macos={props.isMacOS}
       data-show={mouseY() < 32}
-      style={{ position: 'fixed', top: 0, left: 0, width: '100%', 'z-index': 100000, display: 'flex', 'flex-direction': 'row', 'align-items': 'center', 'justify-content': 'space-between' }}
+      style={{ position: 'fixed', top: 0, left: 0, width: '100%', 'z-index': 1000, display: 'flex', 'flex-direction': 'row', 'align-items': 'center', 'justify-content': 'space-between' }}
     >
       {/* Left: Window controls, then arrows, then dot menu */}
       <div style={`display: flex; align-items: center; gap: 4px; -webkit-app-region: no-drag;`}>
@@ -376,7 +489,7 @@ export const TitleBar = (props: TitleBarProps) => {
           </button>
           {menuOpen() && menu() && (
             <div
-              style={`position: absolute; top: 40px; left: 0; background: #232323; color: #fff; border-radius: 8px; box-shadow: 0 2px 12px #0008; padding: 8px 0; min-width: 180px; z-index: 10000; -webkit-app-region: no-drag;`}
+              style={`position: absolute; top: 40px; left: 0; background: #232323; color: #fff; border-radius: 8px; box-shadow: 0 2px 12px #0008; padding: 8px 0; min-width: 180px; z-index: 20000; -webkit-app-region: no-drag;`}
               onMouseEnter={handleMenuMouseEnter}
               onMouseLeave={handleMenuMouseLeave}
             >
@@ -423,8 +536,9 @@ export const TitleBar = (props: TitleBarProps) => {
         </button>
       </div>
       {/* Center: Search bar, fixed absolute center */}
-      <div style={`position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 10; -webkit-app-region: no-drag;`}>
+      <div style={`position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 1001; -webkit-app-region: no-drag; display: flex; align-items: center;`}>
         <SearchBar />
+        {/* The original account button will be moved here by JS */}
       </div>
     </nav>
   );
