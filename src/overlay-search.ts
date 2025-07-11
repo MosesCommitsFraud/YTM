@@ -293,6 +293,14 @@ async function fetchSuggestions(query: string): Promise<Array<{text: string, url
   } catch (e) {
     // fallback: no suggestions
   }
+  // Sort: artists first, then others
+  suggestions.sort((a, b) => {
+    const aIsArtist = a.type && a.type.toLowerCase().includes('artist');
+    const bIsArtist = b.type && b.type.toLowerCase().includes('artist');
+    if (aIsArtist && !bIsArtist) return -1;
+    if (!aIsArtist && bIsArtist) return 1;
+    return 0;
+  });
   return suggestions;
 }
 
