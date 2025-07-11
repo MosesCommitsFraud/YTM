@@ -380,6 +380,19 @@ function SearchBar() {
   const [selectedIndex, setSelectedIndex] = createSignal(-1);
   let inputRef: HTMLInputElement | undefined;
   let suggestionBoxRef: HTMLDivElement | undefined;
+  let barRef: HTMLDivElement | undefined;
+
+  // Helper to sync dropdown width to searchbar container
+  function syncDropdownWidth() {
+    if (barRef && suggestionBoxRef) {
+      suggestionBoxRef.style.width = barRef.offsetWidth + 'px';
+    }
+  }
+
+  // Sync width on mount and on every input change
+  createEffect(() => {
+    syncDropdownWidth();
+  });
 
   type Suggestion = { text: string; url?: string; icon?: string; subtitle?: string; type?: string };
 
@@ -486,6 +499,7 @@ function SearchBar() {
 
   return (
     <div
+      ref={el => { barRef = el; syncDropdownWidth(); }}
       class="ytm-custom-search-bar"
       style={{
         display: 'flex',
@@ -508,7 +522,7 @@ function SearchBar() {
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#aaa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
       </span>
       <input
-        ref={el => (inputRef = el)}
+        ref={el => { inputRef = el; syncDropdownWidth(); }}
         type="text"
         placeholder="What do you want to listen to?"
         value={value()}
@@ -534,35 +548,31 @@ function SearchBar() {
       </div>
       <Show when={suggestions().length}>
         <div
-          ref={el => (suggestionBoxRef = el)}
+          ref={el => { suggestionBoxRef = el; syncDropdownWidth(); }}
           class="ytm-overlay-suggestion-scroll"
           style={{
             background: '#222',
             'border-radius': '6px',
             'margin-top': '4px',
             'box-shadow': '0 2px 16px #0007',
-            width: '100%',
-            'max-width': '600px',
-            'min-width': '320px',
             display: 'block',
             position: 'absolute',
             left: '0',
             top: '100%',
             'z-index': '100000',
-            'overflow-y': 'auto',
-            'max-height': '50vh',
-            'padding-right': '6px',
           } as JSX.CSSProperties}
         >
-          <Index each={suggestions()}>{(s, i) => {
+          <Index each={suggestions().slice(0, 5)}>{(s, i) => {
             const suggestion = s();
             if (!suggestion) return null;
             return (
               <div
                 style={{
+                  width: '100%',
+                  'box-sizing': 'border-box',
                   display: 'flex',
                   'align-items': 'center',
-                  padding: '10px 24px',
+                  padding: '10px 12px',
                   cursor: 'pointer',
                   background: i === selectedIndex() ? 'rgba(255,255,255,0.08)' : 'transparent',
                   'border-radius': '4px',
@@ -579,10 +589,10 @@ function SearchBar() {
                   <div style={{ width: '40px', height: '40px', 'margin-right': '16px', 'border-radius': suggestion.type && suggestion.type.toLowerCase().includes('artist') ? '50%' : '4px', background: '#333' }} />
                 )}
                 <div style={{ flex: '1', display: 'flex', 'flex-direction': 'column' }}>
-                  <div style={{ 'font-weight': '500', 'font-size': '1.25em', color: '#fff' }}>{suggestion.text}</div>
+                  <div style={{ 'font-weight': 500, 'font-size': '1.25em', color: '#fff' }}>{suggestion.text}</div>
                   {suggestion.subtitle && <div style={{ 'font-size': '1.1em', color: '#aaa', 'margin-top': '2px' }}>{suggestion.subtitle}</div>}
                 </div>
-                {suggestion.type && <span style={{ background: 'rgba(255,255,255,0.12)', color: '#fff', 'font-size': '0.92em', padding: '2px 10px', 'border-radius': '6px', 'margin-left': '16px', 'font-weight': '400', 'letter-spacing': '0.03em' }}>{suggestion.type}</span>}
+                {suggestion.type && <span style={{ background: 'rgba(255,255,255,0.12)', color: '#fff', 'font-size': '0.92em', padding: '2px 10px', 'border-radius': '6px', 'margin-left': '8px', 'font-weight': 400, 'letter-spacing': '0.03em', 'white-space': 'nowrap', 'max-width': '40%', 'overflow': 'hidden', 'text-overflow': 'ellipsis' }}>{suggestion.type}</span>}
               </div>
             );
           }}</Index>
