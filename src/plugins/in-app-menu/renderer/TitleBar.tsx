@@ -110,6 +110,7 @@ export type PanelRendererProps = {
   items: Electron.Menu['items'];
   level?: number[];
   onClick?: (commandId: number, radioGroup?: MenuItem[]) => void;
+  onMenuHover?: (hover: boolean) => void;
 };
 const PanelRenderer = (props: PanelRendererProps) => {
   const radioGroup = () => props.items.filter((it) => it.type === 'radio');
@@ -120,54 +121,63 @@ const PanelRenderer = (props: PanelRendererProps) => {
         <Show when={subItem().visible}>
           <Switch>
             <Match when={subItem().type === 'normal'}>
-              <PanelItem
-                type={'normal'}
-                name={subItem().label}
-                chip={subItem().sublabel}
-                toolTip={subItem().toolTip}
-                commandId={subItem().commandId}
-                onClick={() => props.onClick?.(subItem().commandId)}
-              />
+              <div onMouseEnter={() => props.onMenuHover?.(true)} onMouseLeave={() => props.onMenuHover?.(false)}>
+                <PanelItem
+                  type={'normal'}
+                  name={subItem().label}
+                  chip={subItem().sublabel}
+                  toolTip={subItem().toolTip}
+                  commandId={subItem().commandId}
+                  onClick={() => props.onClick?.(subItem().commandId)}
+                />
+              </div>
             </Match>
             <Match when={subItem().type === 'submenu'}>
-              <PanelItem
-                type={'submenu'}
-                name={subItem().label}
-                chip={subItem().sublabel}
-                toolTip={subItem().toolTip}
-                level={[...(props.level ?? []), subItem().commandId]}
-                commandId={subItem().commandId}
-              >
-                <PanelRenderer
-                  items={subItem().submenu?.items ?? []}
+              <div onMouseEnter={() => props.onMenuHover?.(true)} onMouseLeave={() => props.onMenuHover?.(false)}>
+                <PanelItem
+                  type={'submenu'}
+                  name={subItem().label}
+                  chip={subItem().sublabel}
+                  toolTip={subItem().toolTip}
                   level={[...(props.level ?? []), subItem().commandId]}
-                  onClick={props.onClick}
-                />
-              </PanelItem>
+                  commandId={subItem().commandId}
+                >
+                  <PanelRenderer
+                    items={subItem().submenu?.items ?? []}
+                    level={[...(props.level ?? []), subItem().commandId]}
+                    onClick={props.onClick}
+                    onMenuHover={props.onMenuHover}
+                  />
+                </PanelItem>
+              </div>
             </Match>
             <Match when={subItem().type === 'checkbox'}>
-              <PanelItem
-                type={'checkbox'}
-                name={subItem().label}
-                checked={subItem().checked}
-                chip={subItem().sublabel}
-                toolTip={subItem().toolTip}
-                commandId={subItem().commandId}
-                onChange={() => props.onClick?.(subItem().commandId)}
-              />
+              <div onMouseEnter={() => props.onMenuHover?.(true)} onMouseLeave={() => props.onMenuHover?.(false)}>
+                <PanelItem
+                  type={'checkbox'}
+                  name={subItem().label}
+                  checked={subItem().checked}
+                  chip={subItem().sublabel}
+                  toolTip={subItem().toolTip}
+                  commandId={subItem().commandId}
+                  onChange={() => props.onClick?.(subItem().commandId)}
+                />
+              </div>
             </Match>
             <Match when={subItem().type === 'radio'}>
-              <PanelItem
-                type={'radio'}
-                name={subItem().label}
-                checked={subItem().checked}
-                chip={subItem().sublabel}
-                toolTip={subItem().toolTip}
-                commandId={subItem().commandId}
-                onChange={() =>
-                  props.onClick?.(subItem().commandId, radioGroup())
-                }
-              />
+              <div onMouseEnter={() => props.onMenuHover?.(true)} onMouseLeave={() => props.onMenuHover?.(false)}>
+                <PanelItem
+                  type={'radio'}
+                  name={subItem().label}
+                  checked={subItem().checked}
+                  chip={subItem().sublabel}
+                  toolTip={subItem().toolTip}
+                  commandId={subItem().commandId}
+                  onChange={() =>
+                    props.onClick?.(subItem().commandId, radioGroup())
+                  }
+                />
+              </div>
             </Match>
             <Match when={subItem().type === 'separator'}>
               <hr class={separatorStyle()} />
@@ -192,8 +202,30 @@ export const TitleBar = (props: TitleBarProps) => {
   const [menu, setMenu] = createSignal<Menu | null>(null);
   const [mouseY, setMouseY] = createSignal(0);
   const [menuOpen, setMenuOpen] = createSignal(false);
+  const [menuHover, setMenuHover] = createSignal(false);
+  let closeMenuTimeout: number | null = null;
+
   const handleMenuClick = () => setMenuOpen(!menuOpen());
   const handleMenuClose = () => setMenuOpen(false);
+
+  const handleMenuMouseEnter = () => {
+    setMenuHover(true);
+    if (closeMenuTimeout) {
+      clearTimeout(closeMenuTimeout);
+      closeMenuTimeout = null;
+    }
+  };
+  const handleMenuMouseLeave = () => {
+    setMenuHover(false);
+    if (closeMenuTimeout) {
+      clearTimeout(closeMenuTimeout);
+    }
+    closeMenuTimeout = window.setTimeout(() => {
+      if (!menuHover()) {
+        setMenuOpen(false);
+      }
+    }, 120);
+  };
 
   const [data, { refetch }] = createResource(
     async () => (await props.ipc.invoke('get-menu')) as Promise<Menu | null>,
@@ -300,7 +332,7 @@ export const TitleBar = (props: TitleBarProps) => {
           e.target.closest('ul[data-ytmd-sub-panel]')
         )
       ) {
-        setOpenTarget(null);
+        setMenuOpen(false);
       }
     });
 
@@ -343,8 +375,12 @@ export const TitleBar = (props: TitleBarProps) => {
             <svg width="20" height="20" viewBox="0 0 24 24"><circle cx="12" cy="5" r="2" fill="#fff"/><circle cx="12" cy="12" r="2" fill="#fff"/><circle cx="12" cy="19" r="2" fill="#fff"/></svg>
           </button>
           {menuOpen() && menu() && (
-            <div style={`position: absolute; top: 40px; left: 0; background: #232323; color: #fff; border-radius: 8px; box-shadow: 0 2px 12px #0008; padding: 8px 0; min-width: 180px; z-index: 10000; -webkit-app-region: no-drag;`} onMouseLeave={handleMenuClose}>
-              {menu() && <PanelRenderer items={menu()?.items ?? []} onClick={handleItemClick} />}
+            <div
+              style={`position: absolute; top: 40px; left: 0; background: #232323; color: #fff; border-radius: 8px; box-shadow: 0 2px 12px #0008; padding: 8px 0; min-width: 180px; z-index: 10000; -webkit-app-region: no-drag;`}
+              onMouseEnter={handleMenuMouseEnter}
+              onMouseLeave={handleMenuMouseLeave}
+            >
+              {menu() && <PanelRenderer items={menu()?.items ?? []} onClick={handleItemClick} onMenuHover={setMenuHover} />}
             </div>
           )}
         </div>
