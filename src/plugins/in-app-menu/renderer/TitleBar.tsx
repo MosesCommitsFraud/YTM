@@ -342,11 +342,9 @@ export const TitleBar = (props: TitleBarProps) => {
           <button style={`width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; background: none; border: none; cursor: pointer; border-radius: 6px; transition: background 0.15s; -webkit-app-region: no-drag;`} onClick={handleMenuClick} title="Menu">
             <svg width="20" height="20" viewBox="0 0 24 24"><circle cx="12" cy="5" r="2" fill="#fff"/><circle cx="12" cy="12" r="2" fill="#fff"/><circle cx="12" cy="19" r="2" fill="#fff"/></svg>
           </button>
-          {menuOpen() && (
-            <div style={{ position: 'absolute', top: '40px', left: 0, background: '#232323', color: '#fff', borderRadius: '8px', boxShadow: '0 2px 12px #0008', padding: '8px 0', minWidth: '180px', zIndex: 10000, WebkitAppRegion: 'no-drag' }} onMouseLeave={handleMenuClose}>
-              {(menu()?.items || []).map((item) => (
-                <div style={{ padding: '10px 20px', cursor: 'pointer', fontWeight: 500, fontSize: '1.08em', transition: 'background 0.13s', WebkitAppRegion: 'no-drag' }} onClick={() => { setOpenTarget(null); setMenuOpen(false); item.click && item.click(); }} onMouseDown={e => e.preventDefault()}>{item.label}</div>
-              ))}
+          {menuOpen() && menu() && (
+            <div style={`position: absolute; top: 40px; left: 0; background: #232323; color: #fff; border-radius: 8px; box-shadow: 0 2px 12px #0008; padding: 8px 0; min-width: 180px; z-index: 10000; -webkit-app-region: no-drag;`} onMouseLeave={handleMenuClose}>
+              <PanelRenderer items={menu().items} onClick={handleItemClick} />
             </div>
           )}
         </div>
@@ -431,16 +429,18 @@ function SearchBar() {
     return suggestions;
   }
 
-  async function onInput(e: InputEvent & { target: HTMLInputElement }) {
-    setValue(e.target.value);
-    if (!e.target.value.trim()) {
-      setSuggestions([]);
-      setSelectedIndex(-1);
-      return;
-    }
-    const sugg = await fetchSuggestions(e.target.value.trim());
-    setSuggestions(sugg);
+  async function onInput(e: InputEvent) {
+    const target = e.currentTarget as HTMLInputElement;
+    const v = target.value.trim();
+    setValue(target.value);
+    setSuggestions([]); // Clear immediately
     setSelectedIndex(-1);
+    if (!v) return;
+    const sugg = await fetchSuggestions(v);
+    if (value().trim() === v) {
+      setSuggestions(sugg);
+      setSelectedIndex(-1);
+    }
   }
 
   function chooseSuggestion(i: number) {
