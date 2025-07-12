@@ -1,0 +1,64 @@
+.custom-bottom-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 80px;
+  background: #181818;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  z-index: 10000;
+  box-shadow: 0 -2px 8px rgba(0,0,0,0.4);
+  padding: 0 32px;
+  font-family: inherit;
+}
+.cbb-album-cover {
+  width: 56px;
+  height: 56px;
+  background: #222;
+  border-radius: 8px;
+  overflow: hidden;
+  margin-right: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.cbb-song-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 120px;
+  margin-right: 32px;
+}
+.cbb-title {
+  font-size: 1.1em;
+  font-weight: bold;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cbb-artist {
+  font-size: 0.95em;
+  color: #b3b3b3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cbb-progress {
+  flex: 1 1 auto;
+  margin: 0 32px;
+  display: flex;
+  align-items: center;
+}
+.cbb-controls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-right: 32px;
+}
+.cbb-volume {
+  display: flex;
+  align-items: center;
+  min-width: 120px;
+} 
