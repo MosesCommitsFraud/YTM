@@ -209,6 +209,9 @@ export default function CustomBottomBar() {
               onMouseDown={onSeekStart}
               onMouseUp={onSeekEnd}
               class="spotify-slider"
+              style={{
+                '--progress': `${(progress() / (song().songDuration || 1)) * 100}%`
+              }}
             />
           </div>
           <span class="spotify-time">{fmt(song().songDuration || 0)}</span>
