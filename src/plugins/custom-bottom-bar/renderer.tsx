@@ -15,6 +15,7 @@ export default function CustomBottomBar() {
   const [isLiked, setIsLiked] = createSignal(false);
   const [isShuffle, setIsShuffle] = createSignal(false);
   const [repeatMode, setRepeatMode] = createSignal(0); // 0: off, 1: all, 2: one
+  const [isPaused, setIsPaused] = createSignal(true);
 
   // Listen for song info updates
   onMount(() => {
@@ -29,17 +30,32 @@ export default function CustomBottomBar() {
     if (video) setVolume(video.volume);
     const onVolume = () => setVolume(video!.volume);
     video?.addEventListener('volumechange', onVolume);
-    
-    // Progress
+
+    // Paused state
+    const updatePaused = () => setIsPaused(video!.paused);
+    video?.addEventListener('pause', updatePaused);
+    video?.addEventListener('play', updatePaused);
+    updatePaused();
+
+    // Progress (use timeupdate for accuracy)
+    const onTimeUpdate = () => {
+      if (!isSeeking()) setProgress(video!.currentTime);
+    };
+    video?.addEventListener('timeupdate', onTimeUpdate);
+
+    // Fallback interval (only if playing)
     let interval: any = setInterval(() => {
-      if (!isSeeking() && !song().isPaused) {
-        setProgress((p) => clamp((p || 0) + 1, 0, song().songDuration || 0));
+      if (!isSeeking() && video && !video.paused && !video.ended) {
+        setProgress(video.currentTime);
       }
     }, 1000);
     
     onCleanup(() => {
       window.ipcRenderer.off('ytmd:update-song-info', handler);
       video?.removeEventListener('volumechange', onVolume);
+      video?.removeEventListener('pause', updatePaused);
+      video?.removeEventListener('play', updatePaused);
+      video?.removeEventListener('timeupdate', onTimeUpdate);
       clearInterval(interval);
     });
   });
@@ -146,13 +162,13 @@ export default function CustomBottomBar() {
           </button>
           
           <button class="spotify-play-btn" onClick={playPause} title="Play/Pause">
-            {song().isPaused ? (
+            {isPaused() ? (
               <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                <path d="m2.7 1.3-.7.7v12l.7.7h2.6l.7-.7V2l-.7-.7H2.7zm8 0-.7.7v12l.7.7h2.6l.7-.7V2l-.7-.7h-2.6z"/>
+                <path d="M3 1.713a.7.7 0 0 1 1.05-.607l10.89 6.288a.7.7 0 0 1 0 1.212L4.05 14.894A.7.7 0 0 1 3 14.287V1.713z"/>
               </svg>
             ) : (
               <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                <path d="M3 1.713a.7.7 0 0 1 1.05-.607l10.89 6.288a.7.7 0 0 1 0 1.212L4.05 14.894A.7.7 0 0 1 3 14.287V1.713z"/>
+                <path d="m2.7 1.3-.7.7v12l.7.7h2.6l.7-.7V2l-.7-.7H2.7zm8 0-.7.7v12l.7.7h2.6l.7-.7V2l-.7-.7h-2.6z"/>
               </svg>
             )}
           </button>
