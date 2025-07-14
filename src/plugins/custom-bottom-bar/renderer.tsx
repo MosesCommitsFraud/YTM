@@ -29,7 +29,8 @@ export default function YTMusicPlayer() {
 
   // Song info state
   const [song, setSong] = createSignal(getSongInfo())
-  const [progress, setProgress] = createSignal(song().elapsedSeconds || 0)
+  const [progress, setProgress] = createSignal(0)
+  
   // Volume and mute state
   const [volume, setVolume] = createSignal(1)
   const [isMuted, setIsMuted] = createSignal(false)
@@ -37,32 +38,71 @@ export default function YTMusicPlayer() {
   const [isLiked, setIsLiked] = createSignal(false)
   const [isDisliked, setIsDisliked] = createSignal(false)
   const [isShuffle, setIsShuffle] = createSignal(false)
-  const [repeatMode, setRepeatMode] = createSignal(0) // 0: off, 1: all, 2: one
+  // CORRECTED STATE LOGIC: 0 = off, 1 = repeat all, 2 = repeat one. This matches YTM's internal logic.
+  const [repeatMode, setRepeatMode] = createSignal(0)
   const [isPaused, setIsPaused] = createSignal(true)
   const [showDropdown, setShowDropdown] = createSignal(false)
   const [isExpanded, setIsExpanded] = createSignal(false)
 
+  // FIX: Add a flag to prevent UI updates during a "repeat one" cycle
+  let isRepeatingOne = false
+
   // --- Volume sync logic ---
   let isUserVolumeChange = false
+  const SYNC_DELAY = 300 // ms
 
-  // DEBUG: Log imageSrc and expanded state on every render
-  console.log('CustomBottomBar:', { imageSrc: song().imageSrc, isExpanded: isExpanded() })
+  // Helper to request shuffle/repeat state
+  function requestShuffle() {
+    window.ipcRenderer.send("ytmd:get-shuffle")
+  }
+  function requestRepeat() {
+    window.ipcRenderer.send("ytmd:get-repeat")
+  }
+
+  // Helper to detect DOM state directly (fallback)
+  function detectShuffleState() {
+    const shuffleBtn = document.querySelector('yt-icon-button.shuffle, button[aria-label*="Shuffle"]')
+    if (shuffleBtn) {
+      const isActive = shuffleBtn.classList.contains('style-primary-text') || 
+                      shuffleBtn.getAttribute('aria-pressed') === 'true'
+      setIsShuffle(isActive)
+    }
+  }
+
+  // REWRITTEN: More reliable repeat state detection
+  function detectRepeatState() {
+    const repeatBtn = document.querySelector('yt-icon-button.repeat')
+    if (repeatBtn) {
+        const title = repeatBtn.getAttribute('title')?.toLowerCase() || ''
+        let newMode = 0 // Default to off
+
+        if (title === 'repeat all') {
+            newMode = 1
+        } else if (title === 'repeat one') {
+            newMode = 2
+        }
+
+        if (newMode !== repeatMode()) {
+            console.log(`[CustomBar] Repeat state changed: ${repeatMode()} -> ${newMode} (Title: "${title}")`)
+            setRepeatMode(newMode)
+        }
+    }
+  }
 
   // Stable handlers for shuffle/repeat state
   const handleShuffleChanged = (_: any, shuffleOn: boolean) => {
     setIsShuffle(!!shuffleOn)
   }
-  const handleShuffleResponse = (_: any, shuffleOn: boolean) => {
-    setIsShuffle(!!shuffleOn)
-  }
+
+  // CORRECTED: This handler now uses the standardized state (0:off, 1:all, 2:one) and requires no conversion
   const handleRepeatChanged = (_: any, repeatModeValue: number) => {
+    console.log('[CustomBar] Repeat changed via IPC:', repeatModeValue)
     setRepeatMode(repeatModeValue)
   }
 
   // Listen for song info updates
   onMount(() => {
     // --- Persistent volume/mute state ---
-    // Read from localStorage ONCE to initialize UI state
     let storedVolume = 1
     let storedMuted = false
     try {
@@ -74,7 +114,6 @@ export default function YTMusicPlayer() {
     setVolume(storedVolume)
     setIsMuted(storedMuted)
 
-    // Helper to set video state only once per new element, using current UI state
     let lastVideo: HTMLVideoElement | null = null
     const applyCurrentStateToVideo = (video: HTMLVideoElement | null) => {
       if (!video || video === lastVideo) return
@@ -82,33 +121,33 @@ export default function YTMusicPlayer() {
       video.muted = isMuted()
       lastVideo = video
     }
-    // Initial set
+    
     applyCurrentStateToVideo(document.querySelector("video"))
-    // Observe for new video elements
+    
     const videoObserver = new MutationObserver(() => {
-      const video = document.querySelector("video") as HTMLVideoElement | null
-      applyCurrentStateToVideo(video)
+      applyCurrentStateToVideo(document.querySelector("video"))
     })
     videoObserver.observe(document.body, { childList: true, subtree: true })
-    // Also re-apply if the video src changes (YouTube Music sometimes swaps the video element's src)
-    let srcObserver: MutationObserver | null = null
-    const watchVideoSrc = () => {
-      const video = document.querySelector("video") as HTMLVideoElement | null
-      if (!video) return
-      if (srcObserver) srcObserver.disconnect()
-      srcObserver = new MutationObserver(() => {
-        applyCurrentStateToVideo(video)
-      })
-      srcObserver.observe(video, { attributes: true, attributeFilter: ["src"] })
-    }
-    watchVideoSrc()
-    // Re-watch on new video
-    const videoWatchInterval = setInterval(watchVideoSrc, 2000)
 
     // --- Song info updates ---
+    // REWRITTEN: Handler to prevent UI desync on "Repeat One"
     const handler = (_: any, newSong: any) => {
-      setSong(newSong)
-      if (!isSeeking()) setProgress(newSong.elapsedSeconds || 0)
+        // If the repeat flag is active, ignore the update to prevent showing the next song's info
+        if (isRepeatingOne) {
+            console.log('[CustomBar] Ignoring song update due to "repeat one" cycle.')
+            // We only reset the progress visually
+            setProgress(newSong.elapsedSeconds || 0)
+            return
+        }
+
+        setSong(newSong)
+        if (!isSeeking()) {
+            const maxDuration = newSong.songDuration || 1
+            const currentProgress = newSong.elapsedSeconds || 0
+            if (currentProgress >= 0 && currentProgress <= maxDuration) {
+                setProgress(currentProgress)
+            }
+        }
     }
     window.ipcRenderer.on("ytmd:update-song-info", handler)
 
@@ -118,31 +157,71 @@ export default function YTMusicPlayer() {
       const video = getVideo()
       if (video) setIsPaused(video.paused)
     }
-    getVideo()?.addEventListener("pause", updatePaused)
-    getVideo()?.addEventListener("play", updatePaused)
+    
+    const video = getVideo()
+    if (video) {
+      video.addEventListener("pause", updatePaused)
+      video.addEventListener("play", updatePaused)
+      
+      // FIX: Use the 'ended' event to flag that a repeat is happening
+      video.addEventListener("ended", () => {
+        // Mode 2 is "repeat one".
+        if (repeatMode() === 2) {
+            console.log('[CustomBar] Video ended on "repeat one". Flagging to prevent UI desync.')
+            isRepeatingOne = true
+            // Reset the flag after a short delay to allow the player to restart the track
+            setTimeout(() => { isRepeatingOne = false }, 1500)
+        }
+        // After any song ends, re-check the repeat state, as YTM might auto-change it.
+        setTimeout(detectRepeatState, 200)
+      })
+    }
     updatePaused()
 
-    // Progress (use timeupdate for accuracy)
     const onTimeUpdate = () => {
       const video = getVideo()
-      if (video && !isSeeking()) setProgress(video.currentTime)
-    }
-    getVideo()?.addEventListener("timeupdate", onTimeUpdate)
-
-    // Fallback interval (only if playing)
-    const interval: any = setInterval(() => {
-      const video = getVideo()
-      if (!isSeeking() && video && !video.paused && !video.ended) {
+      if (video && !isSeeking()) {
         setProgress(video.currentTime)
       }
+    }
+    
+    if (video) {
+      video.addEventListener("timeupdate", onTimeUpdate)
+    }
+
+    // Fallback interval
+    const interval = setInterval(() => {
+      const video = getVideo()
+      if (video && !isSeeking() && !video.paused) {
+        setProgress(video.currentTime)
+      }
+      // Also, periodically check state for resilience
+      detectShuffleState()
+      detectRepeatState()
     }, 1000)
 
-    // Listen for shuffle/repeat state updates from main process
-    window.ipcRenderer.on("ytmd:shuffle-changed", handleShuffleChanged)
-    window.ipcRenderer.on("ytmd:get-shuffle-response", handleShuffleResponse)
-    window.ipcRenderer.on("ytmd:repeat-changed", handleRepeatChanged)
+    // --- Sync shuffle/repeat state on mount ---
+    setTimeout(() => {
+        requestShuffle()
+        requestRepeat()
+        detectShuffleState()
+        detectRepeatState()
+    }, 1000)
 
-    // Detect expanded mode (player-ui-state)
+    // Monitor for attribute changes on the repeat button for instant updates
+    const setupRepeatButtonWatcher = () => {
+      const repeatBtn = document.querySelector('yt-icon-button.repeat')
+      if (repeatBtn) {
+        const repeatObserver = new MutationObserver(detectRepeatState)
+        repeatObserver.observe(repeatBtn, { attributes: true, attributeFilter: ['title'] })
+        return () => repeatObserver.disconnect()
+      }
+      return () => {}
+    }
+    
+    const cleanupRepeatWatcher = setupRepeatButtonWatcher()
+
+    // Detect expanded mode
     const appLayout = document.querySelector('ytmusic-app-layout')
     let observer: MutationObserver | undefined
     if (appLayout) {
@@ -165,38 +244,39 @@ export default function YTMusicPlayer() {
     }
     document.addEventListener("click", handleClickOutside)
 
-    // Listen for mute/volume changes from video (to update UI if changed externally)
     const onVolumeChangeFromVideo = () => {
       const video = getVideo()
-      if (!video) return
-      if (isUserVolumeChange) {
+      if (!video || isUserVolumeChange) {
         isUserVolumeChange = false
         return
       }
       setVolume(video.volume)
       setIsMuted(video.muted)
-      try {
-        localStorage.setItem(VOLUME_KEY, String(video.volume))
-        localStorage.setItem(MUTE_KEY, String(video.muted))
-      } catch {}
     }
-    getVideo()?.addEventListener("volumechange", onVolumeChangeFromVideo)
+    if (video) {
+      video.addEventListener("volumechange", onVolumeChangeFromVideo)
+    }
+
+    // Listen for shuffle/repeat state updates
+    window.ipcRenderer.on("ytmd:shuffle-changed", handleShuffleChanged)
+    window.ipcRenderer.on("ytmd:repeat-changed", handleRepeatChanged)
 
     onCleanup(() => {
       window.ipcRenderer.off("ytmd:update-song-info", handler)
-      getVideo()?.removeEventListener("pause", updatePaused)
-      getVideo()?.removeEventListener("play", updatePaused)
-      getVideo()?.removeEventListener("timeupdate", onTimeUpdate)
+      if (video) {
+        video.removeEventListener("pause", updatePaused)
+        video.removeEventListener("play", updatePaused)
+        video.removeEventListener("timeupdate", onTimeUpdate)
+        video.removeEventListener("ended", () => {})
+        video.removeEventListener("volumechange", onVolumeChangeFromVideo)
+      }
       clearInterval(interval)
+      cleanupRepeatWatcher()
       window.ipcRenderer.off("ytmd:shuffle-changed", handleShuffleChanged)
-      window.ipcRenderer.off("ytmd:get-shuffle-response", handleShuffleResponse)
       window.ipcRenderer.off("ytmd:repeat-changed", handleRepeatChanged)
       document.removeEventListener("click", handleClickOutside)
       videoObserver.disconnect()
-      if (srcObserver) srcObserver.disconnect()
-      clearInterval(videoWatchInterval)
       observer?.disconnect()
-      getVideo()?.removeEventListener("volumechange", onVolumeChangeFromVideo)
     })
   })
 
@@ -209,16 +289,11 @@ export default function YTMusicPlayer() {
   }
 
   const next = () => {
-    ;(
-      document.querySelector('.next-button.ytmusic-player-bar, tp-yt-paper-icon-button[title="Next"]') as HTMLElement
-    )?.click()
+    (document.querySelector('.next-button') as HTMLElement)?.click()
   }
+  
   const prev = () => {
-    ;(
-      document.querySelector(
-        '.previous-button.ytmusic-player-bar, tp-yt-paper-icon-button[title="Previous"]',
-      ) as HTMLElement
-    )?.click()
+    (document.querySelector('.previous-button') as HTMLElement)?.click()
   }
 
   const toggleLike = () => {
@@ -232,18 +307,13 @@ export default function YTMusicPlayer() {
   }
 
   const toggleShuffle = () => {
-    ;(
-      document.querySelector(
-        'tp-yt-paper-icon-button[title*="Shuffle"], .shuffle-button.ytmusic-player-bar',
-      ) as HTMLElement
-    )?.click()
+    (document.querySelector('yt-icon-button.shuffle button') as HTMLElement)?.click()
+    setTimeout(requestShuffle, SYNC_DELAY)
   }
+
   const toggleRepeat = () => {
-    ;(
-      document.querySelector(
-        'tp-yt-paper-icon-button[title*="Repeat"], .repeat-button.ytmusic-player-bar',
-      ) as HTMLElement
-    )?.click()
+    (document.querySelector('yt-icon-button.repeat button') as HTMLElement)?.click()
+    setTimeout(requestRepeat, SYNC_DELAY)
   }
 
   const onSeek = (e: Event) => {
@@ -299,7 +369,7 @@ export default function YTMusicPlayer() {
     if (document.pictureInPictureElement) {
       document.exitPictureInPicture()
     } else {
-      ;(video as any).requestPictureInPicture()
+      (video as any).requestPictureInPicture()
     }
   }
 
@@ -330,15 +400,7 @@ export default function YTMusicPlayer() {
   return (
     <div
       class="ytmusic-bottom-bar"
-      style={isExpanded() ? {
-        zIndex: 999999,
-        position: 'fixed',
-        left: 0,
-        right: 0,
-        bottom: 0,
-        pointerEvents: 'auto',
-        background: '#212121',
-      } as any : undefined}
+      style={isExpanded() ? { zIndex: 999999 } as any : undefined}
     >
       {/* Left Section - Song Info */}
       <div class="ytmusic-left">
@@ -347,11 +409,8 @@ export default function YTMusicPlayer() {
             <img src={(song().imageSrc as string) || "/placeholder.svg"} alt="Album cover" />
           ) : (
             <div class="ytmusic-no-cover">
-              <svg viewBox="0 0 24 24" width="24" height="24">
-                <path
-                  d="M12 3a9 9 0 1 0 9 9 9 9 0 0 0-9-9zM9 17H7v-7h2zm4 0h-2V7h2zm4 0h-2v-4h2z"
-                  fill="currentColor"
-                />
+              <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+                <path d="M12 3a9 9 0 1 0 9 9 9 9 0 0 0-9-9zM9 17H7v-7h2zm4 0h-2V7h2zm4 0h-2v-4h2z" />
               </svg>
             </div>
           )}
@@ -383,26 +442,25 @@ export default function YTMusicPlayer() {
             <img src={skipPrevious} alt="Previous" />
           </button>
 
-          <button class="ytmusic-play-btn" onClick={playPause} title="Play/Pause">
-            {isPaused() ? (
-              <img src={playArrow} alt="Play" />
-            ) : (
-              <img src={pause} alt="Pause" />
-            )}
+          <button class="ytmusic-play-btn" onClick={playPause} title={isPaused() ? "Play" : "Pause"}>
+            <img src={isPaused() ? playArrow : pause} alt={isPaused() ? "Play" : "Pause"} />
           </button>
 
           <button class="ytmusic-nav-btn" onClick={next} title="Next">
             <img src={skipNext} alt="Next" />
           </button>
 
+          {/* CORRECTED: Visual logic for repeat button */}
           <button
             class={`ytmusic-control-btn ${repeatMode() > 0 ? "active" : ""}`}
             onClick={toggleRepeat}
-            title="Repeat"
+            title={`Repeat ${repeatMode() === 0 ? 'off' : repeatMode() === 1 ? 'all' : 'one'}`}
+            style={{ position: 'relative' }}
           >
             <img src={repeat} alt="Repeat" />
+            {/* The dot now correctly shows for "repeat one" (mode 2) */}
             {repeatMode() === 2 && (
-              <span style="position: absolute; top: 2px; right: 2px; font-size: 8px; color: #ff0000;">1</span>
+              <span class="ytmusic-repeat-dot" />
             )}
           </button>
         </div>
@@ -420,7 +478,7 @@ export default function YTMusicPlayer() {
               onMouseUp={onSeekEnd}
               class="ytmusic-slider"
               style={{
-                "--progress": `${(progress() / (song().songDuration || 1)) * 100}%`,
+                "--progress": `${Math.min((progress() / (song().songDuration || 1)) * 100, 100)}%`,
               }}
             />
           </div>
@@ -432,7 +490,7 @@ export default function YTMusicPlayer() {
       <div class="ytmusic-right">
         <div class="ytmusic-volume">
           <button class="ytmusic-volume-btn" onClick={toggleMute} title="Mute">
-            <img src={getVolumeIcon() || volumeOff} alt="Volume" />
+            <img src={getVolumeIcon()} alt="Volume" />
           </button>
           <div class="ytmusic-volume-bar">
             <input
@@ -440,11 +498,11 @@ export default function YTMusicPlayer() {
               min={0}
               max={1}
               step={0.01}
-              value={volume()}
+              value={isMuted() ? 0 : volume()}
               onInput={onVolumeChange}
               class="ytmusic-volume-slider"
               style={{
-                "--volume": `${volume() * 100}%`,
+                "--volume": `${(isMuted() ? 0 : volume()) * 100}%`,
               }}
             />
           </div>
@@ -452,66 +510,19 @@ export default function YTMusicPlayer() {
 
         <div class="ytmusic-additional-controls">
           <button class="ytmusic-menu-btn" title="Queue">
-            <svg viewBox="0 0 24 24">
-              <path
-                d="M15 6H3v2h12V6zm0 4H3v2h12v-2zM3 16h8v-2H3v2zM17 6v8.18c-.31-.11-.65-.18-1-.18-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3V8h3V6h-5z"
-                fill="currentColor"
-              />
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path d="M15 6H3v2h12V6zm0 4H3v2h12v-2zM3 16h8v-2H3v2zM17 6v8.18c-.31-.11-.65-.18-1-.18-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3V8h3V6h-5z" />
             </svg>
           </button>
-
           <button class="ytmusic-menu-btn" onClick={togglePictureInPicture} title="Picture in Picture">
             <img src={pictureInPicture} alt="Picture in Picture" />
           </button>
-
           <button class="ytmusic-menu-btn" onClick={expandSongPage} title="Expand Song">
             <img src={expandSong} alt="Expand Song" />
           </button>
-
           <button class="ytmusic-menu-btn" onClick={toggleFullscreen} title="Fullscreen">
             <img src={fullscreen} alt="Fullscreen" />
           </button>
-
-          <div style="position: relative;">
-            <button
-              class="ytmusic-menu-btn"
-              onClick={() => setShowDropdown(!showDropdown())}
-              data-dropdown-trigger
-              title="More Options"
-            >
-              <svg viewBox="0 0 24 24">
-                <path
-                  d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"
-                  fill="currentColor"
-                />
-              </svg>
-            </button>
-
-            {showDropdown() && (
-              <div class="ytmusic-dropdown">
-                <button class="ytmusic-dropdown-item" onClick={() => setShowDropdown(false)}>
-                  Add to playlist
-                </button>
-                <button class="ytmusic-dropdown-item" onClick={() => setShowDropdown(false)}>
-                  Go to album
-                </button>
-                <button class="ytmusic-dropdown-item" onClick={() => setShowDropdown(false)}>
-                  Go to artist
-                </button>
-                <div class="ytmusic-dropdown-separator"></div>
-                <button class="ytmusic-dropdown-item" onClick={() => setShowDropdown(false)}>
-                  Share
-                </button>
-                <button class="ytmusic-dropdown-item" onClick={() => setShowDropdown(false)}>
-                  Copy link
-                </button>
-                <div class="ytmusic-dropdown-separator"></div>
-                <button class="ytmusic-dropdown-item" onClick={() => setShowDropdown(false)}>
-                  Show lyrics
-                </button>
-              </div>
-            )}
-          </div>
         </div>
       </div>
     </div>

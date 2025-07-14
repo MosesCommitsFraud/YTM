@@ -174,7 +174,7 @@ ytmusic-player-bar .chapter-info,
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 4px; /* Reduced from 8px to move progress bar up */
+  margin-bottom: 4px;
 }
 
 .ytmusic-control-btn {
@@ -190,14 +190,21 @@ ytmusic-player-bar .chapter-info,
   justify-content: center;
   width: 32px;
   height: 32px;
+  position: relative;
 }
 
 .ytmusic-control-btn:hover {
   color: #fff;
+  background: rgba(255, 255, 255, 0.1);
 }
 
+/* CLEAN: Simple red color for active buttons, no glow */
 .ytmusic-control-btn.active {
-  color: #ff2d55;
+  color: #ff2d55 !important;
+}
+
+.ytmusic-control-btn.active:hover {
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .ytmusic-control-btn img {
@@ -212,8 +219,9 @@ ytmusic-player-bar .chapter-info,
     contrast(107%);
 }
 
+/* CLEAN: Simple red filter for active SVGs */
 .ytmusic-control-btn.active img {
-  filter: brightness(0) saturate(100%) invert(36%) sepia(99%) saturate(7492%) hue-rotate(329deg) brightness(104%) contrast(104%);
+  filter: brightness(0) saturate(100%) invert(36%) sepia(99%) saturate(7492%) hue-rotate(329deg) brightness(104%) contrast(104%) !important;
 }
 
 .ytmusic-nav-btn {
@@ -571,6 +579,23 @@ ytmusic-player-bar .chapter-info,
   height: 1px;
   background: #404040;
   margin: 4px 0;
+}
+
+/* CLEAN: Small red dot for repeat all mode (mode 2) */
+.ytmusic-repeat-dot {
+  position: absolute;
+  left: 50%;
+  bottom: 1px;
+  transform: translateX(-50%);
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #ff2d55;
+  pointer-events: none;
+  z-index: 10;
+  display: block !important;
+  opacity: 1 !important;
+  visibility: visible !important;
 }
 
 /* Responsive adjustments */
