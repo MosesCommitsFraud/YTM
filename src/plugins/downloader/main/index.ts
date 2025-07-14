@@ -19,7 +19,6 @@ import {
   sendFeedback as sendFeedback_,
   setBadge,
 } from './utils';
-import { fetchFromGenius } from '@/plugins/lyrics-genius/main';
 import { isEnabled } from '@/config/plugins';
 import registerCallback, {
   cleanupName,
@@ -582,16 +581,6 @@ async function writeID3(
         description: 'thumbnail',
         imageBuffer: coverBuffer,
       };
-    }
-
-    if (isEnabled('lyrics-genius')) {
-      const lyrics = await fetchFromGenius(metadata);
-      if (lyrics) {
-        tags.unsynchronisedLyrics = {
-          language: '',
-          text: lyrics,
-        };
-      }
     }
 
     if (metadata.trackId) {

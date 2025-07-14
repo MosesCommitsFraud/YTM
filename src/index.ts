@@ -55,8 +55,6 @@ import { LoggerPrefix } from '@/utils';
 
 import ErrorHtmlAsset from '@assets/error.html?asset';
 
-import { defaultAuthProxyConfig } from '@/plugins/auth-proxy-adapter/config';
-
 import type { PluginConfig } from '@/types/plugins';
 
 if (!is.macOS()) {
@@ -146,21 +144,10 @@ if (is.linux()) {
 }
 
 if (config.get('options.proxy')) {
-  const authProxyEnabled = config.plugins.isEnabled('auth-proxy-adapter');
-
   let proxyToUse = '';
-  if (authProxyEnabled) {
-    // Use proxy from Auth-Proxy-Adapter plugin
-    const authProxyConfig = deepmerge(
-      defaultAuthProxyConfig,
-      config.get('plugins.auth-proxy-adapter') ?? {},
-    ) as typeof defaultAuthProxyConfig;
-
-    const { hostname, port } = authProxyConfig;
-    proxyToUse = `socks5://${hostname}:${port}`;
-  } else if (config.get('options.proxy')) {
+  if (config.get('options.proxy')) {
     // Use global proxy settings
-    proxyToUse = config.get('options.proxy');
+    proxyToUse = config.get('options.proxy') || '';
   }
   console.log(LoggerPrefix, `Using proxy: ${proxyToUse}`);
   app.commandLine.appendSwitch('proxy-server', proxyToUse);
