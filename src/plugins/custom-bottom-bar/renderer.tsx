@@ -23,10 +23,16 @@ function clamp(val: number, min: number, max: number) {
 }
 
 export default function YTMusicPlayer() {
+  // Persistent storage keys
+  const VOLUME_KEY = "ytmusic_custombar_volume"
+  const MUTE_KEY = "ytmusic_custombar_muted"
+
   // Song info state
   const [song, setSong] = createSignal(getSongInfo())
   const [progress, setProgress] = createSignal(song().elapsedSeconds || 0)
+  // Volume and mute state
   const [volume, setVolume] = createSignal(1)
+  const [isMuted, setIsMuted] = createSignal(false)
   const [isSeeking, setIsSeeking] = createSignal(false)
   const [isLiked, setIsLiked] = createSignal(false)
   const [isDisliked, setIsDisliked] = createSignal(false)
@@ -35,6 +41,9 @@ export default function YTMusicPlayer() {
   const [isPaused, setIsPaused] = createSignal(true)
   const [showDropdown, setShowDropdown] = createSignal(false)
   const [isExpanded, setIsExpanded] = createSignal(false)
+
+  // --- Volume sync logic ---
+  let isUserVolumeChange = false
 
   // DEBUG: Log imageSrc and expanded state on every render
   console.log('CustomBottomBar:', { imageSrc: song().imageSrc, isExpanded: isExpanded() })
@@ -52,32 +61,77 @@ export default function YTMusicPlayer() {
 
   // Listen for song info updates
   onMount(() => {
+    // --- Persistent volume/mute state ---
+    // Read from localStorage ONCE to initialize UI state
+    let storedVolume = 1
+    let storedMuted = false
+    try {
+      const v = localStorage.getItem(VOLUME_KEY)
+      if (v !== null) storedVolume = clamp(Number(v), 0, 1)
+      const m = localStorage.getItem(MUTE_KEY)
+      if (m !== null) storedMuted = m === "true"
+    } catch {}
+    setVolume(storedVolume)
+    setIsMuted(storedMuted)
+
+    // Helper to set video state only once per new element, using current UI state
+    let lastVideo: HTMLVideoElement | null = null
+    const applyCurrentStateToVideo = (video: HTMLVideoElement | null) => {
+      if (!video || video === lastVideo) return
+      video.volume = volume()
+      video.muted = isMuted()
+      lastVideo = video
+    }
+    // Initial set
+    applyCurrentStateToVideo(document.querySelector("video"))
+    // Observe for new video elements
+    const videoObserver = new MutationObserver(() => {
+      const video = document.querySelector("video") as HTMLVideoElement | null
+      applyCurrentStateToVideo(video)
+    })
+    videoObserver.observe(document.body, { childList: true, subtree: true })
+    // Also re-apply if the video src changes (YouTube Music sometimes swaps the video element's src)
+    let srcObserver: MutationObserver | null = null
+    const watchVideoSrc = () => {
+      const video = document.querySelector("video") as HTMLVideoElement | null
+      if (!video) return
+      if (srcObserver) srcObserver.disconnect()
+      srcObserver = new MutationObserver(() => {
+        applyCurrentStateToVideo(video)
+      })
+      srcObserver.observe(video, { attributes: true, attributeFilter: ["src"] })
+    }
+    watchVideoSrc()
+    // Re-watch on new video
+    const videoWatchInterval = setInterval(watchVideoSrc, 2000)
+
+    // --- Song info updates ---
     const handler = (_: any, newSong: any) => {
       setSong(newSong)
       if (!isSeeking()) setProgress(newSong.elapsedSeconds || 0)
     }
     window.ipcRenderer.on("ytmd:update-song-info", handler)
 
-    // Volume
-    const video = document.querySelector("video")
-    if (video) setVolume(video.volume)
-    const onVolume = () => setVolume(video!.volume)
-    video?.addEventListener("volumechange", onVolume)
-
     // Paused state
-    const updatePaused = () => setIsPaused(video!.paused)
-    video?.addEventListener("pause", updatePaused)
-    video?.addEventListener("play", updatePaused)
+    const getVideo = () => document.querySelector("video") as HTMLVideoElement | null
+    const updatePaused = () => {
+      const video = getVideo()
+      if (video) setIsPaused(video.paused)
+    }
+    getVideo()?.addEventListener("pause", updatePaused)
+    getVideo()?.addEventListener("play", updatePaused)
     updatePaused()
 
     // Progress (use timeupdate for accuracy)
     const onTimeUpdate = () => {
-      if (!isSeeking()) setProgress(video!.currentTime)
+      const video = getVideo()
+      if (video && !isSeeking()) setProgress(video.currentTime)
     }
-    video?.addEventListener("timeupdate", onTimeUpdate)
+    getVideo()?.addEventListener("timeupdate", onTimeUpdate)
 
     // Fallback interval (only if playing)
     const interval: any = setInterval(() => {
+      const video = getVideo()
       if (!isSeeking() && video && !video.paused && !video.ended) {
         setProgress(video.currentTime)
       }
@@ -111,18 +165,38 @@ export default function YTMusicPlayer() {
     }
     document.addEventListener("click", handleClickOutside)
 
+    // Listen for mute/volume changes from video (to update UI if changed externally)
+    const onVolumeChangeFromVideo = () => {
+      const video = getVideo()
+      if (!video) return
+      if (isUserVolumeChange) {
+        isUserVolumeChange = false
+        return
+      }
+      setVolume(video.volume)
+      setIsMuted(video.muted)
+      try {
+        localStorage.setItem(VOLUME_KEY, String(video.volume))
+        localStorage.setItem(MUTE_KEY, String(video.muted))
+      } catch {}
+    }
+    getVideo()?.addEventListener("volumechange", onVolumeChangeFromVideo)
+
     onCleanup(() => {
       window.ipcRenderer.off("ytmd:update-song-info", handler)
-      video?.removeEventListener("volumechange", onVolume)
-      video?.removeEventListener("pause", updatePaused)
-      video?.removeEventListener("play", updatePaused)
-      video?.removeEventListener("timeupdate", onTimeUpdate)
+      getVideo()?.removeEventListener("pause", updatePaused)
+      getVideo()?.removeEventListener("play", updatePaused)
+      getVideo()?.removeEventListener("timeupdate", onTimeUpdate)
       clearInterval(interval)
       window.ipcRenderer.off("ytmd:shuffle-changed", handleShuffleChanged)
       window.ipcRenderer.off("ytmd:get-shuffle-response", handleShuffleResponse)
       window.ipcRenderer.off("ytmd:repeat-changed", handleRepeatChanged)
       document.removeEventListener("click", handleClickOutside)
+      videoObserver.disconnect()
+      if (srcObserver) srcObserver.disconnect()
+      clearInterval(videoWatchInterval)
       observer?.disconnect()
+      getVideo()?.removeEventListener("volumechange", onVolumeChangeFromVideo)
     })
   })
 
@@ -187,15 +261,28 @@ export default function YTMusicPlayer() {
   const onVolumeChange = (e: Event) => {
     const video = document.querySelector("video")
     if (!video) return
-    const val = Number((e.target as HTMLInputElement).value)
+    const val = clamp(Number((e.target as HTMLInputElement).value), 0, 1)
     setVolume(val)
+    setIsMuted(false)
+    isUserVolumeChange = true
     video.volume = val
+    video.muted = false
+    try {
+      localStorage.setItem(VOLUME_KEY, String(val))
+      localStorage.setItem(MUTE_KEY, "false")
+    } catch {}
   }
 
   const toggleMute = () => {
     const video = document.querySelector("video")
     if (!video) return
-    video.muted = !video.muted
+    const newMuted = !video.muted
+    setIsMuted(newMuted)
+    isUserVolumeChange = true
+    video.muted = newMuted
+    try {
+      localStorage.setItem(MUTE_KEY, String(newMuted))
+    } catch {}
   }
 
   const toggleFullscreen = () => {
@@ -231,7 +318,7 @@ export default function YTMusicPlayer() {
   }
 
   const getVolumeIcon = () => {
-    if (volume() === 0) {
+    if (isMuted() || volume() === 0) {
       return volumeOff
     } else if (volume() < 0.5) {
       return volumeDown
