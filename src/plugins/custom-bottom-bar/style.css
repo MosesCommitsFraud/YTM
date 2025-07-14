@@ -25,6 +25,14 @@
   overflow: hidden;
 }
 
+.ytmusic-album-cover,
+.ytmusic-album-cover img {
+  display: block !important;
+  visibility: visible !important;
+  z-index: 1000000 !important;
+  position: relative;
+}
+
 .ytmusic-album-cover {
   width: 48px;
   height: 48px;
@@ -104,7 +112,7 @@
 }
 
 .ytmusic-like-btn.liked {
-  color: #ff0000;
+  color: #ff2d55;
 }
 
 .ytmusic-like-btn.disliked {
@@ -119,8 +127,7 @@
 }
 
 .ytmusic-like-btn.liked img {
-  filter: brightness(0) saturate(100%) invert(11%) sepia(100%) saturate(7426%) hue-rotate(0deg) brightness(109%)
-    contrast(107%);
+  filter: brightness(0) saturate(100%) invert(36%) sepia(99%) saturate(7492%) hue-rotate(329deg) brightness(104%) contrast(104%);
 }
 
 /* Center Section - Controls & Progress */
@@ -159,7 +166,7 @@
 }
 
 .ytmusic-control-btn.active {
-  color: #ff0000;
+  color: #ff2d55;
 }
 
 .ytmusic-control-btn img {
@@ -175,8 +182,7 @@
 }
 
 .ytmusic-control-btn.active img {
-  filter: brightness(0) saturate(100%) invert(11%) sepia(100%) saturate(7426%) hue-rotate(0deg) brightness(109%)
-    contrast(107%);
+  filter: brightness(0) saturate(100%) invert(36%) sepia(99%) saturate(7492%) hue-rotate(329deg) brightness(104%) contrast(104%);
 }
 
 .ytmusic-nav-btn {
@@ -276,8 +282,8 @@
 .ytmusic-progress-bar:hover .ytmusic-slider::-webkit-slider-runnable-track {
   background: linear-gradient(
     to right,
-    #ff0000 0%,
-    #ff0000 var(--progress, 0%),
+    #ff2d55 0%,
+    #ff2d55 var(--progress, 0%),
     #535353 var(--progress, 0%),
     #535353 100%
   );
@@ -314,7 +320,7 @@
 }
 
 .ytmusic-progress-bar:hover .ytmusic-slider::-moz-range-progress {
-  background: #ff0000;
+  background: #ff2d55;
 }
 
 .ytmusic-slider::-moz-range-thumb {
@@ -448,8 +454,8 @@
 .ytmusic-volume-bar:hover .ytmusic-volume-slider {
   background: linear-gradient(
     to right,
-    #ff0000 0%,
-    #ff0000 var(--volume, 100%),
+    #ff2d55 0%,
+    #ff2d55 var(--volume, 100%),
     #535353 var(--volume, 100%),
     #535353 100%
   );
@@ -583,4 +589,11 @@
 
 .ytmusic-control-btn.active:hover {
   animation: pulse 0.3s ease;
+}
+
+/* Only force the bottom bar to be on top and fixed */
+.ytmusic-bottom-bar {
+  z-index: 2147483647 !important;
+  position: fixed !important;
+  pointer-events: auto !important;
 }

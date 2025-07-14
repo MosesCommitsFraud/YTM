@@ -34,6 +34,10 @@ export default function YTMusicPlayer() {
   const [repeatMode, setRepeatMode] = createSignal(0) // 0: off, 1: all, 2: one
   const [isPaused, setIsPaused] = createSignal(true)
   const [showDropdown, setShowDropdown] = createSignal(false)
+  const [isExpanded, setIsExpanded] = createSignal(false)
+
+  // DEBUG: Log imageSrc and expanded state on every render
+  console.log('CustomBottomBar:', { imageSrc: song().imageSrc, isExpanded: isExpanded() })
 
   // Stable handlers for shuffle/repeat state
   const handleShuffleChanged = (_: any, shuffleOn: boolean) => {
@@ -84,6 +88,18 @@ export default function YTMusicPlayer() {
     window.ipcRenderer.on("ytmd:get-shuffle-response", handleShuffleResponse)
     window.ipcRenderer.on("ytmd:repeat-changed", handleRepeatChanged)
 
+    // Detect expanded mode (player-ui-state)
+    const appLayout = document.querySelector('ytmusic-app-layout')
+    let observer: MutationObserver | undefined
+    if (appLayout) {
+      const checkExpanded = () => {
+        setIsExpanded(appLayout.getAttribute('player-ui-state') === 'PLAYER_PAGE_OPEN')
+      }
+      observer = new MutationObserver(checkExpanded)
+      observer.observe(appLayout, { attributes: true, attributeFilter: ['player-ui-state'] })
+      checkExpanded()
+    }
+
     // Close dropdown when clicking outside
     const handleClickOutside = (e: MouseEvent) => {
       if (
@@ -106,6 +122,7 @@ export default function YTMusicPlayer() {
       window.ipcRenderer.off("ytmd:get-shuffle-response", handleShuffleResponse)
       window.ipcRenderer.off("ytmd:repeat-changed", handleRepeatChanged)
       document.removeEventListener("click", handleClickOutside)
+      observer?.disconnect()
     })
   })
 
@@ -224,7 +241,18 @@ export default function YTMusicPlayer() {
   }
 
   return (
-    <div class="ytmusic-bottom-bar">
+    <div
+      class="ytmusic-bottom-bar"
+      style={isExpanded() ? {
+        zIndex: 999999,
+        position: 'fixed',
+        left: 0,
+        right: 0,
+        bottom: 0,
+        pointerEvents: 'auto',
+        background: '#212121',
+      } as any : undefined}
+    >
       {/* Left Section - Song Info */}
       <div class="ytmusic-left">
         <div class="ytmusic-album-cover">
