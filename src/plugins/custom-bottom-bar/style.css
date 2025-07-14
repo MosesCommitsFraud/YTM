@@ -1,63 +1,62 @@
-/* Spotify-style Bottom Bar */
-.spotify-bottom-bar {
+/* YouTube Music Style Bottom Bar */
+.ytmusic-bottom-bar {
   position: fixed;
   left: 0;
   right: 0;
   bottom: 0;
-  height: 90px;
-  background: linear-gradient(90deg, #181818 0%, #121212 100%);
-  border-top: 1px solid #282828;
+  height: 72px;
+  background: #212121;
+  border-top: 1px solid #303030;
   color: #fff;
   display: grid;
   grid-template-columns: 1fr 2fr 1fr;
   align-items: center;
   z-index: 10000;
   padding: 0 16px;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  font-family: "Roboto", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-size: 14px;
 }
 
 /* Left Section - Song Info */
-.spotify-left {
+.ytmusic-left {
   display: flex;
   align-items: center;
-  min-width: 120px; /* reduced from 180px */
+  min-width: 180px;
   overflow: hidden;
 }
 
-.spotify-album-cover {
-  width: 56px;
-  height: 56px;
-  border-radius: 4px;
+.ytmusic-album-cover {
+  width: 48px;
+  height: 48px;
+  border-radius: 2px;
   overflow: hidden;
   margin-right: 12px;
-  background: #282828;
+  background: #303030;
   flex-shrink: 0;
-  position: relative;
 }
 
-.spotify-album-cover img {
+.ytmusic-album-cover img {
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
 
-.spotify-no-cover {
+.ytmusic-no-cover {
   width: 100%;
   height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #b3b3b3;
+  color: #aaaaaa;
 }
 
-.spotify-song-info {
+.ytmusic-song-info {
   flex: 1;
   min-width: 0;
   margin-right: 12px;
 }
 
-.spotify-title {
+.ytmusic-title {
   font-size: 14px;
   font-weight: 400;
   color: #fff;
@@ -68,56 +67,82 @@
   line-height: 1.2;
 }
 
-.spotify-artist {
-  font-size: 11px;
-  color: #b3b3b3;
+.ytmusic-artist {
+  font-size: 12px;
+  color: #aaaaaa;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   line-height: 1.2;
 }
 
-.spotify-like-btn {
-  background: none;
-  border: none;
-  color: #b3b3b3;
-  cursor: pointer;
-  padding: 8px;
-  border-radius: 50%;
-  transition: all 0.2s ease;
+.ytmusic-like-section {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   flex-shrink: 0;
 }
 
-.spotify-like-btn:hover {
-  color: #fff;
-  transform: scale(1.04);
+.ytmusic-like-btn {
+  background: none;
+  border: none;
+  color: #aaaaaa;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 50%;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
 }
 
-.spotify-like-btn.liked {
-  color: #1db954;
+.ytmusic-like-btn:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.ytmusic-like-btn.liked {
+  color: #ff0000;
+}
+
+.ytmusic-like-btn.disliked {
+  color: #aaaaaa;
+}
+
+.ytmusic-like-btn img {
+  width: 18px;
+  height: 18px;
+  filter: brightness(0) saturate(100%) invert(67%) sepia(0%) saturate(0%) hue-rotate(93deg) brightness(87%)
+    contrast(86%);
+}
+
+.ytmusic-like-btn.liked img {
+  filter: brightness(0) saturate(100%) invert(11%) sepia(100%) saturate(7426%) hue-rotate(0deg) brightness(109%)
+    contrast(107%);
 }
 
 /* Center Section - Controls & Progress */
-.spotify-center {
+.ytmusic-center {
   display: flex;
   flex-direction: column;
   align-items: center;
-  max-width: 1000px; /* increased from 722px */
+  max-width: 722px;
   width: 100%;
-  margin: 0 12px; /* allow more width */
 }
 
-.spotify-controls {
+.ytmusic-controls {
   display: flex;
   align-items: center;
-  gap: 16px;
-  margin-bottom: 8px;
+  gap: 8px;
+  margin-bottom: 4px; /* Reduced from 8px to move progress bar up */
 }
 
-.spotify-control-btn {
+.ytmusic-control-btn {
   background: none;
   border: none;
-  color: #b3b3b3;
+  color: #aaaaaa;
   cursor: pointer;
   padding: 8px;
   border-radius: 50%;
@@ -129,72 +154,107 @@
   height: 32px;
 }
 
-.spotify-control-btn:hover {
+.ytmusic-control-btn:hover {
   color: #fff;
-  transform: scale(1.04);
 }
 
-.spotify-control-btn.active {
-  color: #1db954;
+.ytmusic-control-btn.active {
+  color: #ff0000;
 }
 
-.spotify-control-btn.active::after {
-  content: '';
-  position: absolute;
-  bottom: -2px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 4px;
-  height: 4px;
-  background: #1db954;
+.ytmusic-control-btn img {
+  width: 20px;
+  height: 20px;
+  filter: brightness(0) saturate(100%) invert(67%) sepia(0%) saturate(0%) hue-rotate(93deg) brightness(87%)
+    contrast(86%);
+}
+
+.ytmusic-control-btn:hover img {
+  filter: brightness(0) saturate(100%) invert(100%) sepia(0%) saturate(7500%) hue-rotate(109deg) brightness(99%)
+    contrast(107%);
+}
+
+.ytmusic-control-btn.active img {
+  filter: brightness(0) saturate(100%) invert(11%) sepia(100%) saturate(7426%) hue-rotate(0deg) brightness(109%)
+    contrast(107%);
+}
+
+.ytmusic-nav-btn {
+  background: none;
+  border: none;
+  color: #fff;
+  cursor: pointer;
+  padding: 8px;
   border-radius: 50%;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
 }
 
-.spotify-play-btn {
+.ytmusic-nav-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.ytmusic-nav-btn img {
+  width: 24px;
+  height: 24px;
+  filter: brightness(0) saturate(100%) invert(100%) sepia(0%) saturate(7500%) hue-rotate(109deg) brightness(99%)
+    contrast(107%);
+}
+
+.ytmusic-play-btn {
   background: #fff;
   border: none;
   color: #000;
   cursor: pointer;
-  width: 32px;
-  height: 32px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: all 0.2s ease;
-  position: relative;
+  margin: 0 8px;
 }
 
-.spotify-play-btn:hover {
-  transform: scale(1.06);
-  background: #f0f0f0;
+.ytmusic-play-btn:hover {
+  transform: scale(1.04);
 }
 
-.spotify-progress {
+.ytmusic-play-btn img {
+  width: 24px;
+  height: 24px;
+  filter: brightness(0) saturate(100%) invert(0%) sepia(0%) saturate(7500%) hue-rotate(109deg) brightness(0%)
+    contrast(107%);
+}
+
+.ytmusic-progress {
   display: flex;
   align-items: center;
   width: 100%;
   gap: 8px;
 }
 
-.spotify-time {
+.ytmusic-time {
   font-size: 11px;
-  color: #a7a7a7;
+  color: #aaaaaa;
   min-width: 40px;
   text-align: center;
   font-variant-numeric: tabular-nums;
 }
 
-.spotify-progress-bar {
-  flex: 2 1 600px; /* grow more, min 600px */
+.ytmusic-progress-bar {
+  flex: 1;
   position: relative;
   height: 12px;
   display: flex;
   align-items: center;
-  max-width: 900px; /* allow it to be very wide */
 }
 
-.spotify-slider {
+.ytmusic-slider {
   width: 100%;
   height: 4px;
   background: transparent;
@@ -207,31 +267,23 @@
 }
 
 /* Webkit browsers */
-.spotify-slider::-webkit-slider-runnable-track {
+.ytmusic-slider::-webkit-slider-runnable-track {
   height: 4px;
   border-radius: 2px;
-  background: linear-gradient(to right, #fff 0%, #fff var(--progress, 0%), #4f4f4f var(--progress, 0%), #4f4f4f 100%);
-}
-.spotify-progress-bar:hover .spotify-slider::-webkit-slider-runnable-track {
-  background: linear-gradient(to right, #FF0000 0%, #FF0000 var(--progress, 0%), #4f4f4f var(--progress, 0%), #4f4f4f 100%);
+  background: linear-gradient(to right, #fff 0%, #fff var(--progress, 0%), #535353 var(--progress, 0%), #535353 100%);
 }
 
-/* Firefox */
-.spotify-slider::-moz-range-track {
-  height: 4px;
-  border-radius: 2px;
-  background: #4f4f4f;
-}
-.spotify-slider::-moz-range-progress {
-  height: 4px;
-  border-radius: 2px;
-  background: #fff;
-}
-.spotify-progress-bar:hover .spotify-slider::-moz-range-progress {
-  background: #FF0000;
+.ytmusic-progress-bar:hover .ytmusic-slider::-webkit-slider-runnable-track {
+  background: linear-gradient(
+    to right,
+    #ff0000 0%,
+    #ff0000 var(--progress, 0%),
+    #535353 var(--progress, 0%),
+    #535353 100%
+  );
 }
 
-.spotify-slider::-webkit-slider-thumb {
+.ytmusic-slider::-webkit-slider-thumb {
   appearance: none;
   width: 12px;
   height: 12px;
@@ -240,21 +292,32 @@
   cursor: pointer;
   opacity: 0;
   transition: opacity 0.2s ease;
-  margin-top: -4px; /* Center the thumb on a 4px track */
+  margin-top: -4px;
 }
 
-.spotify-slider:hover::-webkit-slider-thumb {
+.ytmusic-slider:hover::-webkit-slider-thumb {
   opacity: 1;
 }
 
-.spotify-slider::-moz-range-track {
+/* Firefox */
+.ytmusic-slider::-moz-range-track {
   height: 4px;
-  background: #4f4f4f;
   border-radius: 2px;
+  background: #535353;
   border: none;
 }
 
-.spotify-slider::-moz-range-thumb {
+.ytmusic-slider::-moz-range-progress {
+  height: 4px;
+  border-radius: 2px;
+  background: #fff;
+}
+
+.ytmusic-progress-bar:hover .ytmusic-slider::-moz-range-progress {
+  background: #ff0000;
+}
+
+.ytmusic-slider::-moz-range-thumb {
   width: 12px;
   height: 12px;
   background: #fff;
@@ -263,39 +326,59 @@
   border: none;
   opacity: 0;
   transition: opacity 0.2s ease;
-  margin-top: -4px; /* Center the thumb on a 4px track */
 }
 
-.spotify-slider:hover::-moz-range-thumb {
+.ytmusic-slider:hover::-moz-range-thumb {
   opacity: 1;
 }
 
-/* Progress bar fill effect */
-.spotify-slider {
-  background: linear-gradient(to right, #fff 0%, #fff var(--progress, 0%), #4f4f4f var(--progress, 0%), #4f4f4f 100%);
-}
-
-.spotify-progress-bar:hover .spotify-slider {
-  background: linear-gradient(to right, #FF0000 0%, #FF0000 var(--progress, 0%), #4f4f4f var(--progress, 0%), #4f4f4f 100%);
-}
-
 /* Right Section - Volume & Additional Controls */
-.spotify-right {
+.ytmusic-right {
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
-  min-width: 120px; /* reduced from 180px */
+  min-width: 180px;
 }
 
-.spotify-volume {
+.ytmusic-volume {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-left: 8px;
 }
 
-.spotify-volume-bar {
+.ytmusic-volume-btn {
+  background: none;
+  border: none;
+  color: #aaaaaa;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 50%;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+}
+
+.ytmusic-volume-btn:hover {
+  color: #fff;
+}
+
+.ytmusic-volume-btn img {
+  width: 20px;
+  height: 20px;
+  filter: brightness(0) saturate(100%) invert(67%) sepia(0%) saturate(0%) hue-rotate(93deg) brightness(87%)
+    contrast(86%);
+}
+
+.ytmusic-volume-btn:hover img {
+  filter: brightness(0) saturate(100%) invert(100%) sepia(0%) saturate(7500%) hue-rotate(109deg) brightness(99%)
+    contrast(107%);
+}
+
+.ytmusic-volume-bar {
   width: 93px;
   position: relative;
   height: 12px;
@@ -303,10 +386,10 @@
   align-items: center;
 }
 
-.spotify-volume-slider {
+.ytmusic-volume-slider {
   width: 100%;
   height: 4px;
-  background: #4f4f4f;
+  background: #535353;
   border-radius: 2px;
   outline: none;
   cursor: pointer;
@@ -314,13 +397,13 @@
   -webkit-appearance: none;
 }
 
-.spotify-volume-slider::-webkit-slider-track {
+.ytmusic-volume-slider::-webkit-slider-track {
   height: 4px;
-  background: #4f4f4f;
+  background: #535353;
   border-radius: 2px;
 }
 
-.spotify-volume-slider::-webkit-slider-thumb {
+.ytmusic-volume-slider::-webkit-slider-thumb {
   appearance: none;
   width: 12px;
   height: 12px;
@@ -331,18 +414,18 @@
   transition: opacity 0.2s ease;
 }
 
-.spotify-volume-slider:hover::-webkit-slider-thumb {
+.ytmusic-volume-slider:hover::-webkit-slider-thumb {
   opacity: 1;
 }
 
-.spotify-volume-slider::-moz-range-track {
+.ytmusic-volume-slider::-moz-range-track {
   height: 4px;
-  background: #4f4f4f;
+  background: #535353;
   border-radius: 2px;
   border: none;
 }
 
-.spotify-volume-slider::-moz-range-thumb {
+.ytmusic-volume-slider::-moz-range-thumb {
   width: 12px;
   height: 12px;
   background: #fff;
@@ -353,70 +436,151 @@
   transition: opacity 0.2s ease;
 }
 
-.spotify-volume-slider:hover::-moz-range-thumb {
+.ytmusic-volume-slider:hover::-moz-range-thumb {
   opacity: 1;
 }
 
-/* Volume bar fill effect */
-.spotify-volume-slider {
-  background: linear-gradient(to right, #1db954 0%, #1db954 var(--volume, 100%), #4f4f4f var(--volume, 100%), #4f4f4f 100%);
+/* Volume bar fill effect - RED ON HOVER */
+.ytmusic-volume-slider {
+  background: linear-gradient(to right, #fff 0%, #fff var(--volume, 100%), #535353 var(--volume, 100%), #535353 100%);
+}
+
+.ytmusic-volume-bar:hover .ytmusic-volume-slider {
+  background: linear-gradient(
+    to right,
+    #ff0000 0%,
+    #ff0000 var(--volume, 100%),
+    #535353 var(--volume, 100%),
+    #535353 100%
+  );
+}
+
+.ytmusic-additional-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ytmusic-menu-btn {
+  background: none;
+  border: none;
+  color: #aaaaaa;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 50%;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  position: relative;
+}
+
+.ytmusic-menu-btn:hover {
+  color: #fff;
+}
+
+.ytmusic-menu-btn img {
+  width: 18px;
+  height: 18px;
+  filter: brightness(0) saturate(100%) invert(67%) sepia(0%) saturate(0%) hue-rotate(93deg) brightness(87%)
+    contrast(86%);
+}
+
+.ytmusic-menu-btn:hover img {
+  filter: brightness(0) saturate(100%) invert(100%) sepia(0%) saturate(7500%) hue-rotate(109deg) brightness(99%)
+    contrast(107%);
+}
+
+/* Dropdown Menu */
+.ytmusic-dropdown {
+  position: absolute;
+  right: 0;
+  bottom: 100%;
+  margin-bottom: 8px;
+  background: #2a2a2a;
+  border: 1px solid #404040;
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  min-width: 180px;
+  z-index: 1000;
+}
+
+.ytmusic-dropdown-item {
+  display: block;
+  width: 100%;
+  padding: 12px 16px;
+  background: none;
+  border: none;
+  color: #fff;
+  text-align: left;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background 0.2s ease;
+}
+
+.ytmusic-dropdown-item:hover {
+  background: #404040;
+}
+
+.ytmusic-dropdown-separator {
+  height: 1px;
+  background: #404040;
+  margin: 4px 0;
 }
 
 /* Responsive adjustments */
 @media (max-width: 1200px) {
-  .spotify-bottom-bar {
+  .ytmusic-bottom-bar {
     grid-template-columns: 30% 40% 30%;
   }
-  
-  .spotify-volume-bar {
+
+  .ytmusic-volume-bar {
     width: 70px;
   }
 }
 
 @media (max-width: 768px) {
-  .spotify-bottom-bar {
+  .ytmusic-bottom-bar {
     grid-template-columns: 1fr;
     height: auto;
     padding: 8px 16px 16px;
   }
-  
-  .spotify-left {
+
+  .ytmusic-left {
     order: 1;
     margin-bottom: 8px;
   }
-  
-  .spotify-center {
+
+  .ytmusic-center {
     order: 2;
     margin-bottom: 8px;
   }
-  
-  .spotify-right {
+
+  .ytmusic-right {
     order: 3;
     justify-content: center;
   }
-  
-  .spotify-volume-bar {
+
+  .ytmusic-volume-bar {
     width: 80px;
   }
 }
 
 /* Animation for active states */
 @keyframes pulse {
-  0% { transform: scale(1); }
-  50% { transform: scale(1.05); }
-  100% { transform: scale(1); }
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+  100% {
+    transform: scale(1);
+  }
 }
 
-.spotify-control-btn.active:hover {
+.ytmusic-control-btn.active:hover {
   animation: pulse 0.3s ease;
-}
-
-/* Hover effects for progress and volume bars */
-.spotify-progress-bar:hover .spotify-slider,
-.spotify-volume-bar:hover .spotify-volume-slider {
-  background: linear-gradient(to right, #1ed760 0%, #1ed760 var(--progress, 0%), #4f4f4f var(--progress, 0%), #4f4f4f 100%);
-}
-
-.spotify-volume-bar:hover .spotify-volume-slider {
-  background: linear-gradient(to right, #1ed760 0%, #1ed760 var(--volume, 100%), #4f4f4f var(--volume, 100%), #4f4f4f 100%);
 }
