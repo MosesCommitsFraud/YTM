@@ -11,10 +11,39 @@
   display: grid;
   grid-template-columns: 1fr 2fr 1fr;
   align-items: center;
-  z-index: 10000;
+  z-index: 2147483647;
   padding: 0 16px;
   font-family: "Roboto", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-size: 14px;
+  pointer-events: auto;
+}
+
+/* Force hide any remaining YouTube Music progress elements */
+ytmusic-player-bar .progress-bar,
+ytmusic-player-bar .progress-info,
+ytmusic-player-bar .progress-wrapper,
+ytmusic-player-bar #progress-bar,
+ytmusic-player-bar .time-info,
+ytmusic-player-bar .sliders,
+ytmusic-player-bar .slider,
+ytmusic-player-bar tp-yt-paper-slider,
+ytmusic-player-bar [role="slider"],
+.ytmusic-player #progress-bar,
+.ytmusic-player .progress-bar,
+.ytmusic-player .sliders,
+.ytmusic-player .time-info,
+ytmusic-player-bar .time-display-wrapper,
+ytmusic-player-bar .time-display,
+ytmusic-player-bar .chapter-info,
+.progress-container,
+.progress-slider {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  height: 0 !important;
+  pointer-events: none !important;
+  position: absolute !important;
+  z-index: -1 !important;
 }
 
 /* Left Section - Song Info */
@@ -137,6 +166,8 @@
   align-items: center;
   max-width: 722px;
   width: 100%;
+  position: relative;
+  z-index: 2147483648;
 }
 
 .ytmusic-controls {
@@ -242,6 +273,10 @@
   align-items: center;
   width: 100%;
   gap: 8px;
+  position: relative;
+  z-index: 2147483648;
+  background: #212121;
+  padding: 2px 0;
 }
 
 .ytmusic-time {
@@ -258,6 +293,7 @@
   height: 12px;
   display: flex;
   align-items: center;
+  z-index: 2147483648;
 }
 
 .ytmusic-slider {
@@ -270,6 +306,7 @@
   appearance: none;
   -webkit-appearance: none;
   position: relative;
+  z-index: 2147483648;
 }
 
 /* Webkit browsers */
@@ -510,7 +547,7 @@
   border-radius: 4px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
   min-width: 180px;
-  z-index: 1000;
+  z-index: 2147483648;
 }
 
 .ytmusic-dropdown-item {
@@ -591,9 +628,29 @@
   animation: pulse 0.3s ease;
 }
 
-/* Only force the bottom bar to be on top and fixed */
+/* Force the bottom bar to be on top and fixed with enhanced protection */
 .ytmusic-bottom-bar {
   z-index: 2147483647 !important;
   position: fixed !important;
   pointer-events: auto !important;
+}
+
+/* Ensure the custom bar root container is also on top */
+#ytmusic-player-root {
+  z-index: 2147483647 !important;
+  position: relative !important;
+  pointer-events: auto !important;
+}
+
+/* Block any YouTube Music progress elements that might appear */
+ytmusic-player-bar::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 20px;
+  background: transparent;
+  z-index: 2147483647;
+  pointer-events: none;
 }
