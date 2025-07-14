@@ -16,10 +16,7 @@ import skipNext from "../../../assets/svgs/skip_next.svg"
 import repeat from "../../../assets/svgs/repeat.svg"
 import pictureInPicture from "../../../assets/svgs/picture_in_picture_medium.svg"
 import fullscreen from "../../../assets/svgs/fullscreen.svg"
-
-// Add this at the top to fix SVG import errors in TypeScript
-// If not already present in the project, create a declaration file like src/types/svg.d.ts with:
-// declare module '*.svg' { const content: string; export default content; }
+import expandSong from "../../../assets/svgs/expand_song.svg"
 
 function clamp(val: number, min: number, max: number) {
   return Math.max(min, Math.min(max, val))
@@ -202,6 +199,10 @@ export default function YTMusicPlayer() {
     }
   }
 
+  const expandSongPage = () => {
+    (document.querySelector('.toggle-player-page-button') as HTMLElement | null)?.click()
+  }
+
   // Format time
   const fmt = (s: number) => {
     if (!isFinite(s)) return "0:00"
@@ -346,6 +347,10 @@ export default function YTMusicPlayer() {
 
           <button class="ytmusic-menu-btn" onClick={togglePictureInPicture} title="Picture in Picture">
             <img src={pictureInPicture} alt="Picture in Picture" />
+          </button>
+
+          <button class="ytmusic-menu-btn" onClick={expandSongPage} title="Expand Song">
+            <img src={expandSong} alt="Expand Song" />
           </button>
 
           <button class="ytmusic-menu-btn" onClick={toggleFullscreen} title="Fullscreen">
