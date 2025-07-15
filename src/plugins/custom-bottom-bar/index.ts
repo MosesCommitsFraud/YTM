@@ -2,9 +2,9 @@ import { createPlugin } from "@/utils"
 import { render } from "solid-js/web"
 
 export default createPlugin({
-  name: () => "Custom Bottom Bar",
+  name: () => "Custom Spotify Player",
   description: () =>
-    "A clean YouTube Music-inspired player with dark grey background and red accents, using official Material Design icons.",
+    "A clean Spotifyinspired player with dark grey background and red accents, using official Material Design icons.",
   restartNeeded: false,
   config: {
     enabled: false,
