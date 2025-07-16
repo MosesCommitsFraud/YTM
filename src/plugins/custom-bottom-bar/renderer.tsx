@@ -43,6 +43,8 @@ export default function YTMusicPlayer() {
   const [isPaused, setIsPaused] = createSignal(true)
   const [showDropdown, setShowDropdown] = createSignal(false)
   const [isExpanded, setIsExpanded] = createSignal(false)
+  // Add a signal to track the current videoId
+  const [currentVideoId, setCurrentVideoId] = createSignal<string | null>(null)
 
   // FIX: Add a flag to prevent UI updates during a "repeat one" cycle
   let isRepeatingOne = false
@@ -141,13 +143,9 @@ export default function YTMusicPlayer() {
         }
 
         setSong(newSong)
-        if (!isSeeking()) {
-            const maxDuration = newSong.songDuration || 1
-            const currentProgress = newSong.elapsedSeconds || 0
-            if (currentProgress >= 0 && currentProgress <= maxDuration) {
-                setProgress(currentProgress)
-            }
-        }
+        setCurrentVideoId(newSong.videoId)
+        // Always reset progress to the new song's elapsedSeconds (usually 0)
+        setProgress(newSong.elapsedSeconds || 0)
     }
     window.ipcRenderer.on("ytmd:update-song-info", handler)
 
@@ -180,7 +178,8 @@ export default function YTMusicPlayer() {
 
     const onTimeUpdate = () => {
       const video = getVideo()
-      if (video && !isSeeking()) {
+      // Only update progress if the videoId matches the current song
+      if (video && !isSeeking() && currentVideoId() === song().videoId) {
         setProgress(video.currentTime)
       }
     }
@@ -192,7 +191,8 @@ export default function YTMusicPlayer() {
     // Fallback interval
     const interval = setInterval(() => {
       const video = getVideo()
-      if (video && !isSeeking() && !video.paused) {
+      // Only update progress if the videoId matches the current song
+      if (video && !isSeeking() && !video.paused && currentVideoId() === song().videoId) {
         setProgress(video.currentTime)
       }
       // Also, periodically check state for resilience
