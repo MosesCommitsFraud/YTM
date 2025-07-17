@@ -386,12 +386,19 @@ export default function YTMusicPlayer() {
     img.crossOrigin = 'anonymous';
     img.src = imgSrc;
     await new Promise<void>((resolve, reject) => {
-      img.onload = resolve;
-      img.onerror = reject;
+      img.onload = () => resolve();
+      img.onerror = () => reject();
     });
     canvas.width = img.width;
     canvas.height = img.height;
     ctx.drawImage(img, 0, 0, img.width, img.height);
+    // Add a message overlay to the canvas
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.fillRect(0, canvas.height - 40, canvas.width, 40);
+    ctx.font = '16px sans-serif';
+    ctx.fillStyle = '#fff';
+    ctx.textAlign = 'center';
+    ctx.fillText('Pause is supported in PiP, but resume must be done from the main app.', canvas.width / 2, canvas.height - 15);
     // Create a video from the canvas stream
     const stream = canvas.captureStream();
     const video = document.createElement('video');
@@ -425,53 +432,33 @@ export default function YTMusicPlayer() {
     });
   }
 
-  const togglePictureInPicture = async () => {
-    const video = document.querySelector('video');
-    // If a video element exists and has a video track, use normal PiP
-    if (video && video.videoWidth > 0 && video.videoHeight > 0) {
-      const player = document.getElementById('movie_player') as any;
-      let usedNative = false;
-      try {
-        if (player && typeof player.togglePictureInPicture === 'function') {
-          player.togglePictureInPicture();
-          usedNative = true;
-        }
-      } catch (e) {
-        console.error('YTMusic PiP error:', e);
-      }
-      // Fallback if PiP did not open
-      setTimeout(() => {
-        if (!document.pictureInPictureElement && !usedNative) {
-          if (video) {
-            try {
-              (video as any).requestPictureInPicture();
-            } catch (err) {
-              console.error('Native PiP fallback error:', err);
-            }
-          }
-        }
-      }, 300);
-      return;
-    }
-    // If a video is available for this song, but not currently active (e.g., user is in song mode)
-    if (hasVideoAvailable()) {
-      // Try to switch to video mode automatically if possible
-      const videoToggleBtn = document.querySelector('.video-switch-button') as HTMLElement | null;
-      if (videoToggleBtn) {
-        videoToggleBtn.click();
-        setTimeout(togglePictureInPicture, 500); // Try again after switching
-        return;
+  // Toggle the YT Music miniplayer: open if closed, close if open
+  const toggleMiniplayer = () => {
+    // Miniplayer bar is present if miniplayer is open
+    const miniplayerBar = document.querySelector('ytmusic-player-bar[miniplayer]');
+    if (miniplayerBar) {
+      // Try to find the close button by SVG path
+      const closeBtn = Array.from(miniplayerBar.querySelectorAll('button')).find(btn => {
+        const svg = btn.querySelector('svg');
+        if (!svg) return false;
+        // Check for the unique path data from the provided SVG
+        return Array.from(svg.querySelectorAll('path')).some(path =>
+          path.getAttribute('d') === 'M18 5H4v14h7v1H3V4h16v8h-1V5ZM6 7h5v1H7.707L12 12.293l-.707.707L7 8.707V12H6V7Zm7 7h9v8h-9v-8Z'
+        );
+      }) as HTMLElement | undefined;
+      if (closeBtn) {
+        closeBtn.click();
       } else {
-        alert('A video is available for this song. Please switch to video mode to use Picture-in-Picture.');
-        return;
+        alert('Miniplayer close button not found.');
       }
-    }
-    // Otherwise, show the song image in PiP
-    const imgSrc = song().imageSrc || '';
-    if (imgSrc) {
-      await showImageInPiP(imgSrc);
     } else {
-      alert('No video or image available for PiP.');
+      // Miniplayer is closed, open it
+      const miniplayerBtn = document.querySelector('.player-minimize-button') as HTMLElement | null;
+      if (miniplayerBtn) {
+        miniplayerBtn.click();
+      } else {
+        alert('Miniplayer button not found.');
+      }
     }
   }
 
@@ -616,8 +603,8 @@ export default function YTMusicPlayer() {
               <path d="M15 6H3v2h12V6zm0 4H3v2h12v-2zM3 16h8v-2H3v2zM17 6v8.18c-.31-.11-.65-.18-1-.18-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3V8h3V6h-5z" />
             </svg>
           </button>
-          <button class="ytmusic-menu-btn" onClick={togglePictureInPicture} title="Picture in Picture">
-            <img src={pictureInPicture} alt="Picture in Picture" />
+          <button class="ytmusic-menu-btn" onClick={toggleMiniplayer} title="Toggle Miniplayer">
+            <img src={pictureInPicture} alt="Miniplayer" />
           </button>
           <button class="ytmusic-menu-btn" onClick={expandSongPage} title="Expand Song">
             <img src={expandSong} alt="Expand Song" />
