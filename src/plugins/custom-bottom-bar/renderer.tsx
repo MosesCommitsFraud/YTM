@@ -364,13 +364,41 @@ export default function YTMusicPlayer() {
   }
 
   const togglePictureInPicture = () => {
-    const video = document.querySelector("video")
-    if (!video) return
-    if (document.pictureInPictureElement) {
-      document.exitPictureInPicture()
-    } else {
-      (video as any).requestPictureInPicture()
+    const video = document.querySelector('video');
+    // Check if video exists and has a video track
+    if (!video || video.videoWidth === 0 || video.videoHeight === 0) {
+      // Show the song image in an alert (for demo; replace with modal for better UX)
+      const imgSrc = song().imageSrc || '';
+      if (imgSrc) {
+        alert('No video track available.\n\nSong image: ' + imgSrc);
+      } else {
+        alert('No video track or song image available.');
+      }
+      return;
     }
+    // Otherwise, proceed with PiP logic
+    const player = document.getElementById('movie_player') as any;
+    let usedNative = false;
+    try {
+      if (player && typeof player.togglePictureInPicture === 'function') {
+        player.togglePictureInPicture();
+        usedNative = true;
+      }
+    } catch (e) {
+      console.error('YTMusic PiP error:', e);
+    }
+    // Fallback if PiP did not open
+    setTimeout(() => {
+      if (!document.pictureInPictureElement && !usedNative) {
+        if (video) {
+          try {
+            (video as any).requestPictureInPicture();
+          } catch (err) {
+            console.error('Native PiP fallback error:', err);
+          }
+        }
+      }
+    }, 300);
   }
 
   const expandSongPage = () => {
