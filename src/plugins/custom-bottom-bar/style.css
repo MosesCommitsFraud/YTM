@@ -679,3 +679,12 @@ ytmusic-player-bar::after {
   z-index: 2147483647;
   pointer-events: none;
 }
+
+.ytmusic-link {
+  cursor: pointer;
+  transition: text-decoration 0.15s;
+}
+.ytmusic-link:hover, .ytmusic-link:focus {
+  text-decoration: underline;
+  outline: none;
+}
