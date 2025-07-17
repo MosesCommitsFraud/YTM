@@ -363,42 +363,116 @@ export default function YTMusicPlayer() {
     }
   }
 
-  const togglePictureInPicture = () => {
-    const video = document.querySelector('video');
-    // Check if video exists and has a video track
-    if (!video || video.videoWidth === 0 || video.videoHeight === 0) {
-      // Show the song image in an alert (for demo; replace with modal for better UX)
-      const imgSrc = song().imageSrc || '';
-      if (imgSrc) {
-        alert('No video track available.\n\nSong image: ' + imgSrc);
-      } else {
-        alert('No video track or song image available.');
-      }
+  // Helper: check if the current song has a video available (not just if the video element is active)
+  function hasVideoAvailable() {
+    // Use the MediaType enum values from SongInfo
+    const type = song().mediaType;
+    return (
+      type === 'ORIGINAL_MUSIC_VIDEO' ||
+      type === 'USER_GENERATED_CONTENT' ||
+      type === 'OTHER_VIDEO'
+    );
+  }
+
+  // Helper: show the song image in PiP using a canvas hack
+  async function showImageInPiP(imgSrc: string) {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      alert('Canvas context not available.');
       return;
     }
-    // Otherwise, proceed with PiP logic
-    const player = document.getElementById('movie_player') as any;
-    let usedNative = false;
-    try {
-      if (player && typeof player.togglePictureInPicture === 'function') {
-        player.togglePictureInPicture();
-        usedNative = true;
+    const img = new window.Image();
+    img.crossOrigin = 'anonymous';
+    img.src = imgSrc;
+    await new Promise<void>((resolve, reject) => {
+      img.onload = resolve;
+      img.onerror = reject;
+    });
+    canvas.width = img.width;
+    canvas.height = img.height;
+    ctx.drawImage(img, 0, 0, img.width, img.height);
+    // Create a video from the canvas stream
+    const stream = canvas.captureStream();
+    const video = document.createElement('video');
+    video.srcObject = stream;
+    video.muted = true;
+    video.playsInline = true;
+    video.autoplay = true;
+    video.style.display = 'none';
+    document.body.appendChild(video);
+    await video.play();
+    await new Promise<void>((resolve) => {
+      if (video.readyState >= 2) resolve();
+      else {
+        const handler = () => {
+          video.removeEventListener('canplay', handler);
+          resolve();
+        };
+        video.addEventListener('canplay', handler);
       }
-    } catch (e) {
-      console.error('YTMusic PiP error:', e);
+    });
+    try {
+      await video.requestPictureInPicture();
+    } catch (err) {
+      alert('Failed to open PiP for image.');
     }
-    // Fallback if PiP did not open
-    setTimeout(() => {
-      if (!document.pictureInPictureElement && !usedNative) {
-        if (video) {
-          try {
-            (video as any).requestPictureInPicture();
-          } catch (err) {
-            console.error('Native PiP fallback error:', err);
+    // Remove the video element when PiP closes
+    video.addEventListener('leavepictureinpicture', () => {
+      video.pause();
+      video.srcObject = null;
+      video.remove();
+    });
+  }
+
+  const togglePictureInPicture = async () => {
+    const video = document.querySelector('video');
+    // If a video element exists and has a video track, use normal PiP
+    if (video && video.videoWidth > 0 && video.videoHeight > 0) {
+      const player = document.getElementById('movie_player') as any;
+      let usedNative = false;
+      try {
+        if (player && typeof player.togglePictureInPicture === 'function') {
+          player.togglePictureInPicture();
+          usedNative = true;
+        }
+      } catch (e) {
+        console.error('YTMusic PiP error:', e);
+      }
+      // Fallback if PiP did not open
+      setTimeout(() => {
+        if (!document.pictureInPictureElement && !usedNative) {
+          if (video) {
+            try {
+              (video as any).requestPictureInPicture();
+            } catch (err) {
+              console.error('Native PiP fallback error:', err);
+            }
           }
         }
+      }, 300);
+      return;
+    }
+    // If a video is available for this song, but not currently active (e.g., user is in song mode)
+    if (hasVideoAvailable()) {
+      // Try to switch to video mode automatically if possible
+      const videoToggleBtn = document.querySelector('.video-switch-button') as HTMLElement | null;
+      if (videoToggleBtn) {
+        videoToggleBtn.click();
+        setTimeout(togglePictureInPicture, 500); // Try again after switching
+        return;
+      } else {
+        alert('A video is available for this song. Please switch to video mode to use Picture-in-Picture.');
+        return;
       }
-    }, 300);
+    }
+    // Otherwise, show the song image in PiP
+    const imgSrc = song().imageSrc || '';
+    if (imgSrc) {
+      await showImageInPiP(imgSrc);
+    } else {
+      alert('No video or image available for PiP.');
+    }
   }
 
   const expandSongPage = () => {
