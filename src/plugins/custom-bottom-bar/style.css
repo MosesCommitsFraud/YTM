@@ -688,3 +688,33 @@ ytmusic-player-bar::after {
   text-decoration: underline;
   outline: none;
 }
+
+.ytmusic-artist-album {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0;
+}
+
+.ytmusic-album-section {
+  display: flex;
+  align-items: center;
+}
+
+.ytmusic-separator {
+  color: #aaa;
+  margin: 0 6px;
+  font-size: 0.9em;
+}
+
+.ytmusic-album {
+  color: #aaa;
+  font-size: 0.9em;
+  cursor: pointer;
+  transition: color 0.15s;
+}
+
+.ytmusic-album:hover {
+  color: #fff;
+  text-decoration: underline;
+}

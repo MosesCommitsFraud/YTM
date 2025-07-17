@@ -507,132 +507,29 @@ export default function YTMusicPlayer() {
 
         <div class="ytmusic-song-info">
           <div
-            class="ytmusic-title ytmusic-link"
+            class="ytmusic-title"
             title={song().title || "Song Title"}
-            tabIndex={0}
-            role="link"
-            onClick={() => {
-              // Try to find and click the actual song link in the player bar
-              // Try multiple selectors to find the song link
-              const songLink = document.querySelector('ytmusic-player-bar .title a, ytmusic-player-bar .byline a[href*="watch"], ytmusic-player-bar a[href*="watch"], ytmusic-player-bar .title a[href*="watch"]');
-              if (songLink) {
-                (songLink as HTMLElement).click();
-              } else {
-                // Try to find song link in the expanded player page
-                const playerPageSongLink = document.querySelector('.content-info-wrapper a[href*="watch"], .content-info-wrapper .title a');
-                if (playerPageSongLink) {
-                  (playerPageSongLink as HTMLElement).click();
-                } else {
-                  // Fallback: try to use the app's navigate method
-                  const app = document.querySelector('ytmusic-app');
-                  if (app && typeof (app as any).navigate === 'function') {
-                    // Try using the browse endpoint format
-                    (app as any).navigate(`/watch?v=${song().videoId}`);
-                  } else {
-                    // Final fallback: use history API
-                    const songUrl = song().url || `https://music.youtube.com/watch?v=${song().videoId}`;
-                    history.pushState({}, '', songUrl);
-                    window.dispatchEvent(new PopStateEvent('popstate'));
-                  }
-                }
-              }
-            }}
-            onKeyDown={e => {
-              if (e.key === "Enter" || e.key === " ") {
-                const songLink = document.querySelector('ytmusic-player-bar .title a, ytmusic-player-bar .byline a[href*="watch"], ytmusic-player-bar a[href*="watch"], ytmusic-player-bar .title a[href*="watch"]');
-                if (songLink) {
-                  (songLink as HTMLElement).click();
-                } else {
-                  const playerPageSongLink = document.querySelector('.content-info-wrapper a[href*="watch"], .content-info-wrapper .title a');
-                  if (playerPageSongLink) {
-                    (playerPageSongLink as HTMLElement).click();
-                  } else {
-                    const app = document.querySelector('ytmusic-app');
-                    if (app && typeof (app as any).navigate === 'function') {
-                      (app as any).navigate(`/watch?v=${song().videoId}`);
-                    } else {
-                      const songUrl = song().url || `https://music.youtube.com/watch?v=${song().videoId}`;
-                      history.pushState({}, '', songUrl);
-                      window.dispatchEvent(new PopStateEvent('popstate'));
-                    }
-                  }
-                }
-              }
-            }}
           >
             {song().title || "Song Title"}
           </div>
-          <div
-            class="ytmusic-artist ytmusic-link"
-            title={song().artist || "Artist Name"}
-            tabIndex={0}
-            role="link"
-            onClick={() => {
-              // Try to find and click the actual artist link in the player bar
-              const artistLink = document.querySelector('ytmusic-player-bar .subtitle a, ytmusic-player-bar .byline a[href*="browse"]');
-              if (artistLink) {
-                (artistLink as HTMLElement).click();
-              } else {
-                // Try to find artist link in the expanded player page
-                const playerPageArtistLink = document.querySelector('.content-info-wrapper a[href*="browse"]');
-                if (playerPageArtistLink) {
-                  (playerPageArtistLink as HTMLElement).click();
-                } else {
-                  // Try to get browseId and use app navigation
-                  let browseId = null;
-                  const artistAnchor = document.querySelector('ytmusic-player-bar .subtitle a, ytmusic-player-bar .byline a');
-                  if (artistAnchor) {
-                    const href = artistAnchor.getAttribute('href');
-                    if (href && href.startsWith('/browse/')) {
-                      browseId = href.replace('/browse/', '');
-                    }
-                  }
-                  if (!browseId) {
-                    const playerPageArtist = document.querySelector('.content-info-wrapper a[href^="/browse/"]');
-                    if (playerPageArtist) {
-                      const href = playerPageArtist.getAttribute('href');
-                      if (href && href.startsWith('/browse/')) {
-                        browseId = href.replace('/browse/', '');
-                      }
-                    }
-                  }
-                  
-                  if (browseId) {
-                    const app = document.querySelector('ytmusic-app');
-                    if (app && typeof (app as any).navigate === 'function') {
-                      (app as any).navigate(`/browse/${browseId}`);
-                    } else {
-                      const artistUrl = `https://music.youtube.com/browse/${browseId}`;
-                      history.pushState({}, '', artistUrl);
-                      window.dispatchEvent(new PopStateEvent('popstate'));
-                    }
-                  } else {
-                    // Final fallback: search for the artist
-                    const artist = song().artist || "";
-                    if (artist) {
-                      const app = document.querySelector('ytmusic-app');
-                      if (app && typeof (app as any).navigate === 'function') {
-                        (app as any).navigate(`/search?q=${encodeURIComponent(artist)}`);
-                      } else {
-                        const searchUrl = `https://music.youtube.com/search?q=${encodeURIComponent(artist)}`;
-                        history.pushState({}, '', searchUrl);
-                        window.dispatchEvent(new PopStateEvent('popstate'));
-                      }
-                    }
-                  }
-                }
-              }
-            }}
-            onKeyDown={e => {
-              if (e.key === "Enter" || e.key === " ") {
+          <div class="ytmusic-artist-album">
+            <div
+              class="ytmusic-artist ytmusic-link"
+              title={song().artist || "Artist Name"}
+              tabIndex={0}
+              role="link"
+              onClick={() => {
+                // Try to find and click the actual artist link in the player bar
                 const artistLink = document.querySelector('ytmusic-player-bar .subtitle a, ytmusic-player-bar .byline a[href*="browse"]');
                 if (artistLink) {
                   (artistLink as HTMLElement).click();
                 } else {
+                  // Try to find artist link in the expanded player page
                   const playerPageArtistLink = document.querySelector('.content-info-wrapper a[href*="browse"]');
                   if (playerPageArtistLink) {
                     (playerPageArtistLink as HTMLElement).click();
                   } else {
+                    // Try to get browseId and use app navigation
                     let browseId = null;
                     const artistAnchor = document.querySelector('ytmusic-player-bar .subtitle a, ytmusic-player-bar .byline a');
                     if (artistAnchor) {
@@ -661,6 +558,7 @@ export default function YTMusicPlayer() {
                         window.dispatchEvent(new PopStateEvent('popstate'));
                       }
                     } else {
+                      // Final fallback: search for the artist
                       const artist = song().artist || "";
                       if (artist) {
                         const app = document.querySelector('ytmusic-app');
@@ -675,10 +573,171 @@ export default function YTMusicPlayer() {
                     }
                   }
                 }
-              }
-            }}
-          >
-            {song().artist || "Artist Name"}
+              }}
+              onKeyDown={e => {
+                if (e.key === "Enter" || e.key === " ") {
+                  const artistLink = document.querySelector('ytmusic-player-bar .subtitle a, ytmusic-player-bar .byline a[href*="browse"]');
+                  if (artistLink) {
+                    (artistLink as HTMLElement).click();
+                  } else {
+                    const playerPageArtistLink = document.querySelector('.content-info-wrapper a[href*="browse"]');
+                    if (playerPageArtistLink) {
+                      (playerPageArtistLink as HTMLElement).click();
+                    } else {
+                      let browseId = null;
+                      const artistAnchor = document.querySelector('ytmusic-player-bar .subtitle a, ytmusic-player-bar .byline a');
+                      if (artistAnchor) {
+                        const href = artistAnchor.getAttribute('href');
+                        if (href && href.startsWith('/browse/')) {
+                          browseId = href.replace('/browse/', '');
+                        }
+                      }
+                      if (!browseId) {
+                        const playerPageArtist = document.querySelector('.content-info-wrapper a[href^="/browse/"]');
+                        if (playerPageArtist) {
+                          const href = playerPageArtist.getAttribute('href');
+                          if (href && href.startsWith('/browse/')) {
+                            browseId = href.replace('/browse/', '');
+                          }
+                        }
+                      }
+                      
+                      if (browseId) {
+                        const app = document.querySelector('ytmusic-app');
+                        if (app && typeof (app as any).navigate === 'function') {
+                          (app as any).navigate(`/browse/${browseId}`);
+                        } else {
+                          const artistUrl = `https://music.youtube.com/browse/${browseId}`;
+                          history.pushState({}, '', artistUrl);
+                          window.dispatchEvent(new PopStateEvent('popstate'));
+                        }
+                      } else {
+                        const artist = song().artist || "";
+                        if (artist) {
+                          const app = document.querySelector('ytmusic-app');
+                          if (app && typeof (app as any).navigate === 'function') {
+                            (app as any).navigate(`/search?q=${encodeURIComponent(artist)}`);
+                          } else {
+                            const searchUrl = `https://music.youtube.com/search?q=${encodeURIComponent(artist)}`;
+                            history.pushState({}, '', searchUrl);
+                            window.dispatchEvent(new PopStateEvent('popstate'));
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }}
+            >
+              {song().artist || "Artist Name"}
+            </div>
+            {song().album && (
+              <div class="ytmusic-album-section">
+                <span class="ytmusic-separator"> • </span>
+                <div
+                  class="ytmusic-album ytmusic-link"
+                  title={song().album || ""}
+                  tabIndex={0}
+                  role="link"
+                  onClick={() => {
+                    // Try to find and click the actual album link in the player bar or expanded player page
+                    // Use more specific selectors to find album links
+                    const albumLink = document.querySelector('ytmusic-player-bar a[href*="browse"][title*="album"], .content-info-wrapper a[href*="browse"][title*="album"], ytmusic-player-bar a[href*="browse"][aria-label*="album"], .content-info-wrapper a[href*="browse"][aria-label*="album"]');
+                    if (albumLink) {
+                      (albumLink as HTMLElement).click();
+                    } else {
+                      // Try to find album link in the expanded player page with different selectors
+                      const playerPageAlbumLink = document.querySelector('.content-info-wrapper a[href*="browse"]:not([title*="artist"]):not([aria-label*="artist"])');
+                      if (playerPageAlbumLink) {
+                        (playerPageAlbumLink as HTMLElement).click();
+                      } else {
+                        // Try to get browseId and use app navigation
+                        let browseId = null;
+                        // Try to find album browseId from the DOM
+                        const albumAnchor = document.querySelector('ytmusic-player-bar a[href*="browse"]:not([title*="artist"]):not([aria-label*="artist"]), .content-info-wrapper a[href*="browse"]:not([title*="artist"]):not([aria-label*="artist"])');
+                        if (albumAnchor) {
+                          const href = albumAnchor.getAttribute('href');
+                          if (href && href.startsWith('/browse/')) {
+                            browseId = href.replace('/browse/', '');
+                          }
+                        }
+                        
+                        if (browseId) {
+                          const app = document.querySelector('ytmusic-app');
+                          if (app && typeof (app as any).navigate === 'function') {
+                            (app as any).navigate(`/browse/${browseId}`);
+                          } else {
+                            const albumUrl = `https://music.youtube.com/browse/${browseId}`;
+                            history.pushState({}, '', albumUrl);
+                            window.dispatchEvent(new PopStateEvent('popstate'));
+                          }
+                        } else {
+                          // Final fallback: search for the album
+                          const album = song().album || "";
+                          if (album) {
+                            const app = document.querySelector('ytmusic-app');
+                            if (app && typeof (app as any).navigate === 'function') {
+                              (app as any).navigate(`/search?q=${encodeURIComponent(album)}`);
+                            } else {
+                              const searchUrl = `https://music.youtube.com/search?q=${encodeURIComponent(album)}`;
+                              history.pushState({}, '', searchUrl);
+                              window.dispatchEvent(new PopStateEvent('popstate'));
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }}
+                  onKeyDown={e => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      const albumLink = document.querySelector('ytmusic-player-bar a[href*="browse"][title*="album"], .content-info-wrapper a[href*="browse"][title*="album"], ytmusic-player-bar a[href*="browse"][aria-label*="album"], .content-info-wrapper a[href*="browse"][aria-label*="album"]');
+                      if (albumLink) {
+                        (albumLink as HTMLElement).click();
+                      } else {
+                        const playerPageAlbumLink = document.querySelector('.content-info-wrapper a[href*="browse"]:not([title*="artist"]):not([aria-label*="artist"])');
+                        if (playerPageAlbumLink) {
+                          (playerPageAlbumLink as HTMLElement).click();
+                        } else {
+                          let browseId = null;
+                          const albumAnchor = document.querySelector('ytmusic-player-bar a[href*="browse"]:not([title*="artist"]):not([aria-label*="artist"]), .content-info-wrapper a[href*="browse"]:not([title*="artist"]):not([aria-label*="artist"])');
+                          if (albumAnchor) {
+                            const href = albumAnchor.getAttribute('href');
+                            if (href && href.startsWith('/browse/')) {
+                              browseId = href.replace('/browse/', '');
+                            }
+                          }
+                          
+                          if (browseId) {
+                            const app = document.querySelector('ytmusic-app');
+                            if (app && typeof (app as any).navigate === 'function') {
+                              (app as any).navigate(`/browse/${browseId}`);
+                            } else {
+                              const albumUrl = `https://music.youtube.com/browse/${browseId}`;
+                              history.pushState({}, '', albumUrl);
+                              window.dispatchEvent(new PopStateEvent('popstate'));
+                            }
+                          } else {
+                            const album = song().album || "";
+                            if (album) {
+                              const app = document.querySelector('ytmusic-app');
+                              if (app && typeof (app as any).navigate === 'function') {
+                                (app as any).navigate(`/search?q=${encodeURIComponent(album)}`);
+                              } else {
+                                const searchUrl = `https://music.youtube.com/search?q=${encodeURIComponent(album)}`;
+                                history.pushState({}, '', searchUrl);
+                                window.dispatchEvent(new PopStateEvent('popstate'));
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }}
+                >
+                  {song().album}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
