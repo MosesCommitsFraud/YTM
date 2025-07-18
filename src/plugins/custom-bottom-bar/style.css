@@ -18,6 +18,55 @@
   pointer-events: auto;
 }
 
+/* Hide the original YouTube Music navigation bar completely */
+ytmusic-nav-bar {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  height: 0 !important;
+  overflow: hidden !important;
+  pointer-events: none !important;
+}
+
+/* Adjust the app layout to compensate for hidden navigation bar */
+ytmusic-app-layout {
+  --ytmusic-nav-bar-height: 0px !important;
+}
+
+/* Adjust content positioning to account for hidden nav bar */
+ytmusic-app-layout > #content {
+  padding-top: var(--menu-bar-height, 32px) !important;
+}
+
+/* Override macOS specific navigation bar styles */
+:where([data-os*='Macintosh']) ytmusic-app-layout#layout ytmusic-nav-bar {
+  display: none !important;
+  padding-top: 0 !important;
+  --ytmusic-nav-bar-offset: 0px !important;
+  --ytmusic-nav-bar-height: 0px !important;
+}
+
+/* Ensure proper spacer positioning with hidden nav bar */
+ytmusic-app[is-bauhaus-sidenav-enabled] #guide-spacer.ytmusic-app,
+ytmusic-app[is-bauhaus-sidenav-enabled] #mini-guide-spacer.ytmusic-app {
+  margin-top: var(--menu-bar-height, 32px) !important;
+}
+
+/* Ensure nav bar background and divider are properly positioned */
+ytmusic-app-layout > [slot='nav-bar'],
+#nav-bar-background.ytmusic-app-layout {
+  top: var(--menu-bar-height, 32px) !important;
+}
+
+#nav-bar-divider.ytmusic-app-layout {
+  top: var(--menu-bar-height, 32px) !important;
+}
+
+/* Ensure guide renderer height is correct */
+ytmusic-guide-renderer {
+  height: calc(100vh - var(--menu-bar-height, 32px)) !important;
+}
+
 /* Force hide any remaining YouTube Music progress elements */
 ytmusic-player-bar .progress-bar,
 ytmusic-player-bar .progress-info,

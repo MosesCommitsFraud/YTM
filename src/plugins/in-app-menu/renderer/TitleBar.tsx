@@ -201,9 +201,7 @@ export const TitleBar = (props: TitleBarProps) => {
   const [openTarget, setOpenTarget] = createSignal<HTMLElement | null>(null);
   const [menu, setMenu] = createSignal<Menu | null>(null);
   const [mouseY, setMouseY] = createSignal(0);
-  const [menuOpen, setMenuOpen] = createSignal(false);
-  const [menuHover, setMenuHover] = createSignal(false);
-  let closeMenuTimeout: number | null = null;
+  // Removed menu state variables as burger menu is no longer used
 
   // Account info state
   const [accountAvatar, setAccountAvatar] = createSignal<string | null>(null);
@@ -246,27 +244,7 @@ export const TitleBar = (props: TitleBarProps) => {
     }, 0);
   }
 
-  const handleMenuClick = () => setMenuOpen(!menuOpen());
-  const handleMenuClose = () => setMenuOpen(false);
-
-  const handleMenuMouseEnter = () => {
-    setMenuHover(true);
-    if (closeMenuTimeout) {
-      clearTimeout(closeMenuTimeout);
-      closeMenuTimeout = null;
-    }
-  };
-  const handleMenuMouseLeave = () => {
-    setMenuHover(false);
-    if (closeMenuTimeout) {
-      clearTimeout(closeMenuTimeout);
-    }
-    closeMenuTimeout = window.setTimeout(() => {
-      if (!menuHover()) {
-        setMenuOpen(false);
-      }
-    }, 120);
-  };
+  // Removed menu handling functions as burger menu is no longer used
 
   const [data, { refetch }] = createResource(
     async () => (await props.ipc.invoke('get-menu')) as Promise<Menu | null>,
@@ -364,18 +342,7 @@ export const TitleBar = (props: TitleBarProps) => {
     props.ipc.on('window-maximize', refetchMaximize);
     props.ipc.on('window-unmaximize', refetchMaximize);
 
-    // close menu when the outside of the panel or sub-panel is clicked
-    document.body.addEventListener('click', (e) => {
-      if (
-        e.target instanceof HTMLElement &&
-        !(
-          e.target.closest('nav[data-ytmd-main-panel]') ||
-          e.target.closest('ul[data-ytmd-sub-panel]')
-        )
-      ) {
-        setMenuOpen(false);
-      }
-    });
+    // Removed menu click outside listener as burger menu is no longer used
 
     // tracking mouse position
     window.addEventListener('mousemove', listener);
@@ -480,23 +447,8 @@ export const TitleBar = (props: TitleBarProps) => {
       data-show={mouseY() < 32}
       style={{ position: 'fixed', top: 0, left: 0, width: '100%', 'z-index': 1000, display: 'flex', 'flex-direction': 'row', 'align-items': 'center', 'justify-content': 'space-between' }}
     >
-      {/* Left: Window controls, then arrows, then dot menu */}
+      {/* Left: Window controls and arrows */}
       <div style={`display: flex; align-items: center; gap: 4px; -webkit-app-region: no-drag;`}>
-        {/* Dot menu - move to far left */}
-        <div style={`position: relative; -webkit-app-region: no-drag;`}>
-          <button style={`width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; background: none; border: none; cursor: pointer; border-radius: 6px; transition: background 0.15s; -webkit-app-region: no-drag;`} onClick={handleMenuClick} title="Menu">
-            <svg width="20" height="20" viewBox="0 0 24 24"><circle cx="12" cy="5" r="2" fill="#fff"/><circle cx="12" cy="12" r="2" fill="#fff"/><circle cx="12" cy="19" r="2" fill="#fff"/></svg>
-          </button>
-          {menuOpen() && menu() && (
-            <div
-              style={`position: absolute; top: 40px; left: 0; background: #232323; color: #fff; border-radius: 8px; box-shadow: 0 2px 12px #0008; padding: 8px 0; min-width: 180px; z-index: 20000; -webkit-app-region: no-drag;`}
-              onMouseEnter={handleMenuMouseEnter}
-              onMouseLeave={handleMenuMouseLeave}
-            >
-              {menu() && <PanelRenderer items={menu()?.items ?? []} onClick={handleItemClick} onMenuHover={setMenuHover} />}
-            </div>
-          )}
-        </div>
         {/* Window controls */}
         <Show when={props.enableController}>
           <WindowController

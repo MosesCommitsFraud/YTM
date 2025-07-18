@@ -53,6 +53,39 @@ export default function YTMusicPlayer() {
   let isUserVolumeChange = false
   const SYNC_DELAY = 300 // ms
 
+  // --- Sidebar expansion logic ---
+  const ensureSidebarExpanded = () => {
+    // Check if the sidebar is in compact mode (mini-guide visible)
+    const miniGuide = document.querySelector('#mini-guide') as HTMLElement;
+    const mainGuide = document.querySelector('ytmusic-guide-renderer') as HTMLElement;
+    
+    if (miniGuide && mainGuide) {
+      // If mini-guide is visible, that means we're in compact mode - expand it
+      const miniGuideVisible = window.getComputedStyle(miniGuide).display !== 'none';
+      const mainGuideVisible = window.getComputedStyle(mainGuide).display !== 'none';
+      
+      if (miniGuideVisible && !mainGuideVisible) {
+        // Find the sidebar toggle button - try multiple selectors
+        const toggleSelectors = [
+          '#button', // The main toggle button
+          'ytmusic-guide-renderer #button',
+          '[aria-label*="guide" i]',
+          'button[aria-label*="menu" i]',
+          'ytmusic-nav-bar #button'
+        ];
+        
+        for (const selector of toggleSelectors) {
+          const toggleButton = document.querySelector(selector) as HTMLElement;
+          if (toggleButton && toggleButton.offsetParent !== null) { // Check if button is visible
+            console.log('Expanding sidebar from compact mode using selector:', selector);
+            toggleButton.click();
+            break;
+          }
+        }
+      }
+    }
+  }
+
   // Helper to request shuffle/repeat state
   function requestShuffle() {
     window.ipcRenderer.send("ytmd:get-shuffle")
@@ -158,6 +191,19 @@ export default function YTMusicPlayer() {
       applyCurrentStateToVideo(document.querySelector("video"))
     })
     videoObserver.observe(document.body, { childList: true, subtree: true })
+
+    // --- Ensure sidebar stays expanded ---
+    ensureSidebarExpanded()
+    
+    // Watch for DOM changes that might affect sidebar (throttled to avoid performance issues)
+    let sidebarCheckTimeout: number | null = null;
+    const sidebarObserver = new MutationObserver(() => {
+      if (sidebarCheckTimeout) clearTimeout(sidebarCheckTimeout);
+      sidebarCheckTimeout = window.setTimeout(() => {
+        ensureSidebarExpanded()
+      }, 1000); // Check every second at most
+    })
+    sidebarObserver.observe(document.body, { childList: true, subtree: false }) // Only watch direct children
 
     // --- Song info updates ---
     // REWRITTEN: Handler to prevent UI desync on "Repeat One"
