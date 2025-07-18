@@ -71,6 +71,34 @@ export default function YTMusicPlayer() {
     }
   }
 
+  // NEW: Detect like/dislike state from YouTube Music
+  function detectLikeState() {
+    // Try to find the like button renderer for the currently playing song
+    const likeButtonRenderer = document.querySelector('#like-button-renderer')
+    
+    if (likeButtonRenderer) {
+      // Look for the actual like and dislike buttons within the renderer
+      const likeButton = likeButtonRenderer.querySelector('button[aria-label="Like"]')
+      const dislikeButton = likeButtonRenderer.querySelector('button[aria-label="Dislike"]')
+      
+      if (likeButton && dislikeButton) {
+        // Check if the buttons have the active state (pressed)
+        const isLikedState = likeButton.getAttribute('aria-pressed') === 'true'
+        const isDislikedState = dislikeButton.getAttribute('aria-pressed') === 'true'
+        
+        // Update state only if it's different to avoid unnecessary re-renders
+        if (isLikedState !== isLiked()) {
+          setIsLiked(isLikedState)
+          console.log('[CustomBar] Like state changed:', isLikedState)
+        }
+        if (isDislikedState !== isDisliked()) {
+          setIsDisliked(isDislikedState)
+          console.log('[CustomBar] Dislike state changed:', isDislikedState)
+        }
+      }
+    }
+  }
+
   // REWRITTEN: More reliable repeat state detection
   function detectRepeatState() {
     const repeatBtn = document.querySelector('yt-icon-button.repeat')
@@ -146,6 +174,8 @@ export default function YTMusicPlayer() {
         setCurrentVideoId(newSong.videoId)
         // Always reset progress to the new song's elapsedSeconds (usually 0)
         setProgress(newSong.elapsedSeconds || 0)
+        // Detect like state for the new song
+        setTimeout(detectLikeState, 200)
     }
     window.ipcRenderer.on("ytmd:update-song-info", handler)
 
@@ -198,6 +228,7 @@ export default function YTMusicPlayer() {
       // Also, periodically check state for resilience
       detectShuffleState()
       detectRepeatState()
+      detectLikeState()
     }, 1000)
 
     // --- Sync shuffle/repeat state on mount ---
@@ -206,6 +237,7 @@ export default function YTMusicPlayer() {
         requestRepeat()
         detectShuffleState()
         detectRepeatState()
+        detectLikeState()
     }, 1000)
 
     // Monitor for attribute changes on the repeat button for instant updates
@@ -219,7 +251,58 @@ export default function YTMusicPlayer() {
       return () => {}
     }
     
+    // NEW: Monitor for changes in like/dislike buttons
+    const setupLikeButtonWatcher = () => {
+      const likeButtonRenderer = document.querySelector('#like-button-renderer')
+      
+      const likeObserver = new MutationObserver(detectLikeState)
+      
+      if (likeButtonRenderer) {
+        // Watch for changes in the like button renderer (including its children)
+        likeObserver.observe(likeButtonRenderer, { 
+          attributes: true, 
+          childList: true, 
+          subtree: true,
+          attributeFilter: ['aria-pressed']
+        })
+      }
+      
+      // Also observe the document for when the like-button-renderer is created/recreated
+      const documentObserver = new MutationObserver((mutations) => {
+        for (const mutation of mutations) {
+          if (mutation.type === 'childList') {
+            // Check if like-button-renderer was added
+            const hasLikeButtonRenderer = document.querySelector('#like-button-renderer')
+            
+            if (hasLikeButtonRenderer) {
+              detectLikeState()
+              // Re-setup observer for the new renderer
+              setTimeout(() => {
+                const newLikeButtonRenderer = document.querySelector('#like-button-renderer')
+                if (newLikeButtonRenderer) {
+                  likeObserver.observe(newLikeButtonRenderer, { 
+                    attributes: true, 
+                    childList: true, 
+                    subtree: true,
+                    attributeFilter: ['aria-pressed']
+                  })
+                }
+              }, 100)
+            }
+          }
+        }
+      })
+      
+      documentObserver.observe(document.body, { childList: true, subtree: true })
+      
+      return () => {
+        likeObserver.disconnect()
+        documentObserver.disconnect()
+      }
+    }
+    
     const cleanupRepeatWatcher = setupRepeatButtonWatcher()
+    const cleanupLikeWatcher = setupLikeButtonWatcher()
 
     // Detect expanded mode
     const appLayout = document.querySelector('ytmusic-app-layout')
@@ -272,6 +355,7 @@ export default function YTMusicPlayer() {
       }
       clearInterval(interval)
       cleanupRepeatWatcher()
+      cleanupLikeWatcher()
       window.ipcRenderer.off("ytmd:shuffle-changed", handleShuffleChanged)
       window.ipcRenderer.off("ytmd:repeat-changed", handleRepeatChanged)
       document.removeEventListener("click", handleClickOutside)
@@ -297,13 +381,31 @@ export default function YTMusicPlayer() {
   }
 
   const toggleLike = () => {
-    setIsLiked(!isLiked())
-    if (!isLiked()) setIsDisliked(false)
+    // Use the proper YouTube Music API method for the currently playing song
+    const likeButtonRenderer = document.querySelector('#like-button-renderer') as HTMLElement & { updateLikeStatus: (status: string) => void }
+    if (likeButtonRenderer && likeButtonRenderer.updateLikeStatus) {
+      likeButtonRenderer.updateLikeStatus('LIKE')
+      // Re-detect state after a short delay to sync with YouTube Music
+      setTimeout(detectLikeState, 100)
+    } else {
+      // Fallback to IPC system
+      window.ipcRenderer.send("ytmd:update-like", "LIKE")
+      setTimeout(detectLikeState, 100)
+    }
   }
 
   const toggleDislike = () => {
-    setIsDisliked(!isDisliked())
-    if (!isDisliked()) setIsLiked(false)
+    // Use the proper YouTube Music API method for the currently playing song
+    const likeButtonRenderer = document.querySelector('#like-button-renderer') as HTMLElement & { updateLikeStatus: (status: string) => void }
+    if (likeButtonRenderer && likeButtonRenderer.updateLikeStatus) {
+      likeButtonRenderer.updateLikeStatus('DISLIKE')
+      // Re-detect state after a short delay to sync with YouTube Music
+      setTimeout(detectLikeState, 100)
+    } else {
+      // Fallback to IPC system
+      window.ipcRenderer.send("ytmd:update-like", "DISLIKE")
+      setTimeout(detectLikeState, 100)
+    }
   }
 
   const toggleShuffle = () => {

@@ -145,7 +145,7 @@ ytmusic-player-bar .chapter-info,
 }
 
 .ytmusic-like-btn.disliked {
-  color: #aaaaaa;
+  color: #ff2d55;
 }
 
 .ytmusic-like-btn img {
@@ -156,6 +156,10 @@ ytmusic-player-bar .chapter-info,
 }
 
 .ytmusic-like-btn.liked img {
+  filter: brightness(0) saturate(100%) invert(36%) sepia(99%) saturate(7492%) hue-rotate(329deg) brightness(104%) contrast(104%);
+}
+
+.ytmusic-like-btn.disliked img {
   filter: brightness(0) saturate(100%) invert(36%) sepia(99%) saturate(7492%) hue-rotate(329deg) brightness(104%) contrast(104%);
 }
 
