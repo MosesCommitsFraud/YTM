@@ -9,36 +9,46 @@ const containerStyle = cacheNoArgs(
     display: flex;
     justify-content: flex-end;
     align-items: center;
-    z-index: 10000001;
-    background: #fff;
-    border: 2px solid #f45c5c;
-    box-shadow: 0 2px 12px #0003;
-    padding: 0 4px;
-    border-radius: 10px;
-    position: relative;
-    min-width: 120px;
-    min-height: 36px;
-    overflow: visible;
+    gap: 2px;
+    -webkit-app-region: no-drag;
   `,
 );
 
 const buttonStyle = cacheNoArgs(() => css`
   width: 32px;
   height: 32px;
-  border-radius: 8px;
-  margin: 0 4px;
+  border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: box-shadow 0.18s, background 0.18s;
-  border: 1.5px solid #232323;
-  background: #181818;
-  box-shadow: 0 1px 4px #0002;
-  padding: 0;
+  transition: background 0.2s ease, transform 0.1s ease;
+  border: none;
+  background: transparent;
   cursor: pointer;
+  color: #f1f1f1;
+  
   &:hover {
-    background: #232323;
-    box-shadow: 0 2px 8px #0003;
+    background: rgba(255, 255, 255, 0.08);
+    transform: scale(1.05);
+  }
+  
+  &:active {
+    transform: scale(0.95);
+  }
+  
+  &.minimize-btn:hover {
+    background: rgba(255, 193, 7, 0.15);
+    color: #ffc107;
+  }
+  
+  &.maximize-btn:hover {
+    background: rgba(76, 175, 80, 0.15);
+    color: #4caf50;
+  }
+  
+  &.close-btn:hover {
+    background: rgba(244, 67, 54, 0.15);
+    color: #f44336;
   }
 `);
 
@@ -49,23 +59,35 @@ export type WindowControllerProps = {
   onMinimize?: () => void;
   onClose?: () => void;
 };
+
 export const WindowController = (props: WindowControllerProps) => {
   return (
     <div class={containerStyle()}>
-      <button class={buttonStyle()} onClick={props.onMinimize} title="Minimize">
-        <svg width={16} height={16} viewBox="0 0 16 16">
-          <rect x="3" y="7.5" width="10" height="1.5" rx="0.75" fill="#f4c542" />
+      <button class={`${buttonStyle()} minimize-btn`} onClick={props.onMinimize} title="Minimize">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+          <path d="M4 8h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
         </svg>
       </button>
-      <button class={buttonStyle()} onClick={props.onToggleMaximize} title="Maximize/Restore">
-        <svg width={16} height={16} viewBox="0 0 16 16">
-          <rect x="3" y="3" width="10" height="10" rx="2" fill="#5fc86b" />
-        </svg>
+      
+      <button class={`${buttonStyle()} maximize-btn`} onClick={props.onToggleMaximize} title={props.isMaximize ? "Restore" : "Maximize"}>
+        <Show 
+          when={props.isMaximize}
+          fallback={
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <rect x="3" y="3" width="10" height="10" rx="1" stroke="currentColor" stroke-width="1.5" fill="none"/>
+            </svg>
+          }
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <rect x="5" y="3" width="8" height="8" rx="1" stroke="currentColor" stroke-width="1.5" fill="none"/>
+            <path d="M3 5v6a2 2 0 0 0 2 2h6" stroke="currentColor" stroke-width="1.5" fill="none"/>
+          </svg>
+        </Show>
       </button>
-      <button class={buttonStyle()} onClick={props.onClose} title="Close">
-        <svg width={16} height={16} viewBox="0 0 16 16">
-          <line x1="4" y1="4" x2="12" y2="12" stroke="#f45c5c" stroke-width="2" stroke-linecap="round"/>
-          <line x1="12" y1="4" x2="4" y2="12" stroke="#f45c5c" stroke-width="2" stroke-linecap="round"/>
+      
+      <button class={`${buttonStyle()} close-btn`} onClick={props.onClose} title="Close">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+          <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
         </svg>
       </button>
     </div>

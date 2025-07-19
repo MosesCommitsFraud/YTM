@@ -320,7 +320,7 @@ async function createMainWindow() {
   const decorations: Partial<BrowserWindowConstructorOptions> = {
     frame: false,
     titleBarStyle: 'hidden',
-    titleBarOverlay: defaultTitleBarOverlayOptions,
+    titleBarOverlay: useInlineMenu ? false : defaultTitleBarOverlayOptions,
     autoHideMenuBar: config.get('options.hideMenu'),
   };
 
@@ -465,15 +465,8 @@ async function createMainWindow() {
   removeContentSecurityPolicy();
 
   win.webContents.on('dom-ready', () => {
-    if (useInlineMenu && is.windows()) {
-      win.setTitleBarOverlay({
-        ...defaultTitleBarOverlayOptions,
-        height: Math.floor(
-          defaultTitleBarOverlayOptions.height! *
-            win.webContents.getZoomFactor(),
-        ),
-      });
-    }
+    // Custom window controls are now handled entirely by the in-app-menu plugin
+    // No need to set titleBarOverlay when using custom controls
   });
   win.webContents.on('will-redirect', (event) => {
     const url = new URL(event.url);
@@ -719,7 +712,10 @@ app.whenReady().then(async () => {
         );
       }
       const splited = decodeURIComponent(command).split(' ');
-      handleProtocol(splited.shift(), ...splited);
+      const cmd = splited.shift();
+      if (cmd) {
+        handleProtocol(cmd, ...splited);
+      }
       return;
     }
     if (!mainWindow) {

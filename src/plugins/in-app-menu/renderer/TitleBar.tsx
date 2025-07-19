@@ -475,19 +475,9 @@ export const TitleBar = (props: TitleBarProps) => {
       data-show={mouseY() < 32}
       style={{ position: 'fixed', top: 0, left: 0, width: '100%', 'z-index': 1000, display: 'flex', 'flex-direction': 'row', 'align-items': 'center', 'justify-content': 'space-between' }}
     >
-      {/* Left: Window controls and arrows */}
+      {/* Left: Menu and navigation */}
       <div style={`display: flex; align-items: center; gap: 4px; margin-left: 8px; -webkit-app-region: no-drag;`}>
-        {/* Window controls */}
-        <Show when={props.enableController}>
-          <WindowController
-            isMaximize={isMaximized()}
-            onToggleMaximize={handleToggleMaximize}
-            onMinimize={handleMinimize}
-            onClose={handleClose}
-          />
-        </Show>
-        
-        {/* Burger menu button - moved to left of arrows */}
+        {/* Burger menu button */}
         <Show when={!collapsed()}>
           <Show when={menu()?.items?.length}>
             <button
@@ -567,7 +557,19 @@ export const TitleBar = (props: TitleBarProps) => {
         {/* The original account button will be moved here by JS */}
       </div>
       
-      {/* Right side: Menu panels */}
+      {/* Right side: Window controls */}
+      <div style={`display: flex; align-items: center; gap: 4px; margin-right: 8px; -webkit-app-region: no-drag;`}>
+        <Show when={props.enableController}>
+          <WindowController
+            isMaximize={isMaximized()}
+            onToggleMaximize={handleToggleMaximize}
+            onMinimize={handleMinimize}
+            onClose={handleClose}
+          />
+        </Show>
+      </div>
+      
+      {/* Menu panels */}
       <Show when={openTarget() && menu()}>
         <div
           style={{

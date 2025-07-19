@@ -36,7 +36,7 @@ export const onRendererLoad = async ({
         ipc={ipc}
         isMacOS={isMacOS}
         enableController={
-          isNotWindowsOrMacOS && !config().hideDOMWindowControls
+          !config().hideDOMWindowControls
         }
         initialCollapsed={window.mainConfig.get('options.hideMenu')}
       />
