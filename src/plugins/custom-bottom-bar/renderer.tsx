@@ -188,9 +188,30 @@ export default function YTMusicPlayer() {
     applyCurrentStateToVideo(document.querySelector("video"))
     
     const videoObserver = new MutationObserver(() => {
-      applyCurrentStateToVideo(document.querySelector("video"))
+      const video = document.querySelector("video")
+      applyCurrentStateToVideo(video)
+      
+      // If a new video element is found, sync progress immediately
+      if (video && video !== lastVideo) {
+        setTimeout(() => {
+          if (!isSeeking()) {
+            setProgress(video.currentTime || 0)
+          }
+        }, 50)
+      }
     })
     videoObserver.observe(document.body, { childList: true, subtree: true })
+
+    // --- Initial progress sync ---
+    // Immediately sync progress with current video state on mount
+    const initialVideo = document.querySelector("video") as HTMLVideoElement
+    if (initialVideo) {
+      setProgress(initialVideo.currentTime || 0)
+      // Set current video ID from song info if not set
+      if (!currentVideoId() && song().videoId) {
+        setCurrentVideoId(song().videoId)
+      }
+    }
 
     // --- Ensure sidebar stays expanded ---
     ensureSidebarExpanded()
@@ -216,10 +237,25 @@ export default function YTMusicPlayer() {
             return
         }
 
+        const isNewSong = currentVideoId() !== newSong.videoId
         setSong(newSong)
         setCurrentVideoId(newSong.videoId)
-        // Always reset progress to the new song's elapsedSeconds (usually 0)
-        setProgress(newSong.elapsedSeconds || 0)
+        
+        // For new songs, ensure progress starts from the beginning
+        if (isNewSong) {
+            setProgress(0)
+            // Sync with video element after a brief delay
+            setTimeout(() => {
+                const video = getVideo()
+                if (video) {
+                    setProgress(video.currentTime || 0)
+                }
+            }, 100)
+        } else {
+            // For same song (like seeking), use the provided elapsed time
+            setProgress(newSong.elapsedSeconds || 0)
+        }
+        
         // Detect like state for the new song
         setTimeout(detectLikeState, 200)
     }
@@ -237,6 +273,16 @@ export default function YTMusicPlayer() {
       video.addEventListener("pause", updatePaused)
       video.addEventListener("play", updatePaused)
       
+      // Add loadstart event to sync progress when new content loads
+      video.addEventListener("loadstart", () => {
+        // New content is loading, sync progress after a brief delay
+        setTimeout(() => {
+          if (!isSeeking()) {
+            setProgress(video.currentTime || 0)
+          }
+        }, 100)
+      })
+      
       // FIX: Use the 'ended' event to flag that a repeat is happening
       video.addEventListener("ended", () => {
         // Mode 2 is "repeat one".
@@ -245,6 +291,9 @@ export default function YTMusicPlayer() {
             isRepeatingOne = true
             // Reset the flag after a short delay to allow the player to restart the track
             setTimeout(() => { isRepeatingOne = false }, 1500)
+        } else {
+            // For normal playback, reset progress to prepare for next song
+            setProgress(0)
         }
         // After any song ends, re-check the repeat state, as YTM might auto-change it.
         setTimeout(detectRepeatState, 200)
@@ -254,9 +303,11 @@ export default function YTMusicPlayer() {
 
     const onTimeUpdate = () => {
       const video = getVideo()
-      // Only update progress if the videoId matches the current song
-      if (video && !isSeeking() && currentVideoId() === song().videoId) {
-        setProgress(video.currentTime)
+      if (video && !isSeeking()) {
+        // Update progress if videoIds match, or if currentVideoId is null (initial load)
+        if (currentVideoId() === song().videoId || currentVideoId() === null) {
+          setProgress(video.currentTime)
+        }
       }
     }
     
@@ -264,18 +315,24 @@ export default function YTMusicPlayer() {
       video.addEventListener("timeupdate", onTimeUpdate)
     }
 
-    // Fallback interval
-    const interval = setInterval(() => {
+    // Progress update interval (more frequent for smooth progress bar)
+    const progressInterval = setInterval(() => {
       const video = getVideo()
-      // Only update progress if the videoId matches the current song
-      if (video && !isSeeking() && !video.paused && currentVideoId() === song().videoId) {
-        setProgress(video.currentTime)
+      if (video && !isSeeking() && !video.paused) {
+        // Update progress if videoIds match, or if currentVideoId is null (initial load)
+        if (currentVideoId() === song().videoId || currentVideoId() === null) {
+          setProgress(video.currentTime)
+        }
       }
-      // Also, periodically check state for resilience
+    }, 250) // Update progress every 250ms for smoother bar
+
+    // General state check interval
+    const stateInterval = setInterval(() => {
+      // Periodically check state for resilience
       detectShuffleState()
       detectRepeatState()
       detectLikeState()
-    }, 1000)
+    }, 2000) // Check states every 2 seconds
 
     // --- Sync shuffle/repeat state on mount ---
     setTimeout(() => {
@@ -397,15 +454,18 @@ export default function YTMusicPlayer() {
         video.removeEventListener("play", updatePaused)
         video.removeEventListener("timeupdate", onTimeUpdate)
         video.removeEventListener("ended", () => {})
+        video.removeEventListener("loadstart", () => {})
         video.removeEventListener("volumechange", onVolumeChangeFromVideo)
       }
-      clearInterval(interval)
+      clearInterval(progressInterval)
+      clearInterval(stateInterval)
       cleanupRepeatWatcher()
       cleanupLikeWatcher()
       window.ipcRenderer.off("ytmd:shuffle-changed", handleShuffleChanged)
       window.ipcRenderer.off("ytmd:repeat-changed", handleRepeatChanged)
       document.removeEventListener("click", handleClickOutside)
-      videoObserver.disconnect()
+      videoObserver?.disconnect()
+      sidebarObserver?.disconnect()
       observer?.disconnect()
     })
   })
@@ -464,17 +524,56 @@ export default function YTMusicPlayer() {
     setTimeout(requestRepeat, SYNC_DELAY)
   }
 
-  const onSeek = (e: Event) => {
+  const onSeekInput = (e: Event) => {
+    // Update progress immediately for smooth visual feedback
+    const val = Number((e.target as HTMLInputElement).value)
+    setProgress(val)
+  }
+
+  const onSeekStart = () => {
+    setIsSeeking(true)
+  }
+
+  const onSeekEnd = (e: Event) => {
+    // Actually seek the video and end seeking state
     const video = document.querySelector("video")
     if (!video) return
     const val = Number((e.target as HTMLInputElement).value)
     setProgress(val)
     video.currentTime = val
-    setIsSeeking(false)
+    
+    // Small delay before ending seeking state to prevent flickering
+    setTimeout(() => {
+      setIsSeeking(false)
+    }, 50)
   }
 
-  const onSeekStart = () => setIsSeeking(true)
-  const onSeekEnd = (e: Event) => onSeek(e)
+  const onSeekChange = (e: Event) => {
+    // Fallback for when mouseup doesn't fire (e.g., dragging outside)
+    if (isSeeking()) {
+      onSeekEnd(e)
+    }
+  }
+
+  const onSeekKeyDown = (e: KeyboardEvent) => {
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+      setIsSeeking(true)
+      const video = document.querySelector("video")
+      if (!video) return
+      
+      const step = 5 // 5 second increments
+      const newTime = e.key === 'ArrowLeft' 
+        ? Math.max(0, progress() - step)
+        : Math.min(song().songDuration || 0, progress() + step)
+      
+      setProgress(newTime)
+      video.currentTime = newTime
+      
+      setTimeout(() => {
+        setIsSeeking(false)
+      }, 100)
+    }
+  }
 
   const onVolumeChange = (e: Event) => {
     const video = document.querySelector("video")
@@ -941,9 +1040,13 @@ export default function YTMusicPlayer() {
               min={0}
               max={song().songDuration || 1}
               value={progress()}
-              onInput={onSeek}
+              onInput={onSeekInput}
+              onChange={onSeekChange}
               onMouseDown={onSeekStart}
               onMouseUp={onSeekEnd}
+              onTouchStart={onSeekStart}
+              onTouchEnd={onSeekEnd}
+              onKeyDown={onSeekKeyDown}
               class="ytmusic-slider"
               style={{
                 "--progress": `${Math.min((progress() / (song().songDuration || 1)) * 100, 100)}%`,
