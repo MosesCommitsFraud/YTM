@@ -210,10 +210,9 @@ export const TitleBar = (props: TitleBarProps) => {
   const [accountAvatar, setAccountAvatar] = createSignal<string | null>(null);
   const [accountName, setAccountName] = createSignal<string | null>(null);
 
-  // Hide the original account button
+  // Don't hide the original account button since we're moving it
   function hideOriginalAccountButton() {
-    const orig = document.querySelector('#right-content > ytmusic-settings-button');
-    if (orig) (orig as HTMLElement).style.display = 'none';
+    // We'll move the button instead of hiding it
   }
 
   // Fetch account info (avatar, name)
@@ -387,54 +386,75 @@ export const TitleBar = (props: TitleBarProps) => {
 
     // Robustly move the original account button next to the search bar
     const moveOriginalAccountButton = () => {
-      const maxTries = 100;
+      const maxTries = 50;
       let tries = 0;
       const tryMove = () => {
         const orig = document.querySelector('#right-content > ytmusic-settings-button');
-        const searchBarWrapper = document.querySelector('.ytm-custom-search-bar')?.parentElement;
-        if (orig && searchBarWrapper) {
+        const searchBarContainer = document.querySelector('.ytm-custom-search-bar')?.parentElement;
+        
+        console.log('Looking for account button...', { orig: !!orig, container: !!searchBarContainer, tries });
+        
+        if (orig && searchBarContainer) {
           const origEl = orig as HTMLElement;
+          
           // Remove any previous wrapper
           let avatarWrapper = document.getElementById('ytm-titlebar-avatar-wrapper');
           if (!avatarWrapper) {
             avatarWrapper = document.createElement('div');
             avatarWrapper.id = 'ytm-titlebar-avatar-wrapper';
-            avatarWrapper.style.display = 'flex';
-            avatarWrapper.style.alignItems = 'center';
-            avatarWrapper.style.marginLeft = '12px';
+            avatarWrapper.style.cssText = `
+              display: flex;
+              align-items: center;
+              margin-left: 12px;
+              z-index: 100001;
+            `;
           }
-          // Style the button and image
-          origEl.style.display = 'flex';
-          origEl.style.alignItems = 'center';
-          origEl.style.justifyContent = 'center';
-          origEl.style.width = '36px';
-          origEl.style.height = '36px';
-          origEl.style.borderRadius = '50%';
-          origEl.style.overflow = 'hidden';
-          origEl.style.background = '#444'; // or use another color like '#1976d2' for blue
-          origEl.style.boxShadow = '0 1px 4px #0003';
-          origEl.style.zIndex = '100001';
+          
+          // Style the button
+          origEl.style.cssText = `
+            display: flex !important;
+            align-items: center;
+            justify-content: center;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            overflow: hidden;
+            background: #333;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            transition: all 0.2s ease;
+            cursor: pointer;
+          `;
+          
           // Style the image inside
-          const img = orig.querySelector('img');
+          const img = orig.querySelector('img, yt-img-shadow img, tp-yt-paper-icon-button img');
           if (img) {
-            img.style.width = '100%';
-            img.style.height = '100%';
-            img.style.objectFit = 'cover';
-            img.style.borderRadius = '50%';
+            (img as HTMLElement).style.cssText = `
+              width: 100%;
+              height: 100%;
+              object-fit: cover;
+              border-radius: 50%;
+            `;
           }
+          
           // Move the button
-          avatarWrapper.appendChild(origEl);
-          if (!searchBarWrapper.contains(avatarWrapper)) {
-            searchBarWrapper.appendChild(avatarWrapper);
+          if (avatarWrapper.contains(origEl)) {
+            console.log('Account button already moved');
+          } else {
+            avatarWrapper.appendChild(origEl);
+            searchBarContainer.appendChild(avatarWrapper);
+            console.log('Account button moved successfully');
           }
         } else if (tries < maxTries) {
           tries++;
-          setTimeout(tryMove, 100);
+          setTimeout(tryMove, 200);
         } else {
-          console.warn('Account button (ytmusic-settings-button) not found after 10 seconds.');
+          console.warn('Could not find account button or search container after', maxTries * 200, 'ms');
         }
       };
+      
+      // Start immediately and also after a delay
       tryMove();
+      setTimeout(tryMove, 1000);
     };
     moveOriginalAccountButton();
 
@@ -481,7 +501,17 @@ export const TitleBar = (props: TitleBarProps) => {
         <Show when={!collapsed()}>
           <Show when={menu()?.items?.length}>
             <button
-              style={`width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; background: ${isMenuOpen() ? 'rgba(255,255,255,0.1)' : 'none'}; border: none; cursor: pointer; border-radius: 6px; transition: all 0.2s ease; -webkit-app-region: no-drag; color: #fff; transform: ${isMenuOpen() ? 'rotate(90deg)' : 'rotate(0deg)'};`}
+              style={`width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; background: ${isMenuOpen() ? 'rgba(255,255,255,0.1)' : 'transparent'}; border: none; cursor: pointer; border-radius: 6px; transition: all 0.2s ease; -webkit-app-region: no-drag; color: #f1f1f1; transform: ${isMenuOpen() ? 'rotate(90deg)' : 'rotate(0deg)'};`}
+              onMouseEnter={(e) => {
+                if (!isMenuOpen()) {
+                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!isMenuOpen()) {
+                  e.currentTarget.style.background = 'transparent';
+                }
+              }}
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -523,7 +553,13 @@ export const TitleBar = (props: TitleBarProps) => {
         
         {/* Back arrow */}
         <button
-          style={`width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; background: none; border: none; cursor: pointer; border-radius: 6px; transition: background 0.15s; -webkit-app-region: no-drag;`}
+          style={`width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; background: transparent; border: none; cursor: pointer; border-radius: 6px; transition: all 0.2s ease; -webkit-app-region: no-drag; color: #f1f1f1;`}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'transparent';
+          }}
           onClick={() => {
             if (window.navigation && typeof window.navigation.back === 'function') {
               window.navigation.back();
@@ -533,11 +569,17 @@ export const TitleBar = (props: TitleBarProps) => {
           }}
           title="Back"
         >
-          <svg width="20" height="20" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+          <svg width="20" height="20" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
         </button>
         {/* Forward arrow */}
         <button
-          style={`width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; background: none; border: none; cursor: pointer; border-radius: 6px; transition: background 0.15s; -webkit-app-region: no-drag;`}
+          style={`width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; background: transparent; border: none; cursor: pointer; border-radius: 6px; transition: all 0.2s ease; -webkit-app-region: no-drag; color: #f1f1f1;`}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'transparent';
+          }}
           onClick={() => {
             if (window.navigation && typeof window.navigation.forward === 'function') {
               window.navigation.forward();
@@ -547,7 +589,7 @@ export const TitleBar = (props: TitleBarProps) => {
           }}
           title="Forward"
         >
-          <svg width="20" height="20" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+          <svg width="20" height="20" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
         </button>
       </div>
       
