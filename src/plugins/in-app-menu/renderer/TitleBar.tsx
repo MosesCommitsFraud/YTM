@@ -201,7 +201,10 @@ export const TitleBar = (props: TitleBarProps) => {
   const [openTarget, setOpenTarget] = createSignal<HTMLElement | null>(null);
   const [menu, setMenu] = createSignal<Menu | null>(null);
   const [mouseY, setMouseY] = createSignal(0);
-  // Removed menu state variables as burger menu is no longer used
+  
+  // Restored menu state variables
+  const [menuHover, setMenuHover] = createSignal(false);
+  const [isMenuOpen, setIsMenuOpen] = createSignal(false);
 
   // Account info state
   const [accountAvatar, setAccountAvatar] = createSignal<string | null>(null);
@@ -244,7 +247,20 @@ export const TitleBar = (props: TitleBarProps) => {
     }, 0);
   }
 
-  // Removed menu handling functions as burger menu is no longer used
+  // Restored menu handling functions
+  const handleMenuHover = (hover: boolean) => {
+    setMenuHover(hover);
+  };
+
+  const handleMenuOpen = (target: HTMLElement) => {
+    setOpenTarget(target);
+    setIsMenuOpen(true);
+  };
+
+  const handleMenuClose = () => {
+    setOpenTarget(null);
+    setIsMenuOpen(false);
+  };
 
   const [data, { refetch }] = createResource(
     async () => (await props.ipc.invoke('get-menu')) as Promise<Menu | null>,
@@ -321,6 +337,16 @@ export const TitleBar = (props: TitleBarProps) => {
     setMouseY(e.clientY);
   };
 
+  // Restored click outside listener for menu
+  const handleClickOutside = (e: MouseEvent) => {
+    if (isMenuOpen() && openTarget()) {
+      const target = e.target as Element;
+      if (!openTarget()!.contains(target) && !target.closest('[data-ytmd-panel]')) {
+        handleMenuClose();
+      }
+    }
+  };
+
   onMount(() => {
     props.ipc.on('close-all-in-app-menu-panel', async () => {
       setIgnoreTransition(true);
@@ -342,7 +368,8 @@ export const TitleBar = (props: TitleBarProps) => {
     props.ipc.on('window-maximize', refetchMaximize);
     props.ipc.on('window-unmaximize', refetchMaximize);
 
-    // Removed menu click outside listener as burger menu is no longer used
+    // Restored menu click outside listener
+    document.addEventListener('click', handleClickOutside);
 
     // tracking mouse position
     window.addEventListener('mousemove', listener);
@@ -437,6 +464,7 @@ export const TitleBar = (props: TitleBarProps) => {
 
   onCleanup(() => {
     window.removeEventListener('mousemove', listener);
+    document.removeEventListener('click', handleClickOutside);
   });
 
   return (
@@ -448,7 +476,7 @@ export const TitleBar = (props: TitleBarProps) => {
       style={{ position: 'fixed', top: 0, left: 0, width: '100%', 'z-index': 1000, display: 'flex', 'flex-direction': 'row', 'align-items': 'center', 'justify-content': 'space-between' }}
     >
       {/* Left: Window controls and arrows */}
-      <div style={`display: flex; align-items: center; gap: 4px; -webkit-app-region: no-drag;`}>
+      <div style={`display: flex; align-items: center; gap: 4px; margin-left: 8px; -webkit-app-region: no-drag;`}>
         {/* Window controls */}
         <Show when={props.enableController}>
           <WindowController
@@ -458,6 +486,51 @@ export const TitleBar = (props: TitleBarProps) => {
             onClose={handleClose}
           />
         </Show>
+        
+        {/* Burger menu button - moved to left of arrows */}
+        <Show when={!collapsed()}>
+          <Show when={menu()?.items?.length}>
+            <button
+              style={`width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; background: ${isMenuOpen() ? 'rgba(255,255,255,0.1)' : 'none'}; border: none; cursor: pointer; border-radius: 6px; transition: all 0.2s ease; -webkit-app-region: no-drag; color: #fff; transform: ${isMenuOpen() ? 'rotate(90deg)' : 'rotate(0deg)'};`}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const target = e.currentTarget as HTMLElement;
+                if (openTarget() === target) {
+                  handleMenuClose();
+                } else {
+                  handleMenuOpen(target);
+                }
+              }}
+              title="Menu"
+            >
+              <svg 
+                width="18" 
+                height="18" 
+                viewBox="0 0 24 24" 
+                fill="currentColor"
+                style={`transition: all 0.2s ease;`}
+              >
+                <Show 
+                  when={!isMenuOpen()}
+                  fallback={
+                    <g>
+                      <path d="M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/>
+                      <path d="M18 6l-12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/>
+                    </g>
+                  }
+                >
+                  <g>
+                    <path d="M3 18h18v-2H3v2z" style={`transition: all 0.2s ease;`}/>
+                    <path d="M3 13h18v-2H3v2z" style={`transition: all 0.2s ease;`}/>
+                    <path d="M3 6h18v2H3z" style={`transition: all 0.2s ease;`}/>
+                  </g>
+                </Show>
+              </svg>
+            </button>
+          </Show>
+        </Show>
+        
         {/* Back arrow */}
         <button
           style={`width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; background: none; border: none; cursor: pointer; border-radius: 6px; transition: background 0.15s; -webkit-app-region: no-drag;`}
@@ -487,11 +560,63 @@ export const TitleBar = (props: TitleBarProps) => {
           <svg width="20" height="20" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
         </button>
       </div>
+      
       {/* Center: Search bar, fixed absolute center */}
       <div style={`position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 1001; -webkit-app-region: no-drag; display: flex; align-items: center;`}>
         <SearchBar />
         {/* The original account button will be moved here by JS */}
       </div>
+      
+      {/* Right side: Menu panels */}
+      <Show when={openTarget() && menu()}>
+        <div
+          style={{
+            position: 'fixed',
+            'z-index': '10000',
+            left: `${openTarget()!.getBoundingClientRect().left}px`,
+            top: `${openTarget()!.getBoundingClientRect().bottom + 4}px`,
+            'min-width': '200px',
+            'max-width': '300px',
+            'max-height': '400px',
+            padding: '4px',
+            'box-sizing': 'border-box',
+            'border-radius': '8px',
+            overflow: 'auto',
+            background: 'color-mix(in srgb, var(--titlebar-background-color, #030303) 50%, rgba(0, 0, 0, 0.1))',
+            'backdrop-filter': 'blur(8px)',
+            'box-shadow': '0 0 0 1px rgba(0, 0, 0, 0.05), 0 2px 8px rgba(0, 0, 0, 0.2)',
+            'scrollbar-width': 'thin',
+            'scrollbar-color': '#555 #2a2a2a'
+          } as any}
+          onScroll={(e) => {
+            // Ensure dark scrollbar styles are applied
+            const target = e.currentTarget as HTMLElement;
+            target.style.setProperty('scrollbar-color', '#555 #2a2a2a');
+          }}
+        >
+          <style>{`
+            [data-ytmd-sub-panel]::-webkit-scrollbar {
+              width: 8px;
+            }
+            [data-ytmd-sub-panel]::-webkit-scrollbar-track {
+              background: #2a2a2a;
+              border-radius: 4px;
+            }
+            [data-ytmd-sub-panel]::-webkit-scrollbar-thumb {
+              background: #555;
+              border-radius: 4px;
+            }
+            [data-ytmd-sub-panel]::-webkit-scrollbar-thumb:hover {
+              background: #666;
+            }
+          `}</style>
+          <PanelRenderer
+            items={menu()?.items ?? []}
+            onClick={handleItemClick}
+            onMenuHover={handleMenuHover}
+          />
+        </div>
+      </Show>
     </nav>
   );
 };
