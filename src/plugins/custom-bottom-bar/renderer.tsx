@@ -178,13 +178,98 @@ export default function YTMusicPlayer() {
     setIsMuted(storedMuted)
 
     let lastVideo: HTMLVideoElement | null = null
+    let currentVideoEventListeners: (() => void)[] = []
+
+    const attachVideoEventListeners = (video: HTMLVideoElement) => {
+      // Remove existing event listeners first
+      currentVideoEventListeners.forEach(cleanup => cleanup())
+      currentVideoEventListeners = []
+
+      if (!video) return
+
+      const updatePaused = () => {
+        setIsPaused(video.paused)
+      }
+
+      const onTimeUpdate = () => {
+        if (!isSeeking()) {
+          // Update progress if videoIds match, or if currentVideoId is null (initial load)
+          if (currentVideoId() === song().videoId || currentVideoId() === null) {
+            setProgress(video.currentTime)
+          }
+        }
+      }
+
+      const onVolumeChangeFromVideo = () => {
+        if (!video || isUserVolumeChange) {
+          isUserVolumeChange = false
+          return
+        }
+        setVolume(video.volume)
+        setIsMuted(video.muted)
+      }
+
+      const onLoadStart = () => {
+        // New content is loading, sync progress after a brief delay
+        setTimeout(() => {
+          if (!isSeeking()) {
+            setProgress(video.currentTime || 0)
+          }
+        }, 100)
+      }
+
+      const onEnded = () => {
+        // Mode 2 is "repeat one".
+        if (repeatMode() === 2) {
+            console.log('[CustomBar] Video ended on "repeat one". Flagging to prevent UI desync.')
+            isRepeatingOne = true
+            // Reset the flag after a short delay to allow the player to restart the track
+            setTimeout(() => { isRepeatingOne = false }, 1500)
+        } else {
+            // For normal playback, reset progress to prepare for next song
+            setProgress(0)
+        }
+        // After any song ends, re-check the repeat state, as YTM might auto-change it.
+        setTimeout(detectRepeatState, 200)
+      }
+
+      // Attach event listeners
+      video.addEventListener("pause", updatePaused)
+      video.addEventListener("play", updatePaused)
+      video.addEventListener("timeupdate", onTimeUpdate)
+      video.addEventListener("loadstart", onLoadStart)
+      video.addEventListener("ended", onEnded)
+      video.addEventListener("volumechange", onVolumeChangeFromVideo)
+
+      // Store cleanup functions
+      currentVideoEventListeners.push(
+        () => video.removeEventListener("pause", updatePaused),
+        () => video.removeEventListener("play", updatePaused),
+        () => video.removeEventListener("timeupdate", onTimeUpdate),
+        () => video.removeEventListener("loadstart", onLoadStart),
+        () => video.removeEventListener("ended", onEnded),
+        () => video.removeEventListener("volumechange", onVolumeChangeFromVideo)
+      )
+
+      // Update paused state immediately
+      updatePaused()
+      
+      console.log('[CustomBar] Video event listeners attached to new video element')
+    }
+
     const applyCurrentStateToVideo = (video: HTMLVideoElement | null) => {
-      if (!video || video === lastVideo) return
-      video.volume = volume()
-      video.muted = isMuted()
-      lastVideo = video
+      if (!video) return
+      
+      // If this is a new video element, attach event listeners
+      if (video !== lastVideo) {
+        video.volume = volume()
+        video.muted = isMuted()
+        attachVideoEventListeners(video)
+        lastVideo = video
+      }
     }
     
+    // Apply to initial video element
     applyCurrentStateToVideo(document.querySelector("video"))
     
     const videoObserver = new MutationObserver(() => {
@@ -201,6 +286,22 @@ export default function YTMusicPlayer() {
       }
     })
     videoObserver.observe(document.body, { childList: true, subtree: true })
+
+    // --- Periodic state verification ---
+    // Add a periodic check to ensure event listeners are still working
+    const stateVerificationInterval = setInterval(() => {
+      const video = document.querySelector("video") as HTMLVideoElement
+      if (video && video !== lastVideo) {
+        console.log('[CustomBar] Detected video element change during periodic check, reattaching listeners')
+        applyCurrentStateToVideo(video)
+      } else if (video) {
+        // Verify that our paused state matches the actual video state
+        if (isPaused() !== video.paused) {
+          console.log(`[CustomBar] State mismatch detected: isPaused=${isPaused()}, video.paused=${video.paused}, syncing...`)
+          setIsPaused(video.paused)
+        }
+      }
+    }, 3000) // Check every 3 seconds
 
     // --- Initial progress sync ---
     // Immediately sync progress with current video state on mount
@@ -241,6 +342,12 @@ export default function YTMusicPlayer() {
         setSong(newSong)
         setCurrentVideoId(newSong.videoId)
         
+        // Sync play/pause state from song info as fallback
+        if (typeof newSong.isPaused === 'boolean' && newSong.isPaused !== isPaused()) {
+          console.log(`[CustomBar] Syncing paused state from song info: ${isPaused()} -> ${newSong.isPaused}`)
+          setIsPaused(newSong.isPaused)
+        }
+        
         // For new songs, ensure progress starts from the beginning
         if (isNewSong) {
             setProgress(0)
@@ -261,59 +368,20 @@ export default function YTMusicPlayer() {
     }
     window.ipcRenderer.on("ytmd:update-song-info", handler)
 
-    // Paused state
-    const getVideo = () => document.querySelector("video") as HTMLVideoElement | null
-    const updatePaused = () => {
-      const video = getVideo()
-      if (video) setIsPaused(video.paused)
-    }
-    
-    const video = getVideo()
-    if (video) {
-      video.addEventListener("pause", updatePaused)
-      video.addEventListener("play", updatePaused)
-      
-      // Add loadstart event to sync progress when new content loads
-      video.addEventListener("loadstart", () => {
-        // New content is loading, sync progress after a brief delay
-        setTimeout(() => {
-          if (!isSeeking()) {
-            setProgress(video.currentTime || 0)
-          }
-        }, 100)
-      })
-      
-      // FIX: Use the 'ended' event to flag that a repeat is happening
-      video.addEventListener("ended", () => {
-        // Mode 2 is "repeat one".
-        if (repeatMode() === 2) {
-            console.log('[CustomBar] Video ended on "repeat one". Flagging to prevent UI desync.')
-            isRepeatingOne = true
-            // Reset the flag after a short delay to allow the player to restart the track
-            setTimeout(() => { isRepeatingOne = false }, 1500)
-        } else {
-            // For normal playback, reset progress to prepare for next song
-            setProgress(0)
-        }
-        // After any song ends, re-check the repeat state, as YTM might auto-change it.
-        setTimeout(detectRepeatState, 200)
-      })
-    }
-    updatePaused()
-
-    const onTimeUpdate = () => {
-      const video = getVideo()
-      if (video && !isSeeking()) {
-        // Update progress if videoIds match, or if currentVideoId is null (initial load)
-        if (currentVideoId() === song().videoId || currentVideoId() === null) {
-          setProgress(video.currentTime)
-        }
+    // Add a direct IPC listener for play/pause state changes as additional fallback
+    const playPauseHandler = (_: any, data: { isPaused: boolean; elapsedSeconds: number }) => {
+      if (typeof data.isPaused === 'boolean' && data.isPaused !== isPaused()) {
+        console.log(`[CustomBar] Syncing paused state via IPC play-or-paused: ${isPaused()} -> ${data.isPaused}`)
+        setIsPaused(data.isPaused)
+      }
+      if (typeof data.elapsedSeconds === 'number') {
+        setProgress(data.elapsedSeconds)
       }
     }
-    
-    if (video) {
-      video.addEventListener("timeupdate", onTimeUpdate)
-    }
+    window.ipcRenderer.on("ytmd:play-or-paused", playPauseHandler)
+
+    // Helper function to get video element
+    const getVideo = () => document.querySelector("video") as HTMLVideoElement | null
 
     // Progress update interval (more frequent for smooth progress bar)
     const progressInterval = setInterval(() => {
@@ -430,35 +498,19 @@ export default function YTMusicPlayer() {
     }
     document.addEventListener("click", handleClickOutside)
 
-    const onVolumeChangeFromVideo = () => {
-      const video = getVideo()
-      if (!video || isUserVolumeChange) {
-        isUserVolumeChange = false
-        return
-      }
-      setVolume(video.volume)
-      setIsMuted(video.muted)
-    }
-    if (video) {
-      video.addEventListener("volumechange", onVolumeChangeFromVideo)
-    }
-
     // Listen for shuffle/repeat state updates
     window.ipcRenderer.on("ytmd:shuffle-changed", handleShuffleChanged)
     window.ipcRenderer.on("ytmd:repeat-changed", handleRepeatChanged)
 
     onCleanup(() => {
       window.ipcRenderer.off("ytmd:update-song-info", handler)
-      if (video) {
-        video.removeEventListener("pause", updatePaused)
-        video.removeEventListener("play", updatePaused)
-        video.removeEventListener("timeupdate", onTimeUpdate)
-        video.removeEventListener("ended", () => {})
-        video.removeEventListener("loadstart", () => {})
-        video.removeEventListener("volumechange", onVolumeChangeFromVideo)
+      window.ipcRenderer.off("ytmd:play-or-paused", playPauseHandler)
+      if (lastVideo) { // Check if lastVideo is not null
+        currentVideoEventListeners.forEach(cleanup => cleanup())
       }
       clearInterval(progressInterval)
       clearInterval(stateInterval)
+      clearInterval(stateVerificationInterval) // Clear the new interval
       cleanupRepeatWatcher()
       cleanupLikeWatcher()
       window.ipcRenderer.off("ytmd:shuffle-changed", handleShuffleChanged)
