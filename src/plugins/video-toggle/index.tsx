@@ -26,7 +26,7 @@ export default createPlugin({
   restartNeeded: true,
   config: {
     enabled: false,
-    hideVideo: false,
+    hideVideo: true, // Changed from false to true to start in audio-only mode by default
     mode: 'custom',
     forceHide: false,
     align: 'left',

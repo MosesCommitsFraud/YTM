@@ -13,7 +13,7 @@ export const VideoSwitchButton = (props: VideoSwitchButtonProps) => (
     onChange={props.onChange}
   >
     <input
-      checked={true}
+      checked={false} // Changed from true to false to start in audio mode by default
       id="video-toggle-video-switch-button-checkbox"
       class="video-switch-button-checkbox"
       type="checkbox"
