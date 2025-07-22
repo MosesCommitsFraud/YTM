@@ -106,41 +106,20 @@ function YTMusicPlayer() {
   }
 
   // Set volume with all the precise volume functionality
-  const setPreciseVolume = (volumePct: number, showHud = true, skipNativeUpdate = false) => {
+  const setPreciseVolume = (volumePct: number, showHud = true) => {
     const clampedPct = clamp(volumePct, 0, 100)
-    const volumeValue = percentageToVolume(clampedPct)
-    
-    setVolume(volumeValue)
+    setVolume(clampedPct / 100)
     setIsMuted(false)
-    
-    // Apply to video element with improved synchronization
-    isUserVolumeChange = true
-    
-    // Clear any existing timeout and set a new one
-    if (userVolumeChangeTimeout) {
-      clearTimeout(userVolumeChangeTimeout)
+
+    // Use the YTM API
+    if (api && typeof api.setVolume === "function") {
+      api.setVolume(clampedPct)
     }
-    userVolumeChangeTimeout = window.setTimeout(() => {
-      isUserVolumeChange = false
-      userVolumeChangeTimeout = null
-    }, 500) // Give enough time for all volume change events to settle
-    
-    const video = document.querySelector("video") as HTMLVideoElement
-    if (video) {
-      video.volume = volumeValue
-      video.muted = false
-    }
-    
-    // TEMPORARILY DISABLED: Skip native slider updates completely to test if they're causing the 70% reset
-    // if (!skipNativeUpdate && !isDraggingVolume()) {
-    //   updateNativeVolumeElements(clampedPct)
-    // }
-    console.log(`[CustomBar] setPreciseVolume called: ${clampedPct}%, skipNative: ${skipNativeUpdate}, isDragging: ${isDraggingVolume()}`)
-    
+
     if (showHud) {
       showVolumeHud(clampedPct)
     }
-    
+
     writeVolumeSettings()
   }
 
@@ -257,38 +236,75 @@ function YTMusicPlayer() {
       console.log(`[CustomBar] Loaded stored volume: ${Math.round(storedVolume * 100)}%, muted: ${storedMuted}`)
     } catch {}
     
-    // Check for other volume sources that might interfere
-    console.log('[CustomBar] Checking for conflicting volume sources:')
-    try {
-      // Check native YTM volume settings
-      const ytmVolumeKeys = []
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i)
-        if (key && (key.includes('volume') || key.includes('Volume'))) {
-          ytmVolumeKeys.push({ key, value: localStorage.getItem(key) })
+          // Check for other volume sources that might interfere
+      console.log('[CustomBar] Checking for conflicting volume sources:')
+      try {
+        // Check ALL localStorage keys (not just volume-related)
+        const allKeys = []
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i)
+          if (key) {
+            const value = localStorage.getItem(key)
+            allKeys.push({ key, value: value && value.length > 100 ? value.substring(0, 100) + '...' : value })
+          }
         }
-      }
-      console.log('[CustomBar] YTM volume keys in localStorage:', ytmVolumeKeys)
-      
-      // Check video element current volume
-      const video = document.querySelector("video") as HTMLVideoElement
-      if (video) {
-        console.log(`[CustomBar] Initial video volume: ${Math.round(video.volume * 100)}%, muted: ${video.muted}`)
-      }
-      
-      // Check native sliders
-      const nativeSliders = ['#volume-slider', '#expand-volume-slider']
-      nativeSliders.forEach(selector => {
-        const slider = document.querySelector(selector) as HTMLInputElement
-        if (slider) {
-          console.log(`[CustomBar] Native slider ${selector} value: ${slider.value}`)
+        console.log('[CustomBar] All localStorage keys:', allKeys)
+        
+        // Check specific YTM volume keys
+        const ytmVolumeKeys = []
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i)
+          if (key && (key.includes('volume') || key.includes('Volume') || key.includes('audio') || key.includes('Audio'))) {
+            ytmVolumeKeys.push({ key, value: localStorage.getItem(key) })
+          }
         }
-      })
-    } catch (e) {
-      console.log('[CustomBar] Error checking volume sources:', e)
-    }
+        console.log('[CustomBar] Audio/Volume related keys:', ytmVolumeKeys)
+        
+        // Check video element current volume
+        const video = document.querySelector("video") as HTMLVideoElement
+        if (video) {
+          console.log(`[CustomBar] Initial video volume: ${Math.round(video.volume * 100)}%, muted: ${video.muted}`)
+        }
+        
+        // Check native sliders
+        const nativeSliders = ['#volume-slider', '#expand-volume-slider']
+        nativeSliders.forEach(selector => {
+          const slider = document.querySelector(selector) as HTMLInputElement
+          if (slider) {
+            console.log(`[CustomBar] Native slider ${selector} value: ${slider.value}`)
+          }
+        })
+        
+        // Check for any YTM player API or global volume state
+        if ((window as any).ytmd) {
+          console.log('[CustomBar] YTMD global state:', (window as any).ytmd)
+        }
+        
+        // Check if there's a global player or app state
+        const app = document.querySelector('ytmusic-app') as any
+        if (app && app.playerApi_) {
+          console.log('[CustomBar] YTM Player API found, checking volume state')
+          try {
+            const playerVolume = app.playerApi_.getVolume()
+            console.log(`[CustomBar] YTM Player API volume: ${playerVolume}`)
+          } catch (e) {
+            console.log('[CustomBar] Could not get YTM Player API volume:', e)
+          }
+        }
+        
+      } catch (e) {
+        console.log('[CustomBar] Error checking volume sources:', e)
+      }
     
-    setVolume(storedVolume)
+    // Use the YTM API for initial volume
+    let initialVolume = storedVolume
+    if (api && typeof api.getVolume === "function") {
+      const apiVol = api.getVolume()
+      if (typeof apiVol === "number") {
+        initialVolume = clamp(apiVol / 100, 0, 1)
+      }
+    }
+    setVolume(initialVolume)
     setIsMuted(storedMuted)
 
     // Initialize plugin config with defaults if not available
@@ -402,8 +418,18 @@ function YTMusicPlayer() {
       
       // If this is a new video element, attach event listeners
       if (video !== lastVideo) {
-        video.volume = volume()
-        video.muted = isMuted()
+        // Use the YTM API for volume
+        if (api && typeof api.setVolume === "function") {
+          api.setVolume(volume() * 100)
+        }
+        // Use the YTM API for mute/unmute
+        if (api && typeof api.mute === "function" && typeof api.unMute === "function") {
+          if (isMuted()) {
+            api.mute()
+          } else {
+            api.unMute()
+          }
+        }
         attachVideoEventListeners(video)
         lastVideo = video
         
@@ -499,8 +525,10 @@ function YTMusicPlayer() {
         setCurrentVideoId(song().videoId)
       }
       // Apply stored volume to initial video
-      initialVideo.volume = volume()
-      initialVideo.muted = isMuted()
+      // Use the YTM API for volume
+      if (api && typeof api.setVolume === "function") {
+        api.setVolume(volume() * 100)
+      }
       updateNativeVolumeElements(volumeToPercentage(volume()))
     }
 
@@ -951,23 +979,12 @@ function YTMusicPlayer() {
     // Handle volume slider input (while dragging)
     const val = clamp(Number((e.target as HTMLInputElement).value), 0, 1)
     const volumePct = volumeToPercentage(val)
-    
-    console.log(`[CustomBar] Volume input: ${volumeToPercentage(volume())}% -> ${volumePct}%`)
-    
-    // Update our internal state and video element, but skip native slider updates
-    const volumeValue = percentageToVolume(volumePct)
-    setVolume(volumeValue)
+    setVolume(val)
     setIsMuted(false)
-    
-    const video = document.querySelector("video") as HTMLVideoElement
-    if (video) {
-      const oldVideoVolume = Math.round(video.volume * 100)
-      video.volume = volumeValue
-      video.muted = false
-      console.log(`[CustomBar] Video volume updated: ${oldVideoVolume}% -> ${Math.round(video.volume * 100)}%`)
+    // Use the YTM API
+    if (api && typeof api.setVolume === "function") {
+      api.setVolume(volumePct)
     }
-    
-    // Don't update native sliders while dragging to prevent conflicts
     writeVolumeSettings()
   }
 
@@ -975,19 +992,12 @@ function YTMusicPlayer() {
     // Handle volume slider change (when dragging ends)
     const val = clamp(Number((e.target as HTMLInputElement).value), 0, 1)
     const volumePct = volumeToPercentage(val)
-    
-    console.log(`[CustomBar] Volume change complete: ${volumePct}%`)
-    
-    // Now update everything including native sliders
-    setPreciseVolume(volumePct, false) // Don't show HUD for slider changes
+    setPreciseVolume(volumePct, false)
     setIsDraggingVolume(false)
-    
-    // Check volume after a short delay to see if it gets reset
     setTimeout(() => {
       const currentVol = Math.round(volume() * 100)
-      const video = document.querySelector("video") as HTMLVideoElement
-      const videoVol = video ? Math.round(video.volume * 100) : 'N/A'
-      console.log(`[CustomBar] Volume after change: Custom=${currentVol}%, Video=${videoVol}%`)
+      const apiVol = api && typeof api.getVolume === "function" ? api.getVolume() : 'N/A'
+      console.log(`[CustomBar] Volume after change: Custom=${currentVol}%, API=${apiVol}%`)
     }, 100)
   }
 
