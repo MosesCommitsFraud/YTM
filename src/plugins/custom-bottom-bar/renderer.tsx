@@ -2,6 +2,9 @@
 
 import { createSignal, onCleanup, onMount } from "solid-js"
 import { getSongInfo } from "@/providers/song-info-front"
+import type { RendererContext } from '@/types/contexts'
+import type { CustomBottomBarPluginConfig } from './index'
+import type { YoutubePlayer } from '@/types/youtube-player'
 import "./style.css"
 import volumeOff from "../../../assets/svgs/volume_off.svg"
 import volumeDown from "../../../assets/svgs/volume_down.svg"
@@ -22,8 +25,21 @@ function clamp(val: number, min: number, max: number) {
   return Math.max(min, Math.min(max, val))
 }
 
-export default function YTMusicPlayer() {
-  // Persistent storage keys
+// Helper function to debounce function calls
+function debounce<T extends (...args: any[]) => any>(func: T, wait: number): T {
+  let timeout: number | null = null
+  return ((...args: any[]) => {
+    if (timeout !== null) clearTimeout(timeout)
+    timeout = window.setTimeout(() => func(...args), wait)
+  }) as T
+}
+
+// Global plugin configuration and API
+let pluginConfig: CustomBottomBarPluginConfig
+let api: YoutubePlayer
+
+function YTMusicPlayer() {
+  // Persistent storage keys (only for volume and mute now)
   const VOLUME_KEY = "ytmusic_custombar_volume"
   const MUTE_KEY = "ytmusic_custombar_muted"
 
@@ -31,7 +47,7 @@ export default function YTMusicPlayer() {
   const [song, setSong] = createSignal(getSongInfo())
   const [progress, setProgress] = createSignal(0)
   
-  // Volume and mute state
+  // Volume and mute state (internal 0-1 scale)
   const [volume, setVolume] = createSignal(1)
   const [isMuted, setIsMuted] = createSignal(false)
   const [isSeeking, setIsSeeking] = createSignal(false)
@@ -43,6 +59,11 @@ export default function YTMusicPlayer() {
   const [isPaused, setIsPaused] = createSignal(true)
   const [showDropdown, setShowDropdown] = createSignal(false)
   const [isExpanded, setIsExpanded] = createSignal(false)
+  
+  // Volume HUD state
+  const [volumeHudVisible, setVolumeHudVisible] = createSignal(false)
+  const [volumeHudText, setVolumeHudText] = createSignal("")
+  
   // Add a signal to track the current videoId
   const [currentVideoId, setCurrentVideoId] = createSignal<string | null>(null)
 
@@ -53,129 +74,143 @@ export default function YTMusicPlayer() {
   let isUserVolumeChange = false
   const SYNC_DELAY = 300 // ms
 
-  // --- Sidebar expansion logic ---
-  const ensureSidebarExpanded = () => {
-    // Check if the sidebar is in compact mode (mini-guide visible)
-    const miniGuide = document.querySelector('#mini-guide') as HTMLElement;
-    const mainGuide = document.querySelector('ytmusic-guide-renderer') as HTMLElement;
+  // Convert between internal scale (0-1) and display scale (0-100)
+  const volumeToPercentage = (vol: number) => Math.round(vol * 100)
+  const percentageToVolume = (pct: number) => clamp(pct / 100, 0, 1)
+
+  // Get current volume steps from plugin config
+  const getVolumeSteps = () => pluginConfig?.volumeSteps || 1
+  const getArrowsShortcut = () => pluginConfig?.arrowsShortcut ?? true
+
+  // Volume HUD debounced hide function
+  const hideVolumeHud = debounce(() => {
+    setVolumeHudVisible(false)
+  }, 2000)
+
+  // Persistent settings write (debounced to avoid excessive writes)
+  const writeVolumeSettings = debounce(() => {
+    try {
+      localStorage.setItem(VOLUME_KEY, String(volume()))
+      localStorage.setItem(MUTE_KEY, String(isMuted()))
+    } catch {}
+  }, 1000)
+
+  // Show volume HUD with percentage
+  const showVolumeHud = (volumePct: number) => {
+    setVolumeHudText(`${volumePct}%`)
+    setVolumeHudVisible(true)
+    hideVolumeHud()
+  }
+
+  // Set volume with all the precise volume functionality
+  const setPreciseVolume = (volumePct: number, showHud = true) => {
+    const clampedPct = clamp(volumePct, 0, 100)
+    const volumeValue = percentageToVolume(clampedPct)
     
-    if (miniGuide && mainGuide) {
-      // If mini-guide is visible, that means we're in compact mode - expand it
-      const miniGuideVisible = window.getComputedStyle(miniGuide).display !== 'none';
-      const mainGuideVisible = window.getComputedStyle(mainGuide).display !== 'none';
-      
-      if (miniGuideVisible && !mainGuideVisible) {
-        // Find the sidebar toggle button - try multiple selectors
-        const toggleSelectors = [
-          '#button', // The main toggle button
-          'ytmusic-guide-renderer #button',
-          '[aria-label*="guide" i]',
-          'button[aria-label*="menu" i]',
-          'ytmusic-nav-bar #button'
-        ];
-        
-        for (const selector of toggleSelectors) {
-          const toggleButton = document.querySelector(selector) as HTMLElement;
-          if (toggleButton && toggleButton.offsetParent !== null) { // Check if button is visible
-            console.log('Expanding sidebar from compact mode using selector:', selector);
-            toggleButton.click();
-            break;
-          }
-        }
+    setVolume(volumeValue)
+    setIsMuted(false)
+    
+    // Apply to video element
+    isUserVolumeChange = true
+    const video = document.querySelector("video") as HTMLVideoElement
+    if (video) {
+      video.volume = volumeValue
+      video.muted = false
+    }
+    
+    // Update YTM's native volume sliders and tooltips
+    updateNativeVolumeElements(clampedPct)
+    
+    if (showHud) {
+      showVolumeHud(clampedPct)
+    }
+    
+    writeVolumeSettings()
+  }
+
+  // Change volume by steps (for scroll wheel and keyboard shortcuts)
+  const changeVolumeBySteps = (increase: boolean) => {
+    const currentPct = volumeToPercentage(volume())
+    const steps = getVolumeSteps()
+    const newPct = increase 
+      ? Math.min(currentPct + steps, 100)
+      : Math.max(currentPct - steps, 0)
+    setPreciseVolume(newPct)
+  }
+
+  // Update native YTM volume sliders and tooltips
+  const updateNativeVolumeElements = (volumePct: number) => {
+    const tooltipTargets = [
+      '#volume-slider',
+      'tp-yt-paper-icon-button.volume',
+      '#expand-volume-slider', 
+      '#expand-volume'
+    ]
+    
+    // Update slider values (YTM rounds to multiples of 5)
+    const sliderValue = volumePct > 0 && volumePct < 5 ? 5 : volumePct
+    for (const selector of ['#volume-slider', '#expand-volume-slider']) {
+      const slider = document.querySelector(selector) as HTMLInputElement
+      if (slider) {
+        slider.value = String(sliderValue)
+      }
+    }
+    
+    // Update tooltips to show precise percentage
+    for (const selector of tooltipTargets) {
+      const element = document.querySelector(selector) as HTMLElement
+      if (element) {
+        element.title = `${volumePct}%`
       }
     }
   }
 
-  // Helper to request shuffle/repeat state
-  function requestShuffle() {
-    window.ipcRenderer.send("ytmd:get-shuffle")
-  }
-  function requestRepeat() {
-    window.ipcRenderer.send("ytmd:get-repeat")
-  }
-
-  // Helper to detect DOM state directly (fallback)
-  function detectShuffleState() {
-    const shuffleBtn = document.querySelector('yt-icon-button.shuffle, button[aria-label*="Shuffle"]')
-    if (shuffleBtn) {
-      const isActive = shuffleBtn.classList.contains('style-primary-text') || 
-                      shuffleBtn.getAttribute('aria-pressed') === 'true'
-      setIsShuffle(isActive)
-    }
-  }
-
-  // NEW: Detect like/dislike state from YouTube Music
-  function detectLikeState() {
-    // Try to find the like button renderer for the currently playing song
-    const likeButtonRenderer = document.querySelector('#like-button-renderer')
+  // Override native volume slider behavior to prevent conflicts
+  const overrideNativeVolumeSliders = () => {
+    const ignoredIds = ['volume-slider', 'expand-volume-slider']
+    const ignoredTypes = ['mousewheel', 'keydown', 'keyup']
     
-    if (likeButtonRenderer) {
-      // Look for the actual like and dislike buttons within the renderer
-      const likeButton = likeButtonRenderer.querySelector('button[aria-label="Like"]')
-      const dislikeButton = likeButtonRenderer.querySelector('button[aria-label="Dislike"]')
-      
-      if (likeButton && dislikeButton) {
-        // Check if the buttons have the active state (pressed)
-        const isLikedState = likeButton.getAttribute('aria-pressed') === 'true'
-        const isDislikedState = dislikeButton.getAttribute('aria-pressed') === 'true'
-        
-        // Update state only if it's different to avoid unnecessary re-renders
-        if (isLikedState !== isLiked()) {
-          setIsLiked(isLikedState)
-          console.log('[CustomBar] Like state changed:', isLikedState)
-        }
-        if (isDislikedState !== isDisliked()) {
-          setIsDisliked(isDislikedState)
-          console.log('[CustomBar] Dislike state changed:', isDislikedState)
-        }
+    // Save original addEventListener
+    const originalAddEventListener = Element.prototype.addEventListener
+    
+    Element.prototype.addEventListener = function(type: string, listener: any, useCapture?: boolean) {
+      if (!(ignoredIds.includes(this.id) && ignoredTypes.includes(type))) {
+        originalAddEventListener.call(this, type, listener, useCapture)
       }
     }
+    
+    // Restore original after page load
+    window.addEventListener('load', () => {
+      Element.prototype.addEventListener = originalAddEventListener
+    }, { once: true })
   }
 
-  // REWRITTEN: More reliable repeat state detection
-  function detectRepeatState() {
-    const repeatBtn = document.querySelector('yt-icon-button.repeat')
-    if (repeatBtn) {
-        const title = repeatBtn.getAttribute('title')?.toLowerCase() || ''
-        let newMode = 0 // Default to off
-
-        if (title === 'repeat all') {
-            newMode = 1
-        } else if (title === 'repeat one') {
-            newMode = 2
-        }
-
-        if (newMode !== repeatMode()) {
-            console.log(`[CustomBar] Repeat state changed: ${repeatMode()} -> ${newMode} (Title: "${title}")`)
-            setRepeatMode(newMode)
-        }
-    }
-  }
-
-  // Stable handlers for shuffle/repeat state
-  const handleShuffleChanged = (_: any, shuffleOn: boolean) => {
-    setIsShuffle(!!shuffleOn)
-  }
-
-  // CORRECTED: This handler now uses the standardized state (0:off, 1:all, 2:one) and requires no conversion
-  const handleRepeatChanged = (_: any, repeatModeValue: number) => {
-    console.log('[CustomBar] Repeat changed via IPC:', repeatModeValue)
-    setRepeatMode(repeatModeValue)
-  }
-
-  // Listen for song info updates
   onMount(() => {
-    // --- Persistent volume/mute state ---
+    // Override native volume slider behavior first
+    overrideNativeVolumeSliders()
+    
+    // --- Load persistent settings ---
     let storedVolume = 1
     let storedMuted = false
+    
     try {
       const v = localStorage.getItem(VOLUME_KEY)
       if (v !== null) storedVolume = clamp(Number(v), 0, 1)
       const m = localStorage.getItem(MUTE_KEY)
       if (m !== null) storedMuted = m === "true"
     } catch {}
+    
     setVolume(storedVolume)
     setIsMuted(storedMuted)
+
+    // Initialize plugin config with defaults if not available
+    if (!pluginConfig) {
+      pluginConfig = {
+        enabled: true,
+        volumeSteps: 1,
+        arrowsShortcut: true
+      }
+    }
 
     let lastVideo: HTMLVideoElement | null = null
     let currentVideoEventListeners: (() => void)[] = []
@@ -207,6 +242,8 @@ export default function YTMusicPlayer() {
         }
         setVolume(video.volume)
         setIsMuted(video.muted)
+        // Update tooltips when volume changes from video
+        updateNativeVolumeElements(volumeToPercentage(video.volume))
       }
 
       const onLoadStart = () => {
@@ -266,6 +303,9 @@ export default function YTMusicPlayer() {
         video.muted = isMuted()
         attachVideoEventListeners(video)
         lastVideo = video
+        
+        // Update tooltips for new video
+        updateNativeVolumeElements(volumeToPercentage(volume()))
       }
     }
     
@@ -286,6 +326,49 @@ export default function YTMusicPlayer() {
       }
     })
     videoObserver.observe(document.body, { childList: true, subtree: true })
+
+    // --- Setup scroll wheel support ---
+    const setupScrollWheelSupport = () => {
+      // Video player area scroll wheel
+      const mainPanel = document.querySelector('#main-panel') as HTMLElement
+      if (mainPanel) {
+        mainPanel.addEventListener('wheel', (event) => {
+          event.preventDefault()
+          changeVolumeBySteps(event.deltaY < 0)
+        })
+      }
+      
+      // Player bar scroll wheel
+      const playerBar = document.querySelector('ytmusic-player-bar') as HTMLElement
+      if (playerBar) {
+        playerBar.addEventListener('wheel', (event) => {
+          event.preventDefault()
+          changeVolumeBySteps(event.deltaY < 0)
+        })
+      }
+    }
+
+    // --- Setup keyboard shortcuts ---
+    const setupKeyboardShortcuts = () => {
+      window.addEventListener('keydown', (event) => {
+        if (!getArrowsShortcut()) return
+        
+        // Don't interfere when search box is open
+        const searchBox = document.querySelector('ytmusic-search-box') as HTMLElement & { opened: boolean }
+        if (searchBox?.opened) return
+        
+        switch (event.code) {
+          case 'ArrowUp':
+            event.preventDefault()
+            changeVolumeBySteps(true)
+            break
+          case 'ArrowDown':
+            event.preventDefault()
+            changeVolumeBySteps(false)
+            break
+        }
+      })
+    }
 
     // --- Periodic state verification ---
     // Add a periodic check to ensure event listeners are still working
@@ -312,7 +395,15 @@ export default function YTMusicPlayer() {
       if (!currentVideoId() && song().videoId) {
         setCurrentVideoId(song().videoId)
       }
+      // Apply stored volume to initial video
+      initialVideo.volume = volume()
+      initialVideo.muted = isMuted()
+      updateNativeVolumeElements(volumeToPercentage(volume()))
     }
+
+    // Setup enhanced volume features
+    setupScrollWheelSupport()
+    setupKeyboardShortcuts()
 
     // --- Ensure sidebar stays expanded ---
     ensureSidebarExpanded()
@@ -522,6 +613,116 @@ export default function YTMusicPlayer() {
     })
   })
 
+  // --- Sidebar expansion logic ---
+  const ensureSidebarExpanded = () => {
+    // Check if the sidebar is in compact mode (mini-guide visible)
+    const miniGuide = document.querySelector('#mini-guide') as HTMLElement;
+    const mainGuide = document.querySelector('ytmusic-guide-renderer') as HTMLElement;
+    
+    if (miniGuide && mainGuide) {
+      // If mini-guide is visible, that means we're in compact mode - expand it
+      const miniGuideVisible = window.getComputedStyle(miniGuide).display !== 'none';
+      const mainGuideVisible = window.getComputedStyle(mainGuide).display !== 'none';
+      
+      if (miniGuideVisible && !mainGuideVisible) {
+        // Find the sidebar toggle button - try multiple selectors
+        const toggleSelectors = [
+          '#button', // The main toggle button
+          'ytmusic-guide-renderer #button',
+          '[aria-label*="guide" i]',
+          'button[aria-label*="menu" i]',
+          'ytmusic-nav-bar #button'
+        ];
+        
+        for (const selector of toggleSelectors) {
+          const toggleButton = document.querySelector(selector) as HTMLElement;
+          if (toggleButton && toggleButton.offsetParent !== null) { // Check if button is visible
+            console.log('Expanding sidebar from compact mode using selector:', selector);
+            toggleButton.click();
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  // Helper to request shuffle/repeat state
+  function requestShuffle() {
+    window.ipcRenderer.send("ytmd:get-shuffle")
+  }
+  function requestRepeat() {
+    window.ipcRenderer.send("ytmd:get-repeat")
+  }
+
+  // Helper to detect DOM state directly (fallback)
+  function detectShuffleState() {
+    const shuffleBtn = document.querySelector('yt-icon-button.shuffle, button[aria-label*="Shuffle"]')
+    if (shuffleBtn) {
+      const isActive = shuffleBtn.classList.contains('style-primary-text') || 
+                      shuffleBtn.getAttribute('aria-pressed') === 'true'
+      setIsShuffle(isActive)
+    }
+  }
+
+  // NEW: Detect like/dislike state from YouTube Music
+  function detectLikeState() {
+    // Try to find the like button renderer for the currently playing song
+    const likeButtonRenderer = document.querySelector('#like-button-renderer')
+    
+    if (likeButtonRenderer) {
+      // Look for the actual like and dislike buttons within the renderer
+      const likeButton = likeButtonRenderer.querySelector('button[aria-label="Like"]')
+      const dislikeButton = likeButtonRenderer.querySelector('button[aria-label="Dislike"]')
+      
+      if (likeButton && dislikeButton) {
+        // Check if the buttons have the active state (pressed)
+        const isLikedState = likeButton.getAttribute('aria-pressed') === 'true'
+        const isDislikedState = dislikeButton.getAttribute('aria-pressed') === 'true'
+        
+        // Update state only if it's different to avoid unnecessary re-renders
+        if (isLikedState !== isLiked()) {
+          setIsLiked(isLikedState)
+          console.log('[CustomBar] Like state changed:', isLikedState)
+        }
+        if (isDislikedState !== isDisliked()) {
+          setIsDisliked(isDislikedState)
+          console.log('[CustomBar] Dislike state changed:', isDislikedState)
+        }
+      }
+    }
+  }
+
+  // REWRITTEN: More reliable repeat state detection
+  function detectRepeatState() {
+    const repeatBtn = document.querySelector('yt-icon-button.repeat')
+    if (repeatBtn) {
+        const title = repeatBtn.getAttribute('title')?.toLowerCase() || ''
+        let newMode = 0 // Default to off
+
+        if (title === 'repeat all') {
+            newMode = 1
+        } else if (title === 'repeat one') {
+            newMode = 2
+        }
+
+        if (newMode !== repeatMode()) {
+            console.log(`[CustomBar] Repeat state changed: ${repeatMode()} -> ${newMode} (Title: "${title}")`)
+            setRepeatMode(newMode)
+        }
+    }
+  }
+
+  // Stable handlers for shuffle/repeat state
+  const handleShuffleChanged = (_: any, shuffleOn: boolean) => {
+    setIsShuffle(!!shuffleOn)
+  }
+
+  // CORRECTED: This handler now uses the standardized state (0:off, 1:all, 2:one) and requires no conversion
+  const handleRepeatChanged = (_: any, repeatModeValue: number) => {
+    console.log('[CustomBar] Repeat changed via IPC:', repeatModeValue)
+    setRepeatMode(repeatModeValue)
+  }
+
   // Controls
   const playPause = () => {
     const video = document.querySelector("video")
@@ -628,18 +829,9 @@ export default function YTMusicPlayer() {
   }
 
   const onVolumeChange = (e: Event) => {
-    const video = document.querySelector("video")
-    if (!video) return
     const val = clamp(Number((e.target as HTMLInputElement).value), 0, 1)
-    setVolume(val)
-    setIsMuted(false)
-    isUserVolumeChange = true
-    video.volume = val
-    video.muted = false
-    try {
-      localStorage.setItem(VOLUME_KEY, String(val))
-      localStorage.setItem(MUTE_KEY, "false")
-    } catch {}
+    const volumePct = volumeToPercentage(val)
+    setPreciseVolume(volumePct, false) // Don't show HUD for slider changes
   }
 
   const toggleMute = () => {
@@ -652,6 +844,12 @@ export default function YTMusicPlayer() {
     try {
       localStorage.setItem(MUTE_KEY, String(newMuted))
     } catch {}
+    
+    if (newMuted) {
+      showVolumeHud(0)
+    } else {
+      showVolumeHud(volumeToPercentage(volume()))
+    }
   }
 
   const toggleFullscreen = () => {
@@ -790,6 +988,29 @@ export default function YTMusicPlayer() {
       class="ytmusic-bottom-bar"
       style={isExpanded() ? { zIndex: 999999 } as any : undefined}
     >
+      {/* Volume HUD */}
+      <div 
+        class="ytmusic-volume-hud" 
+        style={{
+          opacity: volumeHudVisible() ? '1' : '0',
+          position: 'fixed',
+          top: '20px',
+          right: '20px',
+          'z-index': '9999',
+          background: 'rgba(0, 0, 0, 0.8)',
+          color: '#fff',
+          padding: '12px 20px',
+          'border-radius': '6px',
+          'font-size': '18px',
+          'font-weight': '600',
+          'text-shadow': '0 0 12px rgba(0, 0, 0, 0.5)',
+          transition: 'opacity 0.6s',
+          'pointer-events': 'none'
+        }}
+      >
+        {volumeHudText()}
+      </div>
+
       {/* Left Section - Song Info */}
       <div class="ytmusic-left">
         <div class="ytmusic-album-cover">
@@ -1073,7 +1294,7 @@ export default function YTMusicPlayer() {
           <button
             class={`ytmusic-control-btn ${repeatMode() > 0 ? "active" : ""}`}
             onClick={toggleRepeat}
-            title={`Repeat ${repeatMode() === 0 ? 'off' : repeatMode() === 1 ? 'all' : 'one'}`}
+            title={`Repeat ${repeatMode() === 0 ? 'off' : repeatMode() === 1 ? 'all' : 'one'} • Volume: ${volumeToPercentage(volume())}% (±${getVolumeSteps()}% steps)`}
             style={{ position: 'relative' }}
           >
             <img src={repeat} alt="Repeat" />
@@ -1112,7 +1333,11 @@ export default function YTMusicPlayer() {
       {/* Right Section - Volume & Additional Controls */}
       <div class="ytmusic-right">
         <div class="ytmusic-volume">
-          <button class="ytmusic-volume-btn" onClick={toggleMute} title="Mute">
+          <button 
+            class="ytmusic-volume-btn" 
+            onClick={toggleMute} 
+            title={`${isMuted() ? 'Unmute' : 'Mute'} • Volume: ${volumeToPercentage(volume())}%`}
+          >
             <img src={getVolumeIcon()} alt="Volume" />
           </button>
           <div class="ytmusic-volume-bar">
@@ -1124,6 +1349,7 @@ export default function YTMusicPlayer() {
               value={isMuted() ? 0 : volume()}
               onInput={onVolumeChange}
               class="ytmusic-volume-slider"
+              title={`Volume: ${volumeToPercentage(volume())}% • Steps: ${getVolumeSteps()}% • Scroll wheel: ±${getVolumeSteps()}% • Arrows: ${getArrowsShortcut() ? 'Enabled' : 'Disabled'}`}
               style={{
                 "--volume": `${(isMuted() ? 0 : volume()) * 100}%`,
               }}
@@ -1151,3 +1377,18 @@ export default function YTMusicPlayer() {
     </div>
   )
 }
+
+// Plugin lifecycle functions
+export const onPlayerApiReady = async (
+  playerApi: YoutubePlayer,
+  context: RendererContext<CustomBottomBarPluginConfig>,
+) => {
+  pluginConfig = await context.getConfig()
+  api = playerApi
+}
+
+export const onConfigChange = (config: CustomBottomBarPluginConfig) => {
+  pluginConfig = config
+}
+
+export default YTMusicPlayer

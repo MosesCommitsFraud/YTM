@@ -6,7 +6,6 @@ import forceHideStyle from './force-hide.css?inline';
 import buttonSwitcherStyle from './button-switcher.css?inline';
 
 import { createPlugin } from '@/utils';
-import { moveVolumeHud as preciseVolumeMoveVolumeHud } from '@/plugins/precise-volume/renderer';
 import { ThumbnailElement } from '@/types/get-player-response';
 import { MenuTemplate } from '@/menu';
 
@@ -158,11 +157,8 @@ export default createPlugin({
       const config = await getConfig();
       this.config = config;
 
-      const moveVolumeHud = window.mainConfig.plugins.isEnabled(
-        'precise-volume',
-      )
-        ? (preciseVolumeMoveVolumeHud as (_: boolean) => void)
-        : () => {};
+      // No need to move volume HUD - custom bottom bar has fixed position
+      const moveVolumeHud = (_showVideo: boolean) => {};
 
       const player = document.querySelector<
         HTMLElement & { videoMode_: boolean }

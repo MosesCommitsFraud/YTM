@@ -1,13 +1,86 @@
 import { createPlugin } from "@/utils"
 import { render } from "solid-js/web"
+import prompt, { CounterOptions } from 'custom-electron-prompt'
+import promptOptions from '@/providers/prompt-options'
+
+export type CustomBottomBarPluginConfig = {
+  enabled: boolean;
+  /**
+   * Percentage of volume to change with scroll wheel and arrow keys
+   */
+  volumeSteps: number;
+  /**
+   * Enable ArrowUp + ArrowDown keyboard shortcuts for volume control
+   */
+  arrowsShortcut: boolean;
+}
 
 export default createPlugin({
   name: () => "Custom Spotify Player",
   description: () =>
-    "A clean Spotifyinspired player with dark grey background and red accents, using official Material Design icons.",
+    "A clean Spotify-inspired player with dark grey background and red accents, using official Material Design icons. Includes precise volume control with configurable steps.",
   restartNeeded: false,
   config: {
     enabled: false,
+    volumeSteps: 1,
+    arrowsShortcut: true,
+  } as CustomBottomBarPluginConfig,
+  menu: async ({ setConfig, getConfig, window }) => {
+    const config = await getConfig()
+
+    function changeOptions(
+      changedOptions: Partial<CustomBottomBarPluginConfig>,
+      options: CustomBottomBarPluginConfig,
+    ) {
+      for (const option in changedOptions) {
+        (options as Record<string, unknown>)[option] = (
+          changedOptions as Record<string, unknown>
+        )[option]
+      }
+      setConfig(options)
+    }
+
+    async function promptVolumeSteps(options: CustomBottomBarPluginConfig) {
+      const output = await prompt(
+        {
+          title: 'Custom Bottom Bar - Volume Steps',
+          label: 'Volume step percentage (1-20%):',
+          value: options.volumeSteps || 1,
+          type: 'counter',
+          counterOptions: { minimum: 1, maximum: 20, multiFire: true } as CounterOptions,
+          width: 380,
+          ...promptOptions(),
+        },
+        window,
+      )
+
+      if (output) {
+        changeOptions({ volumeSteps: output }, options)
+      }
+    }
+
+    return [
+      {
+        label: 'Arrow Key Shortcuts (↑/↓ for volume)',
+        type: 'checkbox',
+        checked: Boolean(config.arrowsShortcut),
+        click(item) {
+          changeOptions({ arrowsShortcut: item.checked }, config)
+        },
+      },
+      {
+        label: 'Volume Steps Configuration',
+        click: () => promptVolumeSteps(config),
+      },
+      {
+        type: 'separator',
+      },
+      {
+        label: 'Volume Control Help',
+        enabled: false,
+        sublabel: 'Scroll wheel on player/video • Arrow keys ↑/↓ • Volume slider',
+      },
+    ]
   },
   renderer: {
     start() {
@@ -187,6 +260,20 @@ export default createPlugin({
       // Store observer for cleanup
       (window as any).ytmusicCustomBarObserver = observer;
     },
+    
+    async onPlayerApiReady(playerApi, context) {
+      // Import and call the onPlayerApiReady function
+      const { onPlayerApiReady } = await import("./renderer")
+      return onPlayerApiReady(playerApi, context)
+    },
+    
+    onConfigChange(newConfig) {
+      // Import and call the onConfigChange function
+      import("./renderer").then(({ onConfigChange }) => {
+        onConfigChange(newConfig)
+      })
+    },
+    
     stop() {
       // Remove the CSS overrides
       const hideProgressBarCSS = document.getElementById('ytmusic-custom-bar-overrides');
