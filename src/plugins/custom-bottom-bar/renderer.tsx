@@ -82,7 +82,10 @@ function YTMusicPlayer() {
   const percentageToVolume = (pct: number) => clamp(pct / 100, 0, 1)
 
   // Get current volume steps from plugin config
-  const getVolumeSteps = () => pluginConfig?.volumeSteps || 1
+  const getVolumeSteps = () => {
+    const steps = pluginConfig?.volumeSteps || 5  // Changed default from 1 to 5
+    return Math.max(1, Math.min(steps, 20))  // Ensure steps are between 1-20
+  }
   const getArrowsShortcut = () => pluginConfig?.arrowsShortcut ?? true
 
   // Volume HUD debounced hide function
@@ -109,7 +112,11 @@ function YTMusicPlayer() {
   const setPreciseVolume = (volumePct: number, showHud = true) => {
     const clampedPct = clamp(volumePct, 0, 100)
     setVolume(clampedPct / 100)
-    setIsMuted(false)
+    
+    // Only unmute if we're setting a volume > 0
+    if (clampedPct > 0) {
+      setIsMuted(false)
+    }
 
     // Use the YTM API
     if (api && typeof api.setVolume === "function") {
@@ -139,8 +146,6 @@ function YTMusicPlayer() {
     
     isUpdatingNativeElements = true
     
-    console.log(`[CustomBar] Updating native elements to ${volumePct}%`)
-    
     const tooltipTargets = [
       '#volume-slider',
       'tp-yt-paper-icon-button.volume',
@@ -153,9 +158,7 @@ function YTMusicPlayer() {
     for (const selector of ['#volume-slider', '#expand-volume-slider']) {
       const slider = document.querySelector(selector) as HTMLInputElement
       if (slider) {
-        const oldValue = slider.value
         slider.value = String(sliderValue)
-        console.log(`[CustomBar] Updated ${selector}: ${oldValue} -> ${slider.value}`)
       }
     }
     
@@ -192,11 +195,6 @@ function YTMusicPlayer() {
       for (const selector of ['#volume-slider', '#expand-volume-slider']) {
         const slider = document.querySelector(selector) as HTMLInputElement
         if (slider && !slider.dataset.customBarDisabled) {
-          console.log(`[CustomBar] Disabling native slider: ${selector}`)
-          
-          // Check current value before disabling
-          console.log(`[CustomBar] Native slider ${selector} current value: ${slider.value}`)
-          
           slider.style.pointerEvents = 'none'
           slider.style.opacity = '0.7'
           slider.disabled = true
@@ -233,85 +231,59 @@ function YTMusicPlayer() {
       if (v !== null) storedVolume = clamp(Number(v), 0, 1)
       const m = localStorage.getItem(MUTE_KEY)
       if (m !== null) storedMuted = m === "true"
-      console.log(`[CustomBar] Loaded stored volume: ${Math.round(storedVolume * 100)}%, muted: ${storedMuted}`)
     } catch {}
     
-          // Check for other volume sources that might interfere
-      console.log('[CustomBar] Checking for conflicting volume sources:')
-      try {
-        // Check ALL localStorage keys (not just volume-related)
-        const allKeys = []
-        for (let i = 0; i < localStorage.length; i++) {
-          const key = localStorage.key(i)
-          if (key) {
-            const value = localStorage.getItem(key)
-            allKeys.push({ key, value: value && value.length > 100 ? value.substring(0, 100) + '...' : value })
-          }
-        }
-        console.log('[CustomBar] All localStorage keys:', allKeys)
-        
-        // Check specific YTM volume keys
-        const ytmVolumeKeys = []
-        for (let i = 0; i < localStorage.length; i++) {
-          const key = localStorage.key(i)
-          if (key && (key.includes('volume') || key.includes('Volume') || key.includes('audio') || key.includes('Audio'))) {
-            ytmVolumeKeys.push({ key, value: localStorage.getItem(key) })
-          }
-        }
-        console.log('[CustomBar] Audio/Volume related keys:', ytmVolumeKeys)
-        
-        // Check video element current volume
-        const video = document.querySelector("video") as HTMLVideoElement
-        if (video) {
-          console.log(`[CustomBar] Initial video volume: ${Math.round(video.volume * 100)}%, muted: ${video.muted}`)
-        }
-        
-        // Check native sliders
-        const nativeSliders = ['#volume-slider', '#expand-volume-slider']
-        nativeSliders.forEach(selector => {
-          const slider = document.querySelector(selector) as HTMLInputElement
-          if (slider) {
-            console.log(`[CustomBar] Native slider ${selector} value: ${slider.value}`)
-          }
-        })
-        
-        // Check for any YTM player API or global volume state
-        if ((window as any).ytmd) {
-          console.log('[CustomBar] YTMD global state:', (window as any).ytmd)
-        }
-        
-        // Check if there's a global player or app state
-        const app = document.querySelector('ytmusic-app') as any
-        if (app && app.playerApi_) {
-          console.log('[CustomBar] YTM Player API found, checking volume state')
-          try {
-            const playerVolume = app.playerApi_.getVolume()
-            console.log(`[CustomBar] YTM Player API volume: ${playerVolume}`)
-          } catch (e) {
-            console.log('[CustomBar] Could not get YTM Player API volume:', e)
-          }
-        }
-        
-      } catch (e) {
-        console.log('[CustomBar] Error checking volume sources:', e)
-      }
+  
     
-    // Use the YTM API for initial volume
+    // Determine initial volume - prefer stored volume, but check what's actually playing
     let initialVolume = storedVolume
-    if (api && typeof api.getVolume === "function") {
+    const startupVideo = document.querySelector("video") as HTMLVideoElement
+    
+    if (startupVideo && !isNaN(startupVideo.volume)) {
+      // If video has a different volume and we don't have a stored preference, use video volume
+      if (storedVolume === 1 && startupVideo.volume !== 1) {
+        initialVolume = startupVideo.volume
+      }
+    }
+    
+    // If API is available and we don't have a stored preference, check API volume
+    if (api && typeof api.getVolume === "function" && storedVolume === 1) {
       const apiVol = api.getVolume()
-      if (typeof apiVol === "number") {
+      if (typeof apiVol === "number" && apiVol !== 100) {
         initialVolume = clamp(apiVol / 100, 0, 1)
       }
     }
+    
     setVolume(initialVolume)
     setIsMuted(storedMuted)
+    
+    // Ensure all volume systems are synchronized from the start
+    setTimeout(() => {
+      const finalVolume = Math.round(initialVolume * 100)
+      
+      // Set YTM API volume
+      if (api && typeof api.setVolume === "function") {
+        api.setVolume(finalVolume)
+      }
+      
+      // Set video element volume if it exists
+      if (startupVideo) {
+        startupVideo.volume = initialVolume
+        startupVideo.muted = storedMuted
+      }
+      
+      // Update native elements
+      updateNativeVolumeElements(finalVolume)
+      
+      // Force UI update to show correct volume
+      setVolume(initialVolume)
+    }, 200)
 
     // Initialize plugin config with defaults if not available
     if (!pluginConfig) {
       pluginConfig = {
         enabled: true,
-        volumeSteps: 1,
+        volumeSteps: 5,  // Changed default from 1 to 5
         arrowsShortcut: true
       }
     }
@@ -334,7 +306,18 @@ function YTMusicPlayer() {
         if (!isSeeking()) {
           // Update progress if videoIds match, or if currentVideoId is null (initial load)
           if (currentVideoId() === song().videoId || currentVideoId() === null) {
-            setProgress(video.currentTime)
+            const currentTime = video.currentTime
+            const previousProgress = progress()
+            
+            // Detect if the video jumped backward significantly (indicating a new song or restart)
+            // Lowered thresholds to catch more cases
+            if (previousProgress > 3 && currentTime < 2 && Math.abs(previousProgress - currentTime) > 2) {
+              // This looks like a new song started, reset progress
+              setProgress(0)
+              setTimeout(() => setProgress(currentTime), 50)
+            } else {
+              setProgress(currentTime)
+            }
           }
         }
       }
@@ -348,25 +331,19 @@ function YTMusicPlayer() {
         const videoVolumePct = Math.round(video.volume * 100)
         const currentVolumePct = Math.round(volume() * 100)
         
-        // Debug: Log when video element is trying to change our volume
-        if (Math.abs(videoVolumePct - currentVolumePct) > 2) {
-          console.log(`[CustomBar] Video volume change detected: ${currentVolumePct}% -> ${videoVolumePct}%`, {
-            videoVolume: video.volume,
-            currentVolume: volume(),
-            isMuted: video.muted,
-            isUserChange: isUserVolumeChange,
-            isDragging: isDraggingVolume()
-          })
+        // Only sync if there's a significant volume change and it seems legitimate
+        if (Math.abs(videoVolumePct - currentVolumePct) > 2 && videoVolumePct >= 0 && videoVolumePct <= 100) {
+          setVolume(video.volume)
+          setIsMuted(video.muted)
+          // Update tooltips when volume changes from video
+          updateNativeVolumeElements(videoVolumePct)
         }
-        
-        setVolume(video.volume)
-        setIsMuted(video.muted)
-        // Update tooltips when volume changes from video
-        updateNativeVolumeElements(volumeToPercentage(video.volume))
       }
 
       const onLoadStart = () => {
-        // New content is loading, sync progress after a brief delay
+        // New content is loading - this often indicates a new song
+        // Reset progress immediately and then sync with video
+        setProgress(0)
         setTimeout(() => {
           if (!isSeeking()) {
             setProgress(video.currentTime || 0)
@@ -377,7 +354,6 @@ function YTMusicPlayer() {
       const onEnded = () => {
         // Mode 2 is "repeat one".
         if (repeatMode() === 2) {
-            console.log('[CustomBar] Video ended on "repeat one". Flagging to prevent UI desync.')
             isRepeatingOne = true
             // Reset the flag after a short delay to allow the player to restart the track
             setTimeout(() => { isRepeatingOne = false }, 1500)
@@ -409,8 +385,6 @@ function YTMusicPlayer() {
 
       // Update paused state immediately
       updatePaused()
-      
-      console.log('[CustomBar] Video event listeners attached to new video element')
     }
 
     const applyCurrentStateToVideo = (video: HTMLVideoElement | null) => {
@@ -445,8 +419,10 @@ function YTMusicPlayer() {
       const video = document.querySelector("video")
       applyCurrentStateToVideo(video)
       
-      // If a new video element is found, sync progress immediately
+      // If a new video element is found, this often means a new song
       if (video && video !== lastVideo) {
+        // Reset progress first for new video elements
+        setProgress(0)
         setTimeout(() => {
           if (!isSeeking()) {
             setProgress(video.currentTime || 0)
@@ -504,12 +480,10 @@ function YTMusicPlayer() {
     const stateVerificationInterval = setInterval(() => {
       const video = document.querySelector("video") as HTMLVideoElement
       if (video && video !== lastVideo) {
-        console.log('[CustomBar] Detected video element change during periodic check, reattaching listeners')
         applyCurrentStateToVideo(video)
       } else if (video) {
         // Verify that our paused state matches the actual video state
         if (isPaused() !== video.paused) {
-          console.log(`[CustomBar] State mismatch detected: isPaused=${isPaused()}, video.paused=${video.paused}, syncing...`)
           setIsPaused(video.paused)
         }
       }
@@ -550,36 +524,51 @@ function YTMusicPlayer() {
     sidebarObserver.observe(document.body, { childList: true, subtree: false }) // Only watch direct children
 
     // --- Song info updates ---
-    // REWRITTEN: Handler to prevent UI desync on "Repeat One"
+    // Handler to prevent UI desync on "Repeat One"
     const handler = (_: any, newSong: any) => {
         // If the repeat flag is active, ignore the update to prevent showing the next song's info
         if (isRepeatingOne) {
-            console.log('[CustomBar] Ignoring song update due to "repeat one" cycle.')
             // We only reset the progress visually
             setProgress(newSong.elapsedSeconds || 0)
             return
         }
 
-        const isNewSong = currentVideoId() !== newSong.videoId
+        const oldSong = song()
+        const oldVideoId = currentVideoId()
+        
+        // Enhanced song change detection
+        const isNewSong = oldVideoId !== newSong.videoId || 
+                         (oldSong.title && newSong.title && oldSong.title !== newSong.title) ||
+                         // Detect song restarts/changes by elapsed time patterns
+                         (newSong.elapsedSeconds < 3 && progress() > 5) ||
+                         // Detect when song duration changes significantly (different song)
+                         (oldSong.songDuration && newSong.songDuration && 
+                          Math.abs(oldSong.songDuration - newSong.songDuration) > 10)
+        
         setSong(newSong)
-        setCurrentVideoId(newSong.videoId)
+        
+        // Always update the current video ID
+        if (oldVideoId !== newSong.videoId) {
+            setCurrentVideoId(newSong.videoId)
+        }
         
         // Sync play/pause state from song info as fallback
         if (typeof newSong.isPaused === 'boolean' && newSong.isPaused !== isPaused()) {
-          console.log(`[CustomBar] Syncing paused state from song info: ${isPaused()} -> ${newSong.isPaused}`)
           setIsPaused(newSong.isPaused)
         }
         
-        // For new songs, ensure progress starts from the beginning
+        // For new songs or restarts, reset progress
         if (isNewSong) {
             setProgress(0)
-            // Sync with video element after a brief delay
+            // Brief delay to ensure video element is ready
             setTimeout(() => {
-                const video = getVideo()
-                if (video) {
-                    setProgress(video.currentTime || 0)
+                if (!isSeeking()) {
+                    const video = getVideo()
+                    if (video) {
+                        setProgress(video.currentTime || 0)
+                    }
                 }
-            }, 100)
+            }, 150)
         } else {
             // For same song (like seeking), use the provided elapsed time
             setProgress(newSong.elapsedSeconds || 0)
@@ -784,7 +773,6 @@ function YTMusicPlayer() {
         for (const selector of toggleSelectors) {
           const toggleButton = document.querySelector(selector) as HTMLElement;
           if (toggleButton && toggleButton.offsetParent !== null) { // Check if button is visible
-            console.log('Expanding sidebar from compact mode using selector:', selector);
             toggleButton.click();
             break;
           }
@@ -829,11 +817,9 @@ function YTMusicPlayer() {
         // Update state only if it's different to avoid unnecessary re-renders
         if (isLikedState !== isLiked()) {
           setIsLiked(isLikedState)
-          console.log('[CustomBar] Like state changed:', isLikedState)
         }
         if (isDislikedState !== isDisliked()) {
           setIsDisliked(isDislikedState)
-          console.log('[CustomBar] Dislike state changed:', isDislikedState)
         }
       }
     }
@@ -853,7 +839,6 @@ function YTMusicPlayer() {
         }
 
         if (newMode !== repeatMode()) {
-            console.log(`[CustomBar] Repeat state changed: ${repeatMode()} -> ${newMode} (Title: "${title}")`)
             setRepeatMode(newMode)
         }
     }
@@ -864,9 +849,8 @@ function YTMusicPlayer() {
     setIsShuffle(!!shuffleOn)
   }
 
-  // CORRECTED: This handler now uses the standardized state (0:off, 1:all, 2:one) and requires no conversion
+  // This handler uses the standardized state (0:off, 1:all, 2:one) and requires no conversion
   const handleRepeatChanged = (_: any, repeatModeValue: number) => {
-    console.log('[CustomBar] Repeat changed via IPC:', repeatModeValue)
     setRepeatMode(repeatModeValue)
   }
 
@@ -994,11 +978,6 @@ function YTMusicPlayer() {
     const volumePct = volumeToPercentage(val)
     setPreciseVolume(volumePct, false)
     setIsDraggingVolume(false)
-    setTimeout(() => {
-      const currentVol = Math.round(volume() * 100)
-      const apiVol = api && typeof api.getVolume === "function" ? api.getVolume() : 'N/A'
-      console.log(`[CustomBar] Volume after change: Custom=${currentVol}%, API=${apiVol}%`)
-    }, 100)
   }
 
   const onVolumeMouseDown = () => {
