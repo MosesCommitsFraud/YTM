@@ -1311,7 +1311,6 @@ function YTMusicPlayer() {
                   role="link"
                   onClick={() => {
                     // Try to find and click the actual album link in the player bar or expanded player page
-                    // Use more specific selectors to find album links
                     const albumLink = document.querySelector('ytmusic-player-bar a[href*="browse"][title*="album"], .content-info-wrapper a[href*="browse"][title*="album"], ytmusic-player-bar a[href*="browse"][aria-label*="album"], .content-info-wrapper a[href*="browse"][aria-label*="album"]');
                     if (albumLink) {
                       (albumLink as HTMLElement).click();
