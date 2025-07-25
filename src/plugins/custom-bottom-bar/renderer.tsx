@@ -539,11 +539,17 @@ function YTMusicPlayer() {
         // Enhanced song change detection
         const isNewSong = oldVideoId !== newSong.videoId || 
                          (oldSong.title && newSong.title && oldSong.title !== newSong.title) ||
-                         // Detect song restarts/changes by elapsed time patterns
-                         (newSong.elapsedSeconds < 3 && progress() > 5) ||
+                         // Detect song restarts/changes by elapsed time patterns (more aggressive for autoplay)
+                         (newSong.elapsedSeconds !== undefined && newSong.elapsedSeconds < 5 && progress() > 3) ||
+                         // Additional autoplay detection: elapsed time reset to 0 while progress is high
+                         (newSong.elapsedSeconds === 0 && progress() > 5) ||
+                         // Detect backward time jumps that indicate autoplay
+                         (typeof newSong.elapsedSeconds === 'number' && progress() > newSong.elapsedSeconds + 10) ||
                          // Detect when song duration changes significantly (different song)
                          (oldSong.songDuration && newSong.songDuration && 
                           Math.abs(oldSong.songDuration - newSong.songDuration) > 10)
+        
+        console.log(`[CustomBar] Song change detection - oldVideoId: ${oldVideoId}, newVideoId: ${newSong.videoId}, oldTitle: "${oldSong.title}", newTitle: "${newSong.title}", progress: ${progress()}, elapsedSeconds: ${newSong.elapsedSeconds}, isNewSong: ${isNewSong}`)
         
         setSong(newSong)
         
@@ -559,18 +565,22 @@ function YTMusicPlayer() {
         
         // For new songs or restarts, reset progress
         if (isNewSong) {
+            console.log(`[CustomBar] NEW SONG DETECTED - Using working reset logic (same as manual skip)`)
             setProgress(0)
             // Brief delay to ensure video element is ready
             setTimeout(() => {
                 if (!isSeeking()) {
                     const video = getVideo()
                     if (video) {
-                        setProgress(video.currentTime || 0)
+                        const videoTime = video.currentTime || 0
+                        console.log(`[CustomBar] Setting progress to video time: ${videoTime}`)
+                        setProgress(videoTime)
                     }
                 }
             }, 150)
         } else {
             // For same song (like seeking), use the provided elapsed time
+            console.log(`[CustomBar] NOT a new song - using elapsedSeconds: ${newSong.elapsedSeconds}`)
             setProgress(newSong.elapsedSeconds || 0)
         }
         
