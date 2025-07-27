@@ -88,18 +88,16 @@ export default createPlugin({
       const hideProgressBarCSS = document.createElement('style');
       hideProgressBarCSS.id = 'ytmusic-custom-bar-overrides';
       hideProgressBarCSS.textContent = `
-        /* Hide all possible progress bar elements */
+        /* Hide most native progress elements but keep #progress-bar functional */
         ytmusic-player-bar .progress-bar,
         ytmusic-player-bar .progress-info,
         ytmusic-player-bar .progress-wrapper,
-        ytmusic-player-bar #progress-bar,
         ytmusic-player-bar .time-info,
         ytmusic-player-bar .sliders,
         ytmusic-player-bar .slider,
         ytmusic-player-bar .ytmusic-player-bar,
         ytmusic-player-bar tp-yt-paper-slider,
         ytmusic-player-bar [role="slider"],
-        .ytmusic-player #progress-bar,
         .ytmusic-player .progress-bar,
         .ytmusic-player .sliders,
         .ytmusic-player .time-info,
@@ -109,28 +107,37 @@ export default createPlugin({
         ytmusic-player-bar .ytp-time-display,
         .ytmusic-player-bar .progress-info,
         .progress-container,
-        .progress-slider,
+        .progress-slider {
+          position: absolute !important;
+          left: -9999px !important;
+          top: -9999px !important;
+          width: 1px !important;
+          height: 1px !important;
+          opacity: 0.01 !important;
+          pointer-events: auto !important;
+        }
+        
+        /* Keep main progress bar functional but hidden */
+        #progress-bar {
+          position: absolute !important;
+          left: -9999px !important;
+          top: -9999px !important;
+          width: 100px !important;
+          height: 10px !important;
+          opacity: 0.01 !important;
+          pointer-events: auto !important;
+        }
+        
+        /* Hide video player progress (we want YTM progress, not video progress) */
         #movie_player .ytp-progress-bar,
         #movie_player .ytp-time-display {
           display: none !important;
-          visibility: hidden !important;
-          opacity: 0 !important;
-          height: 0 !important;
-          pointer-events: none !important;
         }
         
         /* Ensure custom bar stays on top */
         #ytmusic-player-root {
           z-index: 2147483648 !important;
           pointer-events: auto !important;
-        }
-        
-        /* Hide any hover effects from original progress area */
-        ytmusic-player-bar:hover .progress-bar,
-        ytmusic-player-bar:hover .progress-info,
-        ytmusic-player-bar:hover .time-info {
-          display: none !important;
-          visibility: hidden !important;
         }
       `;
       document.head.appendChild(hideProgressBarCSS);
