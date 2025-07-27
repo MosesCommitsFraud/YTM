@@ -333,9 +333,16 @@ function YTMusicPlayer() {
       }
 
       const onEnded = () => {
-        // Clear the video cache immediately when song ends
-        console.log(`[CustomBar] Song ended - clearing video time cache`)
+        // Clear all caches immediately when song ends
+        console.log(`[CustomBar] Song ended - clearing all time caches`)
         video.currentTime = 0
+        
+        // Clear native progress bar too
+        const nativeProgressBar = getNativeProgressBar()
+        if (nativeProgressBar) {
+          nativeProgressBar.value = "0"
+        }
+        
         setCurrentProgress(0)
         
         // Mode 2 is "repeat one".
@@ -406,10 +413,17 @@ function YTMusicPlayer() {
       
       // If a new video element is found, this often means a new song
       if (video && video !== lastVideo) {
-        console.log(`[CustomBar] New video element detected - clearing cache and resetting progress`)
+        console.log(`[CustomBar] New video element detected - clearing all caches`)
         if (video) {
           video.currentTime = 0
         }
+        
+        // Clear native progress bar too
+        const nativeProgressBar = getNativeProgressBar()
+        if (nativeProgressBar) {
+          nativeProgressBar.value = "0"
+        }
+        
         setCurrentProgress(0)
       }
     })
@@ -526,11 +540,19 @@ function YTMusicPlayer() {
         setSong(newSong)
         setCurrentVideoId(newSong.videoId)
         
-        // CLEAR THE CACHE: Reset video element time directly
+        // CLEAR ALL CACHES: Reset video element AND native progress bar
         const video = getVideo()
         if (video) {
           console.log(`[CustomBar] Clearing video currentTime from ${video.currentTime} to 0`)
           video.currentTime = 0
+        }
+        
+        // Clear native progress bar cache too
+        const nativeProgressBar = getNativeProgressBar()
+        if (nativeProgressBar) {
+          console.log(`[CustomBar] Clearing native progress bar from ${nativeProgressBar.value} to 0`)
+          nativeProgressBar.value = "0"
+          nativeProgressBar.max = String(newSong.songDuration || 0)
         }
         
         // Reset progress display
@@ -582,14 +604,21 @@ function YTMusicPlayer() {
         
         // Verify video ID consistency
         if (trackedVideoId && trackedVideoId !== currentSongVideoId) {
-          console.log(`[CustomBar] Safety check - video ID mismatch: tracked=${trackedVideoId}, song=${currentSongVideoId} - CLEARING CACHE`)
+          console.log(`[CustomBar] Safety check - video ID mismatch: tracked=${trackedVideoId}, song=${currentSongVideoId} - CLEARING ALL CACHES`)
           // Reset currentVideoId to match song data  
           setCurrentVideoId(currentSongVideoId)
-          // Clear video cache and reset progress
+          // Clear all caches
           const video = getVideo()
           if (video) {
             video.currentTime = 0
           }
+          
+          // Clear native progress bar too
+          const nativeProgressBar = getNativeProgressBar()
+          if (nativeProgressBar) {
+            nativeProgressBar.value = "0"
+          }
+          
           setCurrentProgress(0)
         }
       }
