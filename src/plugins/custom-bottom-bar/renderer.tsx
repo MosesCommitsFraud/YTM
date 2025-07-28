@@ -45,7 +45,7 @@ function YTMusicPlayer() {
 
   // Song info state
   const [song, setSong] = createSignal(getSongInfo())
-  const [currentProgress, setCurrentProgress] = createSignal(0)
+  const [progress, setProgress] = createSignal(0)
   
   // Volume and mute state (internal 0-1 scale)
   const [volume, setVolume] = createSignal(1)
@@ -303,7 +303,23 @@ function YTMusicPlayer() {
       }
 
       const onTimeUpdate = () => {
-        // No custom progress tracking needed - native progress bar handles this
+        if (!isSeeking()) {
+          // Update progress if videoIds match, or if currentVideoId is null (initial load)
+          if (currentVideoId() === song().videoId || currentVideoId() === null) {
+            const currentTime = video.currentTime
+            const previousProgress = progress()
+            
+            // Detect if the video jumped backward significantly (indicating a new song or restart)
+            // Lowered thresholds to catch more cases
+            if (previousProgress > 3 && currentTime < 2 && Math.abs(previousProgress - currentTime) > 2) {
+              // This looks like a new song started, reset progress
+              setProgress(0)
+              setTimeout(() => setProgress(currentTime), 50)
+            } else {
+              setProgress(currentTime)
+            }
+          }
+        }
       }
 
       const onVolumeChangeFromVideo = () => {
@@ -325,31 +341,25 @@ function YTMusicPlayer() {
       }
 
       const onLoadStart = () => {
-        // No custom progress handling needed - native progress bar handles this
-      }
-
-      const onCanPlay = () => {
-        // No custom progress handling needed - native progress bar handles this
+        // New content is loading - this often indicates a new song
+        // Reset progress immediately and then sync with video
+        setProgress(0)
+        setTimeout(() => {
+          if (!isSeeking()) {
+            setProgress(video.currentTime || 0)
+          }
+        }, 100)
       }
 
       const onEnded = () => {
-        // Clear all caches immediately when song ends
-        console.log(`[CustomBar] Song ended - clearing all time caches`)
-        video.currentTime = 0
-        
-        // Clear native progress bar too
-        const nativeProgressBar = getNativeProgressBar()
-        if (nativeProgressBar) {
-          nativeProgressBar.value = "0"
-        }
-        
-        setCurrentProgress(0)
-        
         // Mode 2 is "repeat one".
         if (repeatMode() === 2) {
             isRepeatingOne = true
             // Reset the flag after a short delay to allow the player to restart the track
             setTimeout(() => { isRepeatingOne = false }, 1500)
+        } else {
+            // For normal playback, reset progress to prepare for next song
+            setProgress(0)
         }
         // After any song ends, re-check the repeat state, as YTM might auto-change it.
         setTimeout(detectRepeatState, 200)
@@ -360,7 +370,6 @@ function YTMusicPlayer() {
       video.addEventListener("play", updatePaused)
       video.addEventListener("timeupdate", onTimeUpdate)
       video.addEventListener("loadstart", onLoadStart)
-      video.addEventListener("canplay", onCanPlay)
       video.addEventListener("ended", onEnded)
       video.addEventListener("volumechange", onVolumeChangeFromVideo)
 
@@ -370,7 +379,6 @@ function YTMusicPlayer() {
         () => video.removeEventListener("play", updatePaused),
         () => video.removeEventListener("timeupdate", onTimeUpdate),
         () => video.removeEventListener("loadstart", onLoadStart),
-        () => video.removeEventListener("canplay", onCanPlay),
         () => video.removeEventListener("ended", onEnded),
         () => video.removeEventListener("volumechange", onVolumeChangeFromVideo)
       )
@@ -413,18 +421,13 @@ function YTMusicPlayer() {
       
       // If a new video element is found, this often means a new song
       if (video && video !== lastVideo) {
-        console.log(`[CustomBar] New video element detected - clearing all caches`)
-        if (video) {
-          video.currentTime = 0
-        }
-        
-        // Clear native progress bar too
-        const nativeProgressBar = getNativeProgressBar()
-        if (nativeProgressBar) {
-          nativeProgressBar.value = "0"
-        }
-        
-        setCurrentProgress(0)
+        // Reset progress first for new video elements
+        setProgress(0)
+        setTimeout(() => {
+          if (!isSeeking()) {
+            setProgress(video.currentTime || 0)
+          }
+        }, 50)
       }
     })
     videoObserver.observe(document.body, { childList: true, subtree: true })
@@ -487,26 +490,20 @@ function YTMusicPlayer() {
     }, 3000) // Check every 3 seconds
 
     // --- Initial progress sync ---
-    // Start with 0 progress and let it update naturally
-    setCurrentProgress(0)
+    // Immediately sync progress with current video state on mount
     const initialVideo = document.querySelector("video") as HTMLVideoElement
     if (initialVideo) {
+      setProgress(initialVideo.currentTime || 0)
       // Set current video ID from song info if not set
       if (!currentVideoId() && song().videoId) {
         setCurrentVideoId(song().videoId)
       }
       // Apply stored volume to initial video
+      // Use the YTM API for volume
       if (api && typeof api.setVolume === "function") {
         api.setVolume(volume() * 100)
       }
       updateNativeVolumeElements(volumeToPercentage(volume()))
-      
-      // Only sync with video time after a delay to avoid old progress
-      setTimeout(() => {
-        if (!isSeeking()) {
-          setCurrentProgress(Math.max(0, initialVideo.currentTime || 0))
-        }
-      }, 500)
     }
 
     // Setup enhanced volume features
@@ -527,40 +524,64 @@ function YTMusicPlayer() {
     sidebarObserver.observe(document.body, { childList: true, subtree: false }) // Only watch direct children
 
     // --- Song info updates ---
-    // Handler to prevent UI desync on "Repeat One"  
+    // Handler to prevent UI desync on "Repeat One"
     const handler = (_: any, newSong: any) => {
         // If the repeat flag is active, ignore the update to prevent showing the next song's info
         if (isRepeatingOne) {
-            // Just update song info without progress changes
+            // We only reset the progress visually
+            setProgress(newSong.elapsedSeconds || 0)
             return
         }
 
-        console.log(`[CustomBar] Song info update - CLEARING VIDEO CACHE AND RESETTING PROGRESS`)
+        const oldSong = song()
+        const oldVideoId = currentVideoId()
+        
+        // Enhanced song change detection
+        const isNewSong = oldVideoId !== newSong.videoId || 
+                         (oldSong.title && newSong.title && oldSong.title !== newSong.title) ||
+                         // Detect song restarts/changes by elapsed time patterns (more aggressive for autoplay)
+                         (newSong.elapsedSeconds !== undefined && newSong.elapsedSeconds < 5 && progress() > 3) ||
+                         // Additional autoplay detection: elapsed time reset to 0 while progress is high
+                         (newSong.elapsedSeconds === 0 && progress() > 5) ||
+                         // Detect backward time jumps that indicate autoplay
+                         (typeof newSong.elapsedSeconds === 'number' && progress() > newSong.elapsedSeconds + 10) ||
+                         // Detect when song duration changes significantly (different song)
+                         (oldSong.songDuration && newSong.songDuration && 
+                          Math.abs(oldSong.songDuration - newSong.songDuration) > 10)
+        
+        console.log(`[CustomBar] Song change detection - oldVideoId: ${oldVideoId}, newVideoId: ${newSong.videoId}, oldTitle: "${oldSong.title}", newTitle: "${newSong.title}", progress: ${progress()}, elapsedSeconds: ${newSong.elapsedSeconds}, isNewSong: ${isNewSong}`)
         
         setSong(newSong)
-        setCurrentVideoId(newSong.videoId)
         
-        // CLEAR ALL CACHES: Reset video element AND native progress bar
-        const video = getVideo()
-        if (video) {
-          console.log(`[CustomBar] Clearing video currentTime from ${video.currentTime} to 0`)
-          video.currentTime = 0
+        // Always update the current video ID
+        if (oldVideoId !== newSong.videoId) {
+            setCurrentVideoId(newSong.videoId)
         }
-        
-        // Clear native progress bar cache too
-        const nativeProgressBar = getNativeProgressBar()
-        if (nativeProgressBar) {
-          console.log(`[CustomBar] Clearing native progress bar from ${nativeProgressBar.value} to 0`)
-          nativeProgressBar.value = "0"
-          nativeProgressBar.max = String(newSong.songDuration || 0)
-        }
-        
-        // Reset progress display
-        setCurrentProgress(0)
         
         // Sync play/pause state from song info as fallback
         if (typeof newSong.isPaused === 'boolean' && newSong.isPaused !== isPaused()) {
           setIsPaused(newSong.isPaused)
+        }
+        
+        // For new songs or restarts, reset progress
+        if (isNewSong) {
+            console.log(`[CustomBar] NEW SONG DETECTED - Using working reset logic (same as manual skip)`)
+            setProgress(0)
+            // Brief delay to ensure video element is ready
+            setTimeout(() => {
+                if (!isSeeking()) {
+                    const video = getVideo()
+                    if (video) {
+                        const videoTime = video.currentTime || 0
+                        console.log(`[CustomBar] Setting progress to video time: ${videoTime}`)
+                        setProgress(videoTime)
+                    }
+                }
+            }, 150)
+        } else {
+            // For same song (like seeking), use the provided elapsed time
+            console.log(`[CustomBar] NOT a new song - using elapsedSeconds: ${newSong.elapsedSeconds}`)
+            setProgress(newSong.elapsedSeconds || 0)
         }
         
         // Detect like state for the new song
@@ -574,21 +595,25 @@ function YTMusicPlayer() {
         console.log(`[CustomBar] Syncing paused state via IPC play-or-paused: ${isPaused()} -> ${data.isPaused}`)
         setIsPaused(data.isPaused)
       }
+      if (typeof data.elapsedSeconds === 'number') {
+        setProgress(data.elapsedSeconds)
+      }
     }
     window.ipcRenderer.on("ytmd:play-or-paused", playPauseHandler)
 
     // Helper function to get video element
     const getVideo = () => document.querySelector("video") as HTMLVideoElement | null
 
-    // Simple progress tracking interval
+    // Progress update interval (more frequent for smooth progress bar)
     const progressInterval = setInterval(() => {
-      if (!isSeeking()) {
-        const video = getVideo()
-        if (video && !video.paused) {
-          setCurrentProgress(Math.max(0, video.currentTime))
+      const video = getVideo()
+      if (video && !isSeeking() && !video.paused) {
+        // Update progress if videoIds match, or if currentVideoId is null (initial load)
+        if (currentVideoId() === song().videoId || currentVideoId() === null) {
+          setProgress(video.currentTime)
         }
       }
-    }, 250) // Update every 250ms for smooth progress
+    }, 250) // Update progress every 250ms for smoother bar
 
     // General state check interval
     const stateInterval = setInterval(() => {
@@ -596,33 +621,7 @@ function YTMusicPlayer() {
       detectShuffleState()
       detectRepeatState()
       detectLikeState()
-      
-      // Simple safety check: sync video ID consistency
-      if (!isSeeking()) {
-        const currentSongVideoId = song().videoId
-        const trackedVideoId = currentVideoId()
-        
-        // Verify video ID consistency
-        if (trackedVideoId && trackedVideoId !== currentSongVideoId) {
-          console.log(`[CustomBar] Safety check - video ID mismatch: tracked=${trackedVideoId}, song=${currentSongVideoId} - CLEARING ALL CACHES`)
-          // Reset currentVideoId to match song data  
-          setCurrentVideoId(currentSongVideoId)
-          // Clear all caches
-          const video = getVideo()
-          if (video) {
-            video.currentTime = 0
-          }
-          
-          // Clear native progress bar too
-          const nativeProgressBar = getNativeProgressBar()
-          if (nativeProgressBar) {
-            nativeProgressBar.value = "0"
-          }
-          
-          setCurrentProgress(0)
-        }
-      }
-    }, 1500) // Check more frequently (every 1.5 seconds) for better responsiveness
+    }, 2000) // Check states every 2 seconds
 
     // --- Sync shuffle/repeat state on mount ---
     setTimeout(() => {
@@ -743,6 +742,7 @@ function YTMusicPlayer() {
       }
       clearInterval(progressInterval)
       clearInterval(stateInterval)
+      clearInterval(stateVerificationInterval) // Clear the new interval
       if (userVolumeChangeTimeout) {
         clearTimeout(userVolumeChangeTimeout)
       }
@@ -918,19 +918,10 @@ function YTMusicPlayer() {
     setTimeout(requestRepeat, SYNC_DELAY)
   }
 
-  // Simple progress functions using song info data and native progress bar
-  const getNativeProgressBar = () => {
-    return document.querySelector('#progress-bar') as HTMLElement & { value: string; max: string }
-  }
-
   const onSeekInput = (e: Event) => {
-    // Update native progress bar directly
-    const nativeProgressBar = getNativeProgressBar()
-    if (nativeProgressBar) {
-      const val = Number((e.target as HTMLInputElement).value)
-      nativeProgressBar.value = String(val)
-      nativeProgressBar.dispatchEvent(new Event('input', { bubbles: true }))
-    }
+    // Update progress immediately for smooth visual feedback
+    const val = Number((e.target as HTMLInputElement).value)
+    setProgress(val)
   }
 
   const onSeekStart = () => {
@@ -938,22 +929,21 @@ function YTMusicPlayer() {
   }
 
   const onSeekEnd = (e: Event) => {
-    // Set final value and trigger native seeking
-    const nativeProgressBar = getNativeProgressBar()
-    if (nativeProgressBar) {
-      const val = Number((e.target as HTMLInputElement).value)
-      nativeProgressBar.value = String(val)
-      nativeProgressBar.dispatchEvent(new Event('change', { bubbles: true }))
-    }
+    // Actually seek the video and end seeking state
+    const video = document.querySelector("video")
+    if (!video) return
+    const val = Number((e.target as HTMLInputElement).value)
+    setProgress(val)
+    video.currentTime = val
     
-    // Small delay before ending seeking state
+    // Small delay before ending seeking state to prevent flickering
     setTimeout(() => {
       setIsSeeking(false)
     }, 50)
   }
 
   const onSeekChange = (e: Event) => {
-    // Fallback for when mouseup doesn't fire
+    // Fallback for when mouseup doesn't fire (e.g., dragging outside)
     if (isSeeking()) {
       onSeekEnd(e)
     }
@@ -962,18 +952,16 @@ function YTMusicPlayer() {
   const onSeekKeyDown = (e: KeyboardEvent) => {
     if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
       setIsSeeking(true)
-      const current = currentProgress()
+      const video = document.querySelector("video")
+      if (!video) return
+      
       const step = 5 // 5 second increments
       const newTime = e.key === 'ArrowLeft' 
-        ? Math.max(0, current - step)
-        : Math.min(song().songDuration || 0, current + step)
+        ? Math.max(0, progress() - step)
+        : Math.min(song().songDuration || 0, progress() + step)
       
-      // Update native progress bar
-      const nativeProgressBar = getNativeProgressBar()
-      if (nativeProgressBar) {
-        nativeProgressBar.value = String(newTime)
-        nativeProgressBar.dispatchEvent(new Event('change', { bubbles: true }))
-      }
+      setProgress(newTime)
+      video.currentTime = newTime
       
       setTimeout(() => {
         setIsSeeking(false)
@@ -1477,13 +1465,13 @@ function YTMusicPlayer() {
         </div>
 
         <div class="ytmusic-progress">
-          <span class="ytmusic-time">{fmt(currentProgress())}</span>
+          <span class="ytmusic-time">{fmt(progress())}</span>
           <div class="ytmusic-progress-bar">
             <input
               type="range"
               min={0}
               max={song().songDuration || 1}
-              value={isSeeking() ? undefined : currentProgress()}
+              value={progress()}
               onInput={onSeekInput}
               onChange={onSeekChange}
               onMouseDown={onSeekStart}
@@ -1493,7 +1481,7 @@ function YTMusicPlayer() {
               onKeyDown={onSeekKeyDown}
               class="ytmusic-slider"
               style={{
-                "--progress": `${Math.min((currentProgress() / (song().songDuration || 1)) * 100, 100)}%`,
+                "--progress": `${Math.min((progress() / (song().songDuration || 1)) * 100, 100)}%`,
               }}
             />
           </div>
