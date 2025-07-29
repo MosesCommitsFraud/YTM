@@ -55,7 +55,7 @@ function YTMusicPlayer() {
   const [isLiked, setIsLiked] = createSignal(false)
   const [isDisliked, setIsDisliked] = createSignal(false)
   const [isShuffle, setIsShuffle] = createSignal(false)
-  // CORRECTED STATE LOGIC: 0 = off, 1 = repeat all, 2 = repeat one. This matches YTM's internal logic.
+  // CORRECTED STATE LOGIC: 0 = off, 1 = repeat all, 2 = repeat one.
   const [repeatMode, setRepeatMode] = createSignal(0)
   const [isPaused, setIsPaused] = createSignal(true)
   const [showDropdown, setShowDropdown] = createSignal(false)
