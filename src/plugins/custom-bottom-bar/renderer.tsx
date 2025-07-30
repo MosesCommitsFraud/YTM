@@ -1056,7 +1056,6 @@ function YTMusicPlayer() {
     ctx.fillStyle = '#fff';
     ctx.textAlign = 'center';
     ctx.fillText('Pause is supported in PiP, but resume must be done from the main app.', canvas.width / 2, canvas.height - 15);
-    // Create a video from the canvas stream
     const stream = canvas.captureStream();
     const video = document.createElement('video');
     video.srcObject = stream;
