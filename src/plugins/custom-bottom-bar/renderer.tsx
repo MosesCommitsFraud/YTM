@@ -90,16 +90,9 @@ const [currentVideoId, setCurrentVideoId] = createSignal<string | null>(null)
 // FIX: Add a flag to prevent UI updates during a "repeat one" cycle
 let isRepeatingOne = false
 
-// Progress tracking variables - hybrid approach
+// DEAD SIMPLE progress tracking - just video element
 let lastProgressUpdate = 0
-let progressUpdateSource = 'none'
-let lastSeekTime = 0 // Track when we last seeked to ignore conflicting API updates
-
-// Video update control variables
-let ignoreVideoUpdates = false
-let ignoreVideoTimeout: number | null = null
-let progressResetLock = false
-let progressResetTimeout: number | null = null
+let lastKnownVideoId: string | null = null
 
 // --- Volume sync logic ---
 let isUserVolumeChange = false
@@ -153,9 +146,6 @@ const safeSetProgress = (value: number, source: string, force = false) => {
   console.log(`[CustomBar] Progress updated: ${value}s from ${source}`)
   return true
 }
-
-// Alias for setProgressFromAPI - used throughout the codebase
-const setProgressFromAPI = (value: number, source: string) => safeSetProgress(value, source)
 const volumeToPercentage = (vol: number) => Math.round(vol * 100)
 const percentageToVolume = (pct: number) => clamp(pct / 100, 0, 1)
 
@@ -297,21 +287,11 @@ const overrideNativeVolumeSliders = () => {
 }
 
 onMount(() => {
-  // DEBUG: Log initial song info to see if it contains cached progress
-  const initialSongInfo = getSongInfo()
-  console.log('[CustomBar] === INITIAL SONG INFO ===')
-  console.log('Initial song data:', {
-    videoId: initialSongInfo.videoId,
-    title: initialSongInfo.title,
-    elapsedSeconds: initialSongInfo.elapsedSeconds,
-    songDuration: initialSongInfo.songDuration,
-    isPaused: initialSongInfo.isPaused
-  })
-  
   // Set initial progress from song info
-  if (typeof initialSongInfo.elapsedSeconds === 'number') {
-    setProgressFromAPI(initialSongInfo.elapsedSeconds, 'initial-song-info')
-  }
+  const initialSongInfo = getSongInfo()
+  console.log('[CustomBar] Initial song:', initialSongInfo.title, 'VideoID:', initialSongInfo.videoId)
+  lastKnownVideoId = initialSongInfo.videoId
+  updateProgress(initialSongInfo.elapsedSeconds || 0, 'initial')
   
   // Override native volume slider behavior first
   overrideNativeVolumeSliders()
@@ -383,101 +363,55 @@ onMount(() => {
   let lastVideo: HTMLVideoElement | null = null
   let currentVideoEventListeners: (() => void)[] = []
 
-  // Simplified video event listeners - use for smooth progress, API for song changes
+  // Dead simple video event listeners - just play/pause and volume
   const attachVideoEventListeners = (video: HTMLVideoElement) => {
-    // Remove existing event listeners first
     currentVideoEventListeners.forEach(cleanup => cleanup())
     currentVideoEventListeners = []
 
     if (!video) return
 
-    console.log('[CustomBar] Attaching hybrid video event listeners')
-
-    const updatePaused = () => {
-      setIsPaused(video.paused)
-    }
-
-    // Use video for smooth progress updates, but with API validation
-    const onTimeUpdate = () => {
-      if (isSeeking()) return
-      
-      const currentTime = video.currentTime
-      const now = Date.now()
-      
-      // Only update if we haven't had a recent API update that might conflict
-      if (now - lastProgressUpdate > 200) {
-        // Validate against API: if video time is way off from API, prefer API
-        const apiTime = song().elapsedSeconds || 0
-        const timeDiff = Math.abs(currentTime - apiTime)
-        
-        if (timeDiff > 30 && apiTime > 0) {
-          console.log(`[CustomBar] Video time (${currentTime}s) differs too much from API (${apiTime}s) - using API`)
-          setProgressFromAPI(apiTime, 'video-validation-api')
-        } else {
-          setProgressFromAPI(currentTime, 'video-timeupdate')
+    const updatePaused = () => setIsPaused(video.paused)
+    const onVolumeChange = () => {
+      if (!isUserVolumeChange && !isDraggingVolume()) {
+        const videoVolumePct = Math.round(video.volume * 100)
+        const currentVolumePct = Math.round(volume() * 100)
+        if (Math.abs(videoVolumePct - currentVolumePct) > 2) {
+          setVolume(video.volume)
+          setIsMuted(video.muted)
+          updateNativeVolumeElements(videoVolumePct)
         }
       }
     }
 
-    const onVolumeChangeFromVideo = () => {
-      if (!video || isUserVolumeChange || isDraggingVolume()) {
-        return
-      }
-      
-      const videoVolumePct = Math.round(video.volume * 100)
-      const currentVolumePct = Math.round(volume() * 100)
-      
-      if (Math.abs(videoVolumePct - currentVolumePct) > 2 && videoVolumePct >= 0 && videoVolumePct <= 100) {
-        setVolume(video.volume)
-        setIsMuted(video.muted)
-        updateNativeVolumeElements(videoVolumePct)
-      }
-    }
-
-    // Attach listeners
     video.addEventListener("pause", updatePaused)
     video.addEventListener("play", updatePaused)
-    video.addEventListener("timeupdate", onTimeUpdate)
-    video.addEventListener("volumechange", onVolumeChangeFromVideo)
+    video.addEventListener("volumechange", onVolumeChange)
 
-    // Store cleanup functions
     currentVideoEventListeners.push(
       () => video.removeEventListener("pause", updatePaused),
       () => video.removeEventListener("play", updatePaused),
-      () => video.removeEventListener("timeupdate", onTimeUpdate),
-      () => video.removeEventListener("volumechange", onVolumeChangeFromVideo)
+      () => video.removeEventListener("volumechange", onVolumeChange)
     )
 
-    // Update paused state immediately
     updatePaused()
   }
 
   const applyCurrentStateToVideo = (video: HTMLVideoElement | null) => {
-    if (!video) return
+    if (!video || video === lastVideo) return
     
-    // If this is a new video element, attach event listeners
-    if (video !== lastVideo) {
-      console.log('[CustomBar] New video element detected, applying volume state')
-      
-      // Use the YTM API for volume
-      if (api && typeof api.setVolume === "function") {
-        api.setVolume(volume() * 100)
-      }
-      // Use the YTM API for mute/unmute
-      if (api && typeof api.mute === "function" && typeof api.unMute === "function") {
-        if (isMuted()) {
-          api.mute()
-        } else {
-          api.unMute()
-        }
-      }
-      
-      attachVideoEventListeners(video)
-      lastVideo = video
-      
-      // Update tooltips for new video
-      updateNativeVolumeElements(volumeToPercentage(volume()))
+    console.log('[CustomBar] New video element detected')
+    
+    if (api && typeof api.setVolume === "function") {
+      api.setVolume(volume() * 100)
     }
+    if (api && typeof api.mute === "function" && typeof api.unMute === "function") {
+      if (isMuted()) api.mute()
+      else api.unMute()
+    }
+    
+    attachVideoEventListeners(video)
+    lastVideo = video
+    updateNativeVolumeElements(volumeToPercentage(volume()))
   }
   
   // Apply to initial video element
@@ -549,125 +483,59 @@ onMount(() => {
   })
   sidebarObserver.observe(document.body, { childList: true, subtree: false }) // Only watch direct children
 
-  // --- HYBRID Song info update handler - API for song changes, video for progress ---
+  // DEAD SIMPLE song change handler - only care about new songs
   const handler = (_: any, newSong: any) => {
-    console.log(`[CustomBar] === SONG INFO UPDATE ===`)
-    console.log(`Song: "${newSong.title}" by ${newSong.artist}`)
-    console.log(`VideoID: ${newSong.videoId}`)
-    console.log(`ElapsedSeconds: ${newSong.elapsedSeconds}`)
-    console.log(`Current progress: ${progress()}`)
+    const isNewSong = lastKnownVideoId !== newSong.videoId
     
-    // Handle repeat one mode
-    if (isRepeatingOne) {
-      console.log('[CustomBar] Repeat one active, updating progress from API')
-      if (typeof newSong.elapsedSeconds === 'number') {
-        setProgressFromAPI(newSong.elapsedSeconds, 'song-info-repeat-one')
-      }
-      return
+    console.log(`[CustomBar] Song: "${newSong.title}" (VideoID: ${newSong.videoId}, New: ${isNewSong})`)
+    
+    if (isNewSong) {
+      console.log('[CustomBar] 🎵 NEW SONG - Resetting progress to 0')
+      lastKnownVideoId = newSong.videoId
+      updateProgress(0, 'new-song')
+      
+      // Check if video element has stale time and force reset
+      setTimeout(() => {
+        const video = document.querySelector("video") as HTMLVideoElement
+        if (video && video.currentTime > 15) {
+          console.log(`[CustomBar] ⚠️ Video has stale time: ${video.currentTime}s - FORCING RESET`)
+          video.currentTime = 0
+          updateProgress(0, 'video-forced-reset')
+        }
+      }, 200)
     }
-
-    const oldSong = song()
-    const oldVideoId = currentVideoId()
-    
-    // Detect song changes
-    const videoIdChanged = oldVideoId !== newSong.videoId
-    const titleChanged = oldSong.title && newSong.title && oldSong.title !== newSong.title
-    const isNewSong = videoIdChanged || titleChanged
-    
-    console.log(`[CustomBar] New song: ${isNewSong} (videoId: ${videoIdChanged}, title: ${titleChanged})`)
     
     // Update song info
     setSong(newSong)
+    setCurrentVideoId(newSong.videoId)
     
-    // Update video ID
-    if (oldVideoId !== newSong.videoId) {
-      setCurrentVideoId(newSong.videoId)
-    }
-    
-    // Update play/pause state
-    if (typeof newSong.isPaused === 'boolean' && newSong.isPaused !== isPaused()) {
+    if (typeof newSong.isPaused === 'boolean') {
       setIsPaused(newSong.isPaused)
-    }
-    
-    // Handle progress based on song change
-    if (isNewSong) {
-      // For new songs, check if API has suspicious elapsed time
-      if (typeof newSong.elapsedSeconds === 'number' && newSong.elapsedSeconds > 10) {
-        console.log(`[CustomBar] 🚨 NEW SONG with suspicious API time: ${newSong.elapsedSeconds}s - FORCING RESET`)
-        setProgressFromAPI(0, 'new-song-suspicious-reset')
-        
-        // Also check video element and prefer 0 if it's reasonable
-        setTimeout(() => {
-          const video = document.querySelector("video") as HTMLVideoElement
-          if (video && video.currentTime < 10) {
-            console.log(`[CustomBar] Video element has reasonable time: ${video.currentTime}s`)
-            setProgressFromAPI(video.currentTime, 'new-song-video-sync')
-          }
-        }, 500)
-      } else {
-        // Normal new song with reasonable API time
-        console.log(`[CustomBar] New song with reasonable API time: ${newSong.elapsedSeconds}s`)
-        setProgressFromAPI(newSong.elapsedSeconds || 0, 'new-song-api')
-      }
-    } else {
-      // Same song - only update if API time seems reasonable
-      if (typeof newSong.elapsedSeconds === 'number') {
-        const timeDiff = Math.abs(newSong.elapsedSeconds - progress())
-        if (timeDiff < 5) {
-          // Small difference, probably normal playback
-          setProgressFromAPI(newSong.elapsedSeconds, 'song-info-api-update')
-        } else {
-          console.log(`[CustomBar] Ignoring API update with large time diff: ${timeDiff}s`)
-        }
-      }
     }
     
     setTimeout(detectLikeState, 200)
   }
   window.ipcRenderer.on("ytmd:update-song-info", handler)
 
-  // Play/pause handler - be more selective about when to use API progress
+  // Simple play/pause handler - ignore progress updates
   const playPauseHandler = (_: any, data: { isPaused: boolean; elapsedSeconds: number }) => {
-    if (typeof data.isPaused === 'boolean' && data.isPaused !== isPaused()) {
-      console.log(`[CustomBar] Play/pause state: ${data.isPaused}`)
+    if (typeof data.isPaused === 'boolean') {
       setIsPaused(data.isPaused)
     }
-    
-    // Only use API elapsed seconds if we haven't updated recently (avoid conflicts with video)
-    if (typeof data.elapsedSeconds === 'number' && Date.now() - lastProgressUpdate > 1000) {
-      console.log(`[CustomBar] Using play/pause API progress: ${data.elapsedSeconds}s`)
-      setProgressFromAPI(data.elapsedSeconds, 'play-pause-api')
-    }
+    // Ignore elapsedSeconds - we get progress from video element
   }
   window.ipcRenderer.on("ytmd:play-or-paused", playPauseHandler)
 
   // Helper function to get video element
   const getVideo = () => document.querySelector("video") as HTMLVideoElement | null
 
-  // Hybrid approach: API for validation, video for smooth updates
-  const apiSyncInterval = setInterval(() => {
-    const currentSong = song()
+  // Simple video progress tracking - just use video element directly
+  const videoProgressInterval = setInterval(() => {
     const video = document.querySelector("video") as HTMLVideoElement
-    
-    if (!isSeeking() && video && !video.paused) {
-      const now = Date.now()
-      
-      // If we haven't had updates recently, use video time
-      if (now - lastProgressUpdate > 1000) {
-        console.log(`[CustomBar] Using video time for smooth progress: ${video.currentTime}s`)
-        setProgressFromAPI(video.currentTime, 'video-smooth-progress')
-      }
-      
-      // Occasionally validate against API (every 5 seconds)
-      if (now - lastProgressUpdate > 5000 && typeof currentSong.elapsedSeconds === 'number') {
-        const timeDiff = Math.abs(video.currentTime - currentSong.elapsedSeconds)
-        if (timeDiff > 10) {
-          console.log(`[CustomBar] Large drift detected (${timeDiff}s) - syncing with API`)
-          setProgressFromAPI(currentSong.elapsedSeconds, 'api-drift-correction')
-        }
-      }
+    if (video && !isSeeking() && !video.paused) {
+      updateProgress(video.currentTime, 'video')
     }
-  }, 500) // Check twice per second for smooth updates
+  }, 100) // Smooth 10fps updates
   // General state check interval
   const stateInterval = setInterval(() => {
     // Periodically check state for resilience
@@ -787,22 +655,8 @@ onMount(() => {
   window.ipcRenderer.on("ytmd:shuffle-changed", handleShuffleChanged)
   window.ipcRenderer.on("ytmd:repeat-changed", handleRepeatChanged)
 
-  // Simplified initial sync - just use song info
-  const initialVideo = document.querySelector("video") as HTMLVideoElement
-  if (initialVideo) {
-    console.log('[CustomBar] Initial video element found, applying volume settings')
-    
-    if (!currentVideoId() && song().videoId) {
-      setCurrentVideoId(song().videoId)
-    }
-    
-    if (api && typeof api.setVolume === "function") {
-      api.setVolume(volume() * 100)
-    }
-    updateNativeVolumeElements(volumeToPercentage(volume()))
-  } else {
-    console.log('[CustomBar] No initial video element found')
-  }
+  // Apply to initial video
+  applyCurrentStateToVideo(document.querySelector("video"))
 
   onCleanup(() => {
     window.ipcRenderer.off("ytmd:update-song-info", handler)
@@ -810,8 +664,20 @@ onMount(() => {
     if (lastVideo) { // Check if lastVideo is not null
       currentVideoEventListeners.forEach(cleanup => cleanup())
     }
-    clearInterval(apiSyncInterval)
+    clearInterval(videoProgressInterval)
     clearInterval(stateInterval)
+    cleanupRepeatWatcher()
+    cleanupLikeWatcher()
+    window.ipcRenderer.off("ytmd:shuffle-changed", handleShuffleChanged)
+    window.ipcRenderer.off("ytmd:repeat-changed", handleRepeatChanged)
+    document.removeEventListener("click", handleClickOutside)
+    document.removeEventListener("mouseup", handleGlobalMouseUp)
+    document.removeEventListener("touchend", handleGlobalMouseUp)
+    videoObserver?.disconnect()
+    sidebarObserver?.disconnect()
+    observer?.disconnect()
+    // No more complex timeout cleanup neededTimeout)
+    }
     cleanupRepeatWatcher()
     cleanupLikeWatcher()
     window.ipcRenderer.off("ytmd:shuffle-changed", handleShuffleChanged)
@@ -985,37 +851,42 @@ const toggleRepeat = () => {
 }
 
 const onSeekInput = (e: Event) => {
-  // Update progress immediately for smooth visual feedback
   const val = Number((e.target as HTMLInputElement).value)
-  setProgressFromAPI(val, 'seek-input')
+  updateProgress(val, 'seek-input')
 }
 
 const onSeekStart = () => {
-  console.log('[CustomBar] Seek started')
   setIsSeeking(true)
 }
 
 const onSeekEnd = (e: Event) => {
-  // Actually seek the video and end seeking state
   const video = document.querySelector("video")
-  if (!video) {
-    console.log('[CustomBar] Seek end: No video element found!')
-    return
-  }
+  if (!video) return
   
   const val = Number((e.target as HTMLInputElement).value)
-  console.log(`[CustomBar] Seek ended at ${val}s, applying to video`)
-  
-  // Record seek time to ignore conflicting API updates
-  lastSeekTime = Date.now()
-  
-  setProgressFromAPI(val, 'seek-end')
-  
-  // Apply seek to video immediately
+  updateProgress(val, 'seek-end')
   video.currentTime = val
-  
-  // End seeking state immediately for responsiveness
   setIsSeeking(false)
+}
+
+const onSeekKeyDown = (e: KeyboardEvent) => {
+  if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+    e.preventDefault()
+    
+    const video = document.querySelector("video")
+    if (!video) return
+    
+    const step = 5
+    const currentProgress = progress()
+    const maxDuration = song().songDuration || video.duration || 0
+    
+    const newTime = e.key === 'ArrowLeft' 
+      ? Math.max(0, currentProgress - step)
+      : Math.min(maxDuration, currentProgress + step)
+    
+    updateProgress(newTime, 'keyboard-seek')
+    video.currentTime = newTime
+  }
 }
 
 const onSeekChange = (e: Event) => {
