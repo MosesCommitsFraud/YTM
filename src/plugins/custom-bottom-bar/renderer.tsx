@@ -530,12 +530,20 @@ function YTMusicPlayer() {
       const newVideoId = newSong.videoId
       const wasVideoContent = isVideoContent()
       const nowVideoContent = hasVideoContent()
+      const oldSong = song()
       
       // Update song info
       setSong(newSong)
       
-      // Detect content changes: new song OR content type change (audio ↔ video)
-      const isNewContent = oldVideoId !== newVideoId || wasVideoContent !== nowVideoContent
+      // Enhanced content change detection that considers multiple factors
+      // This is especially important for non-album songs where videoId might not change properly
+      const isNewContent = 
+        oldVideoId !== newVideoId || 
+        wasVideoContent !== nowVideoContent ||
+        oldSong.title !== newSong.title ||
+        oldSong.artist !== newSong.artist ||
+        (oldSong.album !== newSong.album) || // Different album status
+        Math.abs((oldSong.songDuration || 0) - (newSong.songDuration || 0)) > 1 // Different song duration
       
       if (isNewContent) {
         setCurrentVideoId(newVideoId)
