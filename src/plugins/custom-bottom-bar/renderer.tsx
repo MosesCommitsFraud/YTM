@@ -42,7 +42,7 @@ function YTMusicPlayer() {
   // Song info state
   const [song, setSong] = createSignal(getSongInfo())
   
-  // Progress tracking state - simplified
+  // Progress tracking state - using native YTM progress bar
   const [progress, setProgress] = createSignal(0)
   const [isSeeking, setIsSeeking] = createSignal(false)
   
@@ -51,10 +51,8 @@ function YTMusicPlayer() {
   const [currentMediaElement, setCurrentMediaElement] = createSignal<HTMLVideoElement | null>(null)
   const [isVideoContent, setIsVideoContent] = createSignal(false)
   
-  // Progress sync state
-  let progressSyncEnabled = true
-  let lastKnownProgress = 0
-  let lastProgressUpdate = 0
+  // Native progress bar reference
+  let nativeProgressBar: HTMLElement | null = null
   
   // Volume sync logic
   let isUserVolumeChange = false
@@ -71,7 +69,7 @@ function YTMusicPlayer() {
   // CORRECTED STATE LOGIC: 0 = off, 1 = repeat all, 2 = repeat one. This matches YTM's internal logic.
   const [repeatMode, setRepeatMode] = createSignal(0)
   const [isPaused, setIsPaused] = createSignal(true)
-  const [showDropdown, setShowDropdown] = createSignal(false)
+  const [, setShowDropdown] = createSignal(false)
   const [isExpanded, setIsExpanded] = createSignal(false)
   
   // Volume HUD state
@@ -88,6 +86,98 @@ function YTMusicPlayer() {
     )
   }
 
+  // === NATIVE PROGRESS BAR SETUP ===
+  // Setup functions defined before onMount to avoid hoisting issues
+  let nativeProgressObserver: MutationObserver | null = null
+  let mediaListenerCleanup: (() => void)[] = []
+  
+  const cleanupMediaListeners = () => {
+    mediaListenerCleanup.forEach(cleanup => cleanup())
+    mediaListenerCleanup = []
+    if (nativeProgressObserver) {
+      nativeProgressObserver.disconnect()
+      nativeProgressObserver = null
+    }
+  }
+  
+  const setupNativeProgressTracking = () => {
+    // Find the native progress bar element
+    nativeProgressBar = document.querySelector('#progress-bar')
+    if (!nativeProgressBar) {
+      // Retry after a delay if not found
+      setTimeout(setupNativeProgressTracking, 1000)
+      return
+    }
+    
+    // Monitor native progress bar value changes
+    nativeProgressObserver = new MutationObserver((mutations) => {
+      if (isSeeking()) return // Don't update while user is seeking
+      
+      for (const mutation of mutations) {
+        const target = mutation.target as HTMLElement & { value: string }
+        if (mutation.attributeName === 'value') {
+          const newValue = Number(target.value) || 0
+          if (newValue >= 0 && isFinite(newValue)) {
+            setProgress(newValue)
+          }
+        }
+      }
+    })
+    
+    nativeProgressObserver.observe(nativeProgressBar, { 
+      attributeFilter: ['value'] 
+    })
+    
+    // Initial sync
+    const initialValue = Number((nativeProgressBar as any).value) || 0
+    setProgress(initialValue)
+  }
+  
+  const setupMediaListeners = (mediaElement: HTMLVideoElement) => {
+    // Play/pause state sync
+    const onPlayPause = () => {
+      setIsPaused(mediaElement.paused)
+    }
+    
+    // Volume sync
+    const onVolumeChange = () => {
+      if (!isDraggingVolume() && !isUserVolumeChange) {
+        const mediaVolume = mediaElement.volume
+        const mediaMuted = mediaElement.muted
+        
+        if (Math.abs(mediaVolume - volume()) > 0.02) {
+          setVolume(mediaVolume)
+        }
+        if (mediaMuted !== isMuted()) {
+          setIsMuted(mediaMuted)
+        }
+      }
+    }
+    
+    // Content type detection
+    const onLoadStart = () => {
+      setIsVideoContent(hasVideoContent())
+    }
+    
+    // Attach minimal listeners - native progress bar handles progress tracking
+    mediaElement.addEventListener('play', onPlayPause)
+    mediaElement.addEventListener('pause', onPlayPause)
+    mediaElement.addEventListener('loadstart', onLoadStart)
+    mediaElement.addEventListener('volumechange', onVolumeChange)
+    
+    // Store cleanup functions
+    mediaListenerCleanup.push(
+      () => mediaElement.removeEventListener('play', onPlayPause),
+      () => mediaElement.removeEventListener('pause', onPlayPause),
+      () => mediaElement.removeEventListener('loadstart', onLoadStart),
+      () => mediaElement.removeEventListener('volumechange', onVolumeChange)
+    )
+    
+    // Initial state sync
+    onPlayPause()
+    setIsVideoContent(hasVideoContent())
+  }
+
   // === VOLUME CONTROLS ===
   // Work identically for both audio and video content
   
@@ -97,7 +187,6 @@ function YTMusicPlayer() {
   
   // Convert between internal scale (0-1) and display scale (0-100)
   const volumeToPercentage = (vol: number) => Math.round(vol * 100)
-  const percentageToVolume = (pct: number) => clamp(pct / 100, 0, 1)
   
   // Get current volume steps from plugin config
   const getVolumeSteps = () => {
@@ -375,8 +464,10 @@ function YTMusicPlayer() {
     // === CORE MEDIA TRACKING SYSTEM ===
     // Handles both audio-only tracks and video content seamlessly
     
-    // 1. Media Element Manager - Single source of truth for the HTML video element
-    // (YouTube Music uses a video element for both audio and video content)
+    // 1. Setup native progress bar tracking (more reliable than media element tracking)
+    setupNativeProgressTracking()
+    
+    // 2. Media Element Manager - For volume sync and play/pause state
     const setupMediaElementTracking = () => {
       const findAndSetupMedia = () => {
         const mediaElement = document.querySelector("video") as HTMLVideoElement
@@ -386,14 +477,11 @@ function YTMusicPlayer() {
         if (mediaElement && mediaElement !== currentMedia) {
           // Cleanup old listeners
           if (currentMedia) {
-            cleanupMediaListeners(currentMedia)
+            cleanupMediaListeners()
           }
           
           setCurrentMediaElement(mediaElement)
           setupMediaListeners(mediaElement)
-          
-          // Reset progress for new media element
-          resetProgress()
           
           // Update video content state
           setIsVideoContent(hasVideoContent())
@@ -414,218 +502,34 @@ function YTMusicPlayer() {
       return () => mediaObserver.disconnect()
     }
 
-    // 2. Media Event Listeners - Unified handling for audio and video content
-    let mediaListenerCleanup: (() => void)[] = []
-    
-    const cleanupMediaListeners = (mediaElement: HTMLVideoElement) => {
-      mediaListenerCleanup.forEach(cleanup => cleanup())
-      mediaListenerCleanup = []
-    }
-    
-    const setupMediaListeners = (mediaElement: HTMLVideoElement) => {
-      // Progress updates - works identically for audio and video
-      const onTimeUpdate = () => {
-        if (!isSeeking() && progressSyncEnabled) {
-          const currentTime = mediaElement.currentTime || 0
-          const now = Date.now()
-          
-          // Validate progress makes sense for both audio and video
-          if (currentTime >= 0 && isFinite(currentTime)) {
-            setProgress(currentTime)
-            lastKnownProgress = currentTime
-            lastProgressUpdate = now
-          }
-        }
-      }
-      
-      // Play/pause state sync - identical for audio and video
-      const onPlayPause = () => {
-        setIsPaused(mediaElement.paused)
-      }
-      
-      // Media loading events - reset progress for both content types
-      const onLoadStart = () => {
-        resetProgress()
-        // Update content type when new media loads
-        setIsVideoContent(hasVideoContent())
-      }
-      
-      const onLoadedData = () => {
-        // Sync with media's actual position after loading
-        if (!isSeeking() && progressSyncEnabled) {
-          const currentTime = mediaElement.currentTime || 0
-          setProgress(currentTime)
-          lastKnownProgress = currentTime
-        }
-        // Ensure content type is current
-        setIsVideoContent(hasVideoContent())
-      }
-      
-      // Media ended - handle repeat logic (same for audio/video)
-      const onEnded = () => {
-        const repeat = repeatMode()
-        if (repeat === 2) {
-          // Repeat one - media will restart automatically
-          setTimeout(() => resetProgress(), 100)
-        } else {
-          // Normal end - progress stays at end until next track
-          setProgress(song().songDuration || 0)
-        }
-        // After any song ends, re-check the repeat state, as YTM might auto-change it.
-        setTimeout(detectRepeatState, 200)
-      }
-      
-      // Volume sync - important for both audio and video
-      const onVolumeChange = () => {
-        if (!isDraggingVolume() && !isUserVolumeChange) {
-          const mediaVolume = mediaElement.volume
-          const mediaMuted = mediaElement.muted
-          
-          if (Math.abs(mediaVolume - volume()) > 0.02) {
-            setVolume(mediaVolume)
-          }
-          if (mediaMuted !== isMuted()) {
-            setIsMuted(mediaMuted)
-          }
-        }
-      }
-      
-      // Attach listeners - same events for both audio and video content
-      mediaElement.addEventListener('timeupdate', onTimeUpdate)
-      mediaElement.addEventListener('play', onPlayPause)
-      mediaElement.addEventListener('pause', onPlayPause)
-      mediaElement.addEventListener('loadstart', onLoadStart)
-      mediaElement.addEventListener('loadeddata', onLoadedData)
-      mediaElement.addEventListener('ended', onEnded)
-      mediaElement.addEventListener('volumechange', onVolumeChange)
-      
-      // Store cleanup functions
-      mediaListenerCleanup.push(
-        () => mediaElement.removeEventListener('timeupdate', onTimeUpdate),
-        () => mediaElement.removeEventListener('play', onPlayPause),
-        () => mediaElement.removeEventListener('pause', onPlayPause),
-        () => mediaElement.removeEventListener('loadstart', onLoadStart),
-        () => mediaElement.removeEventListener('loadeddata', onLoadedData),
-        () => mediaElement.removeEventListener('ended', onEnded),
-        () => mediaElement.removeEventListener('volumechange', onVolumeChange)
-      )
-      
-      // Initial state sync
-      onPlayPause()
-      if (mediaElement.readyState >= 2) {
-        onLoadedData()
-      }
-    }
 
-    // 3. Progress Reset Function - Clean slate for new songs
-    const resetProgress = () => {
-      setProgress(0)
-      lastKnownProgress = 0
-      lastProgressUpdate = Date.now()
-    }
 
-    // 4. Song Info Handler - Enhanced for audio/video content awareness
+    // 3. Simplified Song Info Handler - Native progress bar handles progress automatically
     const handleSongUpdate = (_: any, newSong: any) => {
       const oldVideoId = currentVideoId()
       const newVideoId = newSong.videoId
-      const wasVideoContent = isVideoContent()
-      const nowVideoContent = hasVideoContent()
-      const oldSong = song()
       
       // Update song info
       setSong(newSong)
       
-      // Enhanced content change detection that considers multiple factors
-      // This is especially important for non-album songs where videoId might not change properly
-      const isNewContent = 
-        oldVideoId !== newVideoId || 
-        wasVideoContent !== nowVideoContent ||
-        oldSong.title !== newSong.title ||
-        oldSong.artist !== newSong.artist ||
-        (oldSong.album !== newSong.album) || // Different album status
-        Math.abs((oldSong.songDuration || 0) - (newSong.songDuration || 0)) > 1 // Different song duration
-      
-      if (isNewContent) {
+      // Track video ID changes for content type detection
+      if (oldVideoId !== newVideoId) {
         setCurrentVideoId(newVideoId)
-        setIsVideoContent(nowVideoContent)
-        resetProgress()
-        
-        // Brief delay to let media element catch up with new content
-        setTimeout(() => {
-          const mediaElement = currentMediaElement()
-          if (mediaElement && mediaElement.readyState >= 2) {
-            const mediaTime = mediaElement.currentTime || 0
-            if (mediaTime >= 0 && isFinite(mediaTime)) {
-              setProgress(mediaTime)
-              lastKnownProgress = mediaTime
-            }
-          }
-        }, 200)
-      } else {
-        // Same content - use elapsed time if it makes sense
-        const elapsedSeconds = newSong.elapsedSeconds
-        if (typeof elapsedSeconds === 'number' && elapsedSeconds >= 0 && isFinite(elapsedSeconds)) {
-          // Only use elapsed time if it's reasonable compared to our current progress
-          const currentProg = progress()
-          const timeDiff = Math.abs(elapsedSeconds - currentProg)
-          
-          // Accept elapsed time if:
-          // - We have no progress yet (currentProg === 0)
-          // - The difference is small (normal sync)
-          // - We haven't updated progress recently (stale state)
-          if (currentProg === 0 || timeDiff < 2 || (Date.now() - lastProgressUpdate) > 3000) {
-            setProgress(elapsedSeconds)
-            lastKnownProgress = elapsedSeconds
-            lastProgressUpdate = Date.now()
-          }
-        }
+        setIsVideoContent(hasVideoContent())
+        // Detect like state for the new song
+        setTimeout(detectLikeState, 200)
       }
       
       // Sync play/pause state if provided
       if (typeof newSong.isPaused === 'boolean') {
         setIsPaused(newSong.isPaused)
       }
-      
-      // Detect like state for the new song
-      setTimeout(detectLikeState, 200)
     }
 
-    // 5. Media Validation Interval - Unified for audio and video
-    const mediaValidationInterval = setInterval(() => {
-      const mediaElement = currentMediaElement()
-      if (!mediaElement || isSeeking() || !progressSyncEnabled) return
-      
-      const mediaTime = mediaElement.currentTime || 0
-      const currentProg = progress()
-      const timeDiff = Math.abs(mediaTime - currentProg)
-      
-      // If media element and UI are significantly out of sync, trust the media element
-      if (timeDiff > 3 && mediaTime >= 0 && isFinite(mediaTime)) {
-        setProgress(mediaTime)
-        lastKnownProgress = mediaTime
-        lastProgressUpdate = Date.now()
-      }
-      
-      // Sync paused state for both audio and video
-      if (mediaElement.paused !== isPaused()) {
-        setIsPaused(mediaElement.paused)
-      }
-      
-      // Update content type awareness if song info changed
-      const currentContentType = isVideoContent()
-      const actualContentType = hasVideoContent()
-      if (currentContentType !== actualContentType) {
-        setIsVideoContent(actualContentType)
-      }
-    }, 2000)
-
-    // Add a direct IPC listener for play/pause state changes as additional fallback
-    const playPauseHandler = (_: any, data: { isPaused: boolean; elapsedSeconds: number }) => {
+    // Direct IPC listener for play/pause state changes
+    const playPauseHandler = (_: any, data: { isPaused: boolean }) => {
       if (typeof data.isPaused === 'boolean' && data.isPaused !== isPaused()) {
         setIsPaused(data.isPaused)
-      }
-      if (typeof data.elapsedSeconds === 'number') {
-        setProgress(data.elapsedSeconds)
       }
     }
     window.ipcRenderer.on("ytmd:play-or-paused", playPauseHandler)
@@ -837,7 +741,7 @@ function YTMusicPlayer() {
       window.ipcRenderer.off("ytmd:update-song-info", handleSongUpdate)
       window.ipcRenderer.off("ytmd:play-or-paused", playPauseHandler)
       cleanupMediaTracking()
-      clearInterval(mediaValidationInterval)
+      cleanupMediaListeners() // Clean up media listeners and native progress observer
       clearInterval(stateInterval)
       if (userVolumeChangeTimeout) {
         clearTimeout(userVolumeChangeTimeout)
@@ -851,10 +755,6 @@ function YTMusicPlayer() {
       document.removeEventListener("touchend", handleGlobalMouseUp)
       sidebarObserver?.disconnect()
       observer?.disconnect()
-      const mediaElement = currentMediaElement()
-      if (mediaElement) {
-        cleanupMediaListeners(mediaElement)
-      }
     })
   })
 
@@ -971,37 +871,41 @@ function YTMusicPlayer() {
   }
 
   // === SEEKING CONTROLS ===
-  // Works identically for both audio-only tracks and video content
+  // Works with native progress bar and YouTube Music API
   
   const onSeekInput = (e: Event) => {
     const val = Number((e.target as HTMLInputElement).value)
-    setProgress(val)
-    lastKnownProgress = val
+    setProgress(val) // Update UI immediately for responsiveness
   }
 
   const onSeekStart = () => {
     setIsSeeking(true)
-    progressSyncEnabled = false
   }
 
   const onSeekEnd = (e: Event) => {
-    const mediaElement = currentMediaElement()
-    if (!mediaElement) {
-      setIsSeeking(false)
-      progressSyncEnabled = true
-      return
+    const val = Number((e.target as HTMLInputElement).value)
+    
+    // Update both native progress bar and YouTube Music API
+    if (nativeProgressBar) {
+      (nativeProgressBar as any).value = val
     }
     
-    const val = Number((e.target as HTMLInputElement).value)
-    mediaElement.currentTime = val
+    // Use YouTube Music API for seeking if available
+    if (api && typeof api.seekTo === 'function') {
+      api.seekTo(val)
+    } else {
+      // Fallback to media element
+      const mediaElement = currentMediaElement()
+      if (mediaElement) {
+        mediaElement.currentTime = val
+      }
+    }
+    
     setProgress(val)
-    lastKnownProgress = val
-    lastProgressUpdate = Date.now()
     
     // Re-enable progress sync after a brief delay
     setTimeout(() => {
       setIsSeeking(false)
-      progressSyncEnabled = true
     }, 100)
   }
 
@@ -1013,25 +917,33 @@ function YTMusicPlayer() {
 
   const onSeekKeyDown = (e: KeyboardEvent) => {
     if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
-      const mediaElement = currentMediaElement()
-      if (!mediaElement) return
-      
       setIsSeeking(true)
-      progressSyncEnabled = false
       
       const step = 5
       const newTime = e.key === 'ArrowLeft' 
         ? Math.max(0, progress() - step)
         : Math.min(song().songDuration || 0, progress() + step)
       
-      mediaElement.currentTime = newTime
+      // Update native progress bar
+      if (nativeProgressBar) {
+        (nativeProgressBar as any).value = newTime
+      }
+      
+      // Use YouTube Music API for seeking
+      if (api && typeof api.seekTo === 'function') {
+        api.seekTo(newTime)
+      } else {
+        // Fallback to media element
+        const mediaElement = currentMediaElement()
+        if (mediaElement) {
+          mediaElement.currentTime = newTime
+        }
+      }
+      
       setProgress(newTime)
-      lastKnownProgress = newTime
-      lastProgressUpdate = Date.now()
       
       setTimeout(() => {
         setIsSeeking(false)
-        progressSyncEnabled = true
       }, 200)
     }
   }
