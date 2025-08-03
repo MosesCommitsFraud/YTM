@@ -155,12 +155,20 @@ function YTMusicPlayer() {
           const newValue = Number(target.value || target.getAttribute('aria-valuenow')) || 0
           if (newValue >= 0 && newValue <= 100) {
             const newVolumeLevel = newValue / 100
-            setVolume(newVolumeLevel)
             
-            // Save to localStorage
-            try {
-              localStorage.setItem(VOLUME_KEY, String(newVolumeLevel))
-            } catch {}
+            // Update volume state smoothly
+            if (Math.abs(newVolumeLevel - volume()) > 0.01) { // Only update if significant change
+              setVolume(newVolumeLevel)
+              
+              // Update mute state based on volume
+              const shouldBeMuted = newValue === 0
+              if (shouldBeMuted !== isMuted()) {
+                setIsMuted(shouldBeMuted)
+              }
+              
+              // Save to localStorage with debouncing
+              debouncedVolumeSave(newVolumeLevel)
+            }
           }
         }
       }
@@ -281,24 +289,37 @@ function YTMusicPlayer() {
   const setPreciseVolume = (volumePct: number, showHud = true) => {
     const clampedPct = clamp(volumePct, 0, 100)
     
-    // Update native volume slider - this will trigger our observer to update state
+    // Update UI state immediately for responsiveness
+    setVolume(clampedPct / 100)
+    
+    // Update mute state based on volume
+    const shouldBeMuted = clampedPct === 0
+    if (shouldBeMuted !== isMuted()) {
+      setIsMuted(shouldBeMuted)
+    }
+    
+    // Use the YTM API first (more reliable)
+    if (api && typeof api.setVolume === "function") {
+      api.setVolume(clampedPct)
+    }
+    
+    // Update native volume slider as backup
     const nativeVolumeSlider = document.querySelector('#volume-slider') as HTMLInputElement || 
                                document.querySelector('#expand-volume-slider') as HTMLInputElement
     if (nativeVolumeSlider) {
       nativeVolumeSlider.value = String(clampedPct)
       // Trigger change event to notify YouTube Music
       nativeVolumeSlider.dispatchEvent(new Event('input', { bubbles: true }))
-      nativeVolumeSlider.dispatchEvent(new Event('change', { bubbles: true }))
-    }
-    
-    // Use the YTM API as backup
-    if (api && typeof api.setVolume === "function") {
-      api.setVolume(clampedPct)
     }
 
     if (showHud) {
       showVolumeHud(clampedPct)
     }
+    
+    // Save to localStorage
+    try {
+      localStorage.setItem(VOLUME_KEY, String(clampedPct / 100))
+    } catch {}
   }
   
   // Change volume by steps (for scroll wheel and keyboard shortcuts)
@@ -331,14 +352,37 @@ function YTMusicPlayer() {
       if (currentVol > 0) {
         // Mute by setting volume to 0
         api.setVolume(0)
-        setIsMuted(true)
         showVolumeHud(0)
+        
+        // Wait a bit for the API to apply, then confirm mute state
+        setTimeout(() => {
+          const newVol = api.getVolume()
+          const shouldBeMuted = newVol === 0
+          setIsMuted(shouldBeMuted)
+          
+          // Save mute state after confirmation
+          try {
+            localStorage.setItem(MUTE_KEY, String(shouldBeMuted))
+          } catch {}
+        }, 100)
       } else {
         // Unmute by restoring previous volume
         const restoredVolume = volumeToPercentage(volume())
-        api.setVolume(restoredVolume)
-        setIsMuted(false)
-        showVolumeHud(restoredVolume)
+        const targetVolume = restoredVolume > 0 ? restoredVolume : 50 // Ensure we have a reasonable volume
+        api.setVolume(targetVolume)
+        showVolumeHud(targetVolume)
+        
+        // Wait for API to apply, then confirm unmute state
+        setTimeout(() => {
+          const newVol = api.getVolume()
+          const shouldBeMuted = newVol === 0
+          setIsMuted(shouldBeMuted)
+          
+          // Save mute state after confirmation
+          try {
+            localStorage.setItem(MUTE_KEY, String(shouldBeMuted))
+          } catch {}
+        }, 100)
       }
     } else {
       // Fallback to media element
@@ -346,49 +390,68 @@ function YTMusicPlayer() {
       if (mediaElement) {
         const newMuted = !mediaElement.muted
         mediaElement.muted = newMuted
-        setIsMuted(newMuted)
         
-        if (newMuted) {
-          showVolumeHud(0)
-        } else {
-          showVolumeHud(volumeToPercentage(volume()))
-        }
+        // Wait for media element to apply the change
+        setTimeout(() => {
+          const actualMuted = mediaElement.muted
+          setIsMuted(actualMuted)
+          
+          if (actualMuted) {
+            showVolumeHud(0)
+          } else {
+            showVolumeHud(volumeToPercentage(volume()))
+          }
+          
+          // Save mute state after confirmation
+          try {
+            localStorage.setItem(MUTE_KEY, String(actualMuted))
+          } catch {}
+        }, 100)
       }
     }
-    
-    // Save mute state
-    try {
-      localStorage.setItem(MUTE_KEY, String(isMuted()))
-    } catch {}
   }
 
-  const onVolumeInput = (e: Event) => {
-    // Handle volume slider input (while dragging) - update volume in real-time
-    const val = clamp(Number((e.target as HTMLInputElement).value), 0, 1)
-    const volumePct = volumeToPercentage(val)
-    
-    // Update UI immediately
-    setVolume(val)
-    setIsMuted(val === 0)
-    
-    // Update native volume slider and YTM API in real-time (without HUD to avoid spam)
+  // Debounced functions for smooth volume updates
+  const debouncedNativeVolumeUpdate = debounce((volumePct: number) => {
     const nativeVolumeSlider = document.querySelector('#volume-slider') as HTMLInputElement || 
                                document.querySelector('#expand-volume-slider') as HTMLInputElement
-    if (nativeVolumeSlider) {
+    if (nativeVolumeSlider && !isDraggingVolume()) {
       nativeVolumeSlider.value = String(volumePct)
-      // Trigger change event to notify YouTube Music
       nativeVolumeSlider.dispatchEvent(new Event('input', { bubbles: true }))
     }
-    
-    // Use the YTM API as backup
+  }, 50)
+
+  const debouncedVolumeApiUpdate = debounce((volumePct: number) => {
     if (api && typeof api.setVolume === "function") {
       api.setVolume(volumePct)
     }
-    
-    // Save to localStorage immediately during dragging
+  }, 50)
+
+  const debouncedVolumeSave = debounce((val: number) => {
     try {
       localStorage.setItem(VOLUME_KEY, String(val))
     } catch {}
+  }, 200)
+
+  const onVolumeInput = (e: Event) => {
+    // Handle volume slider input (while dragging) - update volume smoothly
+    const val = clamp(Number((e.target as HTMLInputElement).value), 0, 1)
+    const volumePct = volumeToPercentage(val)
+    
+    // Update UI immediately for responsiveness
+    setVolume(val)
+    
+    // Only set muted state if volume is actually 0
+    if (val === 0 && !isMuted()) {
+      setIsMuted(true)
+    } else if (val > 0 && isMuted()) {
+      setIsMuted(false)
+    }
+    
+    // Debounce heavy operations for smoothness
+    debouncedNativeVolumeUpdate(volumePct)
+    debouncedVolumeApiUpdate(volumePct)
+    debouncedVolumeSave(val)
   }
 
   const onVolumeChange = (e: Event) => {
