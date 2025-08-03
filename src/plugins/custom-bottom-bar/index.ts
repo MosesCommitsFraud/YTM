@@ -128,6 +128,18 @@ export default createPlugin({
           pointer-events: auto !important;
         }
         
+        /* Keep native volume sliders functional but hidden */
+        #volume-slider,
+        #expand-volume-slider {
+          position: absolute !important;
+          left: -9999px !important;
+          top: -9999px !important;
+          width: 100px !important;
+          height: 10px !important;
+          opacity: 0.01 !important;
+          pointer-events: auto !important;
+        }
+        
         /* Hide video player progress (we want YTM progress, not video progress) */
         #movie_player .ytp-progress-bar,
         #movie_player .ytp-time-display {
