@@ -1503,7 +1503,7 @@ function YTMusicPlayer() {
             style={{ position: 'relative' }}
           >
             <img src={repeat} alt="Repeat" />
-            {/* The dot now correctly shows for "repeat one" (mode 2) */}
+            {/* The dot now correctly shows for "repeat one song" (mode 2) */}
             {repeatMode() === 2 && (
               <span class="ytmusic-repeat-dot" />
             )}
