@@ -24,6 +24,9 @@ export const onMainLoad = ({
     register(win, '`', () => {
       send('toggle-in-app-menu');
     });
+    register(win, 'F3', () => {
+      send('toggle-in-app-menu');
+    });
   });
 
   handle('get-menu', () =>

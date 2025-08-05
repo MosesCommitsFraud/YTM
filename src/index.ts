@@ -14,6 +14,7 @@ import {
   protocol,
   type BrowserWindowConstructorOptions,
 } from 'electron';
+import { register } from 'electron-localshortcut';
 import enhanceWebRequest, {
   BetterSession,
 } from '@jellybrick/electron-better-web-request';
@@ -698,6 +699,29 @@ app.whenReady().then(async () => {
   await setApplicationMenu(mainWindow);
   await refreshMenu(mainWindow);
   setUpTray(app, mainWindow);
+  
+  // Global F3 hotkey to enable in-app menu plugin even when disabled
+  register(mainWindow, 'F3', () => {
+    const isEnabled = config.plugins.isEnabled('in-app-menu');
+    if (!isEnabled) {
+      config.plugins.enable('in-app-menu');
+      // The plugin requires a restart, so show a dialog
+      dialog.showMessageBox(mainWindow, {
+        type: 'info',
+        title: 'In-App Menu Enabled',
+        message: 'The in-app menu has been enabled. The application will restart to apply changes.',
+        buttons: ['Restart Now', 'Restart Later'],
+        defaultId: 0,
+      }).then((result) => {
+        if (result.response === 0) {
+          restart();
+        }
+      });
+    } else {
+      // If already enabled, just toggle the menu visibility
+      mainWindow.webContents.send('toggle-in-app-menu');
+    }
+  });
   setupProtocolHandler(mainWindow);
   app.on('second-instance', (_, commandLine) => {
     const uri = `${APP_PROTOCOL}://`;
