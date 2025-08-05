@@ -21,7 +21,6 @@ const buttonStyle = cacheNoArgs(() => css`
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background 0.2s ease, transform 0.1s ease;
   border: none;
   background: transparent;
   cursor: pointer;
@@ -29,11 +28,6 @@ const buttonStyle = cacheNoArgs(() => css`
   
   &:hover {
     background: rgba(255, 255, 255, 0.08);
-    transform: scale(1.05);
-  }
-  
-  &:active {
-    transform: scale(0.95);
   }
   
   &.minimize-btn:hover {
