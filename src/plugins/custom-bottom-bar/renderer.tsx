@@ -863,20 +863,75 @@ function YTMusicPlayer() {
     const likeButtonRenderer = document.querySelector('#like-button-renderer')
     
     if (likeButtonRenderer) {
-      const likeButton = likeButtonRenderer.querySelector('button[aria-label="Like"]')
-      const dislikeButton = likeButtonRenderer.querySelector('button[aria-label="Dislike"]')
+      // Try multiple selector approaches since YouTube Music structure can vary
+      let likeButton = likeButtonRenderer.querySelector('button[aria-label="Like"]')
+      let dislikeButton = likeButtonRenderer.querySelector('button[aria-label="Dislike"]')
+      
+      // Fallback selectors if aria-label approach doesn't work
+      if (!likeButton || !dislikeButton) {
+        likeButton = likeButtonRenderer.querySelector('yt-icon-button[data-like-status] button')
+        dislikeButton = likeButtonRenderer.querySelector('yt-icon-button[data-dislike-status] button')
+      }
+      
+      // Try even more generic approach
+      if (!likeButton || !dislikeButton) {
+        const buttons = likeButtonRenderer.querySelectorAll('button')
+        if (buttons.length >= 2) {
+          likeButton = buttons[0] // First button is usually like
+          dislikeButton = buttons[1] // Second button is usually dislike
+        }
+      }
       
       if (likeButton && dislikeButton) {
-        const isLikedState = likeButton.getAttribute('aria-pressed') === 'true'
-        const isDislikedState = dislikeButton.getAttribute('aria-pressed') === 'true'
+        // Get the parent renderer's like-status attribute (this is the master state)
+        const likeStatus = likeButtonRenderer.getAttribute('like-status')
         
+        // Check button-specific pressed states
+        const likePressed = likeButton.getAttribute('aria-pressed') === 'true'
+        const dislikePressed = dislikeButton.getAttribute('aria-pressed') === 'true'
+        
+        // Determine states - they should be mutually exclusive
+        let isLikedState = false
+        let isDislikedState = false
+        
+        if (likeStatus === 'LIKE' || likePressed) {
+          isLikedState = true
+          isDislikedState = false // Mutually exclusive
+        } else if (likeStatus === 'DISLIKE' || dislikePressed) {
+          isLikedState = false // Mutually exclusive  
+          isDislikedState = true
+        } else {
+          // Neutral state - neither liked nor disliked
+          isLikedState = false
+          isDislikedState = false
+        }
+        
+        // Debug logging
+        console.log('detectLikeState:', {
+          likeStatus,
+          likePressed,
+          dislikePressed,
+          isLikedState,
+          isDislikedState,
+          currentLiked: isLiked(),
+          currentDisliked: isDisliked()
+        })
+        
+        // Update states only if they changed
         if (isLikedState !== isLiked()) {
           setIsLiked(isLikedState)
         }
         if (isDislikedState !== isDisliked()) {
           setIsDisliked(isDislikedState)
         }
+      } else {
+        console.log('detectLikeState: Could not find like/dislike buttons', {
+          likeButtonRenderer,
+          allButtons: likeButtonRenderer.querySelectorAll('button')
+        })
       }
+    } else {
+      console.log('detectLikeState: Could not find #like-button-renderer')
     }
   }
 
@@ -1021,6 +1076,7 @@ function YTMusicPlayer() {
   }
 
   const toggleLike = () => {
+    console.log('toggleLike called, current state:', isLiked())
     // Use the proper YouTube Music API method for the currently playing song
     const likeButtonRenderer = document.querySelector('#like-button-renderer') as HTMLElement & { updateLikeStatus: (status: string) => void }
     if (likeButtonRenderer && likeButtonRenderer.updateLikeStatus) {
@@ -1035,6 +1091,7 @@ function YTMusicPlayer() {
   }
 
   const toggleDislike = () => {
+    console.log('toggleDislike called, current state:', isDisliked())
     // Use the proper YouTube Music API method for the currently playing song
     const likeButtonRenderer = document.querySelector('#like-button-renderer') as HTMLElement & { updateLikeStatus: (status: string) => void }
     if (likeButtonRenderer && likeButtonRenderer.updateLikeStatus) {

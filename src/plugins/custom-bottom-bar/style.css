@@ -190,11 +190,11 @@ ytmusic-player-bar .chapter-info,
 }
 
 .ytmusic-like-btn.liked {
-  color: #ff2d55;
+  color: #ff2d55 !important;
 }
 
 .ytmusic-like-btn.disliked {
-  color: #ff2d55;
+  color: #ff2d55 !important;
 }
 
 .ytmusic-like-btn img {
@@ -205,11 +205,11 @@ ytmusic-player-bar .chapter-info,
 }
 
 .ytmusic-like-btn.liked img {
-  filter: brightness(0) saturate(100%) invert(36%) sepia(99%) saturate(7492%) hue-rotate(329deg) brightness(104%) contrast(104%);
+  filter: brightness(0) saturate(100%) invert(36%) sepia(99%) saturate(7492%) hue-rotate(329deg) brightness(104%) contrast(104%) !important;
 }
 
 .ytmusic-like-btn.disliked img {
-  filter: brightness(0) saturate(100%) invert(36%) sepia(99%) saturate(7492%) hue-rotate(329deg) brightness(104%) contrast(104%);
+  filter: brightness(0) saturate(100%) invert(36%) sepia(99%) saturate(7492%) hue-rotate(329deg) brightness(104%) contrast(104%) !important;
 }
 
 /* Center Section - Controls & Progress */
