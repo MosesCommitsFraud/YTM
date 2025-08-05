@@ -314,12 +314,10 @@ ytmusic-player-bar .chapter-info,
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s ease;
   margin: 0 8px;
 }
 
 .ytmusic-play-btn:hover {
-  transform: scale(1.04);
 }
 
 .ytmusic-play-btn img {
