@@ -564,9 +564,6 @@ function YTMusicPlayer() {
       if (oldVideoId !== newVideoId) {
         setCurrentVideoId(newVideoId)
         
-        // Handle repeat state logic for new song
-        handleSongChange()
-        
         // Sync all states for the new song
         setTimeout(() => {
           detectLikeState()
@@ -796,7 +793,7 @@ function YTMusicPlayer() {
         onCleanup(() => shuffleObserver.disconnect())
       }
 
-      // Removed: repeat button observer - no longer needed with simplified repeat logic
+      // Removed: repeat button observer - using manual state tracking now
     }
 
     // Setup observers after a delay to ensure YouTube Music is fully loaded
@@ -950,50 +947,8 @@ function YTMusicPlayer() {
     }
   }
 
-  // Simplified repeat state management - ignore YouTube Music's state detection
-  // Mode 0: Default for new songs
-  // Mode 1: Maintained in playlist if previous was mode 1 
-  // Mode 2: Only changes when manually deactivated
-  let lastSongId = ''
-  let lastPlaylistContext = ''
-  
-  const handleSongChange = () => {
-    const currentSong = song()
-    const currentSongId = currentSong.title + currentSong.artist
-    
-    // Detect if we're in the same playlist context
-    // This is a simple heuristic - you might need to adjust based on your needs
-    const currentPlaylistContext = document.querySelector('ytmusic-player-queue-item.playing')?.closest('ytmusic-player-queue')?.getAttribute('data-context') || 'unknown'
-    
-    if (currentSongId !== lastSongId) {
-      console.log('Song changed:', { 
-        from: lastSongId, 
-        to: currentSongId,
-        repeatMode: repeatMode(),
-        playlistContext: currentPlaylistContext
-      })
-      
-      // If we were in repeat one mode (mode 2), stay in it since we're repeating the same song
-      if (repeatMode() === 2) {
-        // Only reset if the song actually changed (shouldn't happen in true repeat one)
-        console.log('Was in repeat one, but song changed - resetting to mode 0')
-        setRepeatMode(0)
-      }
-      // If we were in repeat all (mode 1) and we're in the same playlist, keep mode 1
-      else if (repeatMode() === 1 && currentPlaylistContext === lastPlaylistContext && currentPlaylistContext !== 'unknown') {
-        console.log('Staying in repeat all mode - same playlist')
-        // Keep mode 1
-      }
-      // Otherwise, default to mode 0 for new songs
-      else {
-        console.log('New song - defaulting to repeat off')
-        setRepeatMode(0)
-      }
-      
-      lastSongId = currentSongId
-      lastPlaylistContext = currentPlaylistContext
-    }
-  }
+  // Manual repeat state tracking - ignore YouTube Music's UI state
+  // We'll track our own state and just use YTM's button for the actual functionality
 
   // Stable handlers for shuffle/repeat state
   const handleShuffleChanged = (_: any, shuffleOn: boolean) => {
@@ -1171,26 +1126,40 @@ function YTMusicPlayer() {
   }
 
   const toggleRepeat = () => {
-    // Simple manual state cycling: 0 -> 1 -> 2 -> 0
+    // Manual state cycling: 0 -> 1 -> 2 -> 0  
     const currentMode = repeatMode()
-    let nextMode = 0
-    
-    if (currentMode === 0) {
-      nextMode = 1 // Off -> Repeat All
-    } else if (currentMode === 1) {
-      nextMode = 2 // Repeat All -> Repeat One
-    } else {
-      nextMode = 0 // Repeat One -> Off
-    }
+    let nextMode = (currentMode + 1) % 3 // Cycle through 0, 1, 2
     
     console.log(`Manual repeat toggle: ${currentMode} -> ${nextMode}`)
-    setRepeatMode(nextMode)
     
-    // Optional: Still click the native button to keep YTM in sync if needed
-    // But we ignore its state detection
-    const repeatBtn = document.querySelector('yt-icon-button.repeat button') as HTMLElement
+    // Find the native YouTube Music repeat button
+    let repeatBtn = document.querySelector('yt-icon-button.repeat button') as HTMLElement
+    
+    if (!repeatBtn) {
+      // Fallback selectors
+      repeatBtn = document.querySelector('yt-icon-button.repeat') as HTMLElement
+      if (!repeatBtn) {
+        repeatBtn = document.querySelector('button[aria-label*="repeat" i], button[aria-label*="wiederhol" i]') as HTMLElement
+      }
+    }
+    
     if (repeatBtn) {
-      repeatBtn.click()
+      // Click the native button to make YouTube Music do the actual repeat behavior
+      // The number of clicks needed depends on current state and target state
+      let clicksNeeded = 1
+      
+      // For now, just click once and let YouTube Music cycle
+      // (YouTube Music cycles: off -> repeat all -> repeat one -> off)
+      for (let i = 0; i < clicksNeeded; i++) {
+        repeatBtn.click()
+      }
+      
+      // Update our state immediately
+      setRepeatMode(nextMode)
+      
+      console.log(`Updated repeat mode to ${nextMode}`)
+    } else {
+      console.log('Could not find YTM repeat button')
     }
   }
 
