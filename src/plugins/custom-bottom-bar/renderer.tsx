@@ -1203,6 +1203,398 @@ function YTMusicPlayer() {
     }
   }
 
+  const triggerAddToPlaylist = async () => {
+    // Enhanced text matching function with better internationalization support
+    const matchesPlaylistText = (text: string | null) => {
+      if (!text) return false
+      const normalizedText = text.toLowerCase().trim()
+      
+      const patterns = [
+        // English variations - specific playlist terms
+        /\b(add to playlist|save to playlist|add to library|save to library)\b/,
+        /\b(library|playlist)\b.*\b(add|save)\b/,
+        /\b(add|save)\b.*\b(library|playlist)\b/,
+        
+        // German variations - SPECIFIC playlist/library terms only (avoid generic "speichern")
+        /\b(zur mediathek hinzufügen|in mediathek speichern)\b/,
+        /\b(zu playlist hinzufügen|zur playlist hinzufügen|zur wiedergabeliste hinzufügen)\b/,
+        /\b(wiedergabeliste erstellen|playlist erstellen)\b/,
+        /\bwiedergabeliste\b.*\b(hinzufügen|erstellen)\b/,
+        /\bplaylist\b.*\b(hinzufügen|erstellen)\b/,
+        /\bmediathek\b.*\b(hinzufügen)\b/, // Only "hinzufügen" with mediathek, not generic "speichern"
+        
+        // French variations
+        /\b(ajouter à la playlist|enregistrer dans la bibliothèque)\b/,
+        /\b(créer une playlist|ajouter à une playlist)\b/,
+        
+        // Spanish variations
+        /\b(agregar a playlist|guardar en biblioteca)\b/,
+        /\b(crear playlist|añadir a playlist)\b/,
+        
+        // Icon-based detection patterns
+        /library_add|playlist_add/,
+        
+        // More specific patterns - must include playlist/library context
+        /\bto playlist\b/,
+        /\bto library\b/,
+        /\bzur playlist\b/,
+        /\bzur mediathek\b/,
+        /\bin mediathek\b/,
+        
+        // SPECIFIC playlist-related terms only (removed generic save/add)
+        /\bplaylist\b/,
+        /\blibrary\b/,
+        /\bmediathek\b/,
+        /\bwiedergabeliste\b/,
+        /\bbibliothek\b/,
+        
+        // Only allow these generic terms if they appear with playlist context
+        /\b(hinzufügen|erstellen)\b.*\b(playlist|wiedergabeliste|mediathek)\b/,
+        /\b(add|create)\b.*\b(playlist|library)\b/
+      ]
+      
+      return patterns.some(pattern => pattern.test(normalizedText))
+    }
+
+    // Enhanced helper function to find add to playlist item with better detection
+    const findAddToPlaylistItem = (container: HTMLElement) => {
+      // First, exclude like/dislike buttons by checking for common like patterns
+      const excludeLikePatterns = [
+        /\b(mag ich|like|gefällt mir|thumbs up)\b/i,
+        /\b(mag ich nicht|dislike|gefällt mir nicht|thumbs down)\b/i,
+        /\b(bewerten|rate|rating)\b/i
+      ]
+      
+      const isLikeButton = (text: string) => {
+        return excludeLikePatterns.some(pattern => pattern.test(text.toLowerCase()))
+      }
+      
+      // Check toggle service items first (most reliable for playlist actions)
+      const toggleItems = container.querySelectorAll<HTMLElement>('ytmusic-toggle-menu-service-item-renderer')
+      for (let i = 0; i < toggleItems.length; i++) {
+        const item = toggleItems[i]
+        const textElement = item.querySelector<HTMLElement>('yt-formatted-string')
+        const text = textElement?.textContent || ''
+        
+        // Skip if this looks like a like/dislike button
+        if (isLikeButton(text)) continue
+        
+        if (textElement && matchesPlaylistText(textElement.textContent)) {
+          return item
+        }
+      }
+      
+      // Fallback to navigation items
+      const navItems = container.querySelectorAll<HTMLElement>('ytmusic-menu-navigation-item-renderer')
+      for (let i = 0; i < navItems.length; i++) {
+        const item = navItems[i]
+        const textElement = item.querySelector<HTMLElement>('yt-formatted-string')
+        const text = textElement?.textContent || ''
+        
+        // Skip if this looks like a like/dislike button
+        if (isLikeButton(text)) continue
+        
+        if (textElement && matchesPlaylistText(textElement.textContent)) {
+          return item
+        }
+      }
+      
+      // Check all menu items regardless of type
+      const allMenuItems = container.querySelectorAll<HTMLElement>('*[role="menuitem"], ytmusic-toggle-menu-service-item-renderer, ytmusic-menu-navigation-item-renderer, ytmusic-menu-service-item-renderer')
+      for (let i = 0; i < allMenuItems.length; i++) {
+        const item = allMenuItems[i]
+        const textElement = item.querySelector<HTMLElement>('yt-formatted-string') || item.querySelector<HTMLElement>('.text') || item
+        const text = textElement?.textContent?.trim() || item.textContent?.trim() || ''
+        const ariaLabel = item.getAttribute('aria-label') || ''
+        
+        // Skip if this looks like a like/dislike button
+        if (isLikeButton(text) || isLikeButton(ariaLabel)) continue
+        
+        if (matchesPlaylistText(text) || matchesPlaylistText(ariaLabel)) {
+          return item
+        }
+      }
+      
+      // Last resort: check any clickable elements with matching text or aria-label
+      const allClickables = container.querySelectorAll<HTMLElement>('a, button, [role="menuitem"]')
+      for (let i = 0; i < allClickables.length; i++) {
+        const item = allClickables[i]
+        const text = item.textContent?.trim() || ''
+        const ariaLabel = item.getAttribute('aria-label') || ''
+        
+        // Skip if this looks like a like/dislike button
+        if (isLikeButton(text) || isLikeButton(ariaLabel)) continue
+        
+        if (matchesPlaylistText(text) || matchesPlaylistText(ariaLabel)) {
+          return item
+        }
+      }
+      
+      return null
+    }
+
+    // Enhanced expand button detection
+    const findAndClickExpandButton = (container: HTMLElement) => {
+      const menuItems = container.querySelectorAll<HTMLElement>('ytmusic-menu-navigation-item-renderer')
+      
+      for (const item of menuItems) {
+        const textElement = item.querySelector<HTMLElement>('yt-formatted-string')
+        if (textElement && matchesPlaylistText(textElement.textContent)) {
+          return item
+        }
+      }
+      return null
+    }
+
+    // Helper function to wait for menu to appear
+    const waitForMenu = (timeout: number = 300): Promise<boolean> => {
+      return new Promise((resolve) => {
+        let attempts = 0
+        const maxAttempts = timeout / 50 // Check every 50ms
+        
+        const checkMenu = () => {
+          const menu = document.querySelector('ytmusic-menu-popup-renderer tp-yt-paper-listbox')
+          if (menu) {
+            resolve(true)
+          } else if (attempts < maxAttempts) {
+            attempts++
+            setTimeout(checkMenu, 50)
+          } else {
+            resolve(false)
+          }
+        }
+        
+        checkMenu()
+      })
+    }
+
+    // Enhanced menu opening with correct selectors based on working examples
+    const openContextMenu = async (): Promise<boolean> => {
+      // Try the selectors that actually work in YT Music, based on other successful plugins
+      const selectors = [
+        // Direct selector for the German "Aktionsmenü" button we found
+        'ytmusic-player-bar button[aria-label="Aktionsmenü"]',
+        // Generic multilingual selectors
+        'ytmusic-player-bar button[aria-label*="aktion" i]',
+        'ytmusic-player-bar button[aria-label*="actions" i]',
+        'ytmusic-player-bar button[aria-label*="more" i]',
+        'ytmusic-player-bar button[aria-label*="menu" i]',
+        'ytmusic-player-bar button[aria-label*="acciones" i]',
+        // The #icon selector is used successfully in picture-in-picture plugin
+        'ytmusic-player-bar #icon',
+        // Try variations of the more button that might exist
+        'ytmusic-player-bar tp-yt-paper-icon-button',
+        'ytmusic-player-bar yt-icon-button',
+        // More specific icon-based selectors
+        'ytmusic-player-bar yt-icon[icon="yt-icons:more_vert"]',
+        'ytmusic-player-bar yt-icon[icon="yt-icons:more_horiz"]',
+        // Fallback generic selectors
+        'ytmusic-player-bar [role="button"]',
+        'ytmusic-player-bar .more-button'
+      ]
+      
+      for (const selector of selectors) {
+        const button = document.querySelector<HTMLElement>(selector)
+        if (button && button.offsetParent !== null) { // Check visibility
+          button.click()
+          const menuOpened = await waitForMenu(300)
+          if (menuOpened) {
+            return true
+          }
+        }
+      }
+      
+      return false
+    }
+
+    // Enhanced click handling with comprehensive event simulation
+    const simulateClick = (element: HTMLElement) => {
+      // Try multiple click approaches for maximum compatibility
+      
+      // 1. Standard click
+      element.click()
+      
+      // 2. Focus first, then click (some elements need focus)
+      if (element.focus) element.focus()
+      element.click()
+      
+      // 3. Comprehensive mouse event simulation
+      const mouseEvents = ['mouseenter', 'mouseover', 'mousedown', 'mouseup', 'click']
+      for (const eventType of mouseEvents) {
+        element.dispatchEvent(new MouseEvent(eventType, { 
+          bubbles: true, 
+          cancelable: true,
+          view: window,
+          detail: 1
+        }))
+      }
+      
+      // 4. Try triggering on child elements if they exist
+      const clickableChild = element.querySelector('button, a, [role="button"], [role="menuitem"]')
+      if (clickableChild && clickableChild !== element) {
+        ;(clickableChild as HTMLElement).click()
+      }
+      
+      // 5. Try pointer events (newer standard)
+      element.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true }))
+      element.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true }))
+    }
+
+    try {
+      // First, try to find and click in any existing open menu
+      const allMenus = document.querySelectorAll<HTMLElement>('ytmusic-menu-popup-renderer tp-yt-paper-listbox')
+      
+      for (const menu of allMenus) {
+        const addToPlaylistItem = findAddToPlaylistItem(menu)
+        if (addToPlaylistItem) {
+          simulateClick(addToPlaylistItem)
+          return true
+        }
+      }
+      
+      // If no direct item found in existing menus, try expand button approach
+      for (const menu of allMenus) {
+        const expandButton = findAndClickExpandButton(menu)
+        if (expandButton) {
+          simulateClick(expandButton)
+          
+          // Wait for expanded menu to appear
+          await new Promise(resolve => setTimeout(resolve, 200))
+          
+          const allMenusAfterExpand = document.querySelectorAll<HTMLElement>('ytmusic-menu-popup-renderer tp-yt-paper-listbox')
+          for (const menuAfterExpand of allMenusAfterExpand) {
+            const addToPlaylistItem = findAddToPlaylistItem(menuAfterExpand)
+            if (addToPlaylistItem) {
+              simulateClick(addToPlaylistItem)
+              return true
+            }
+          }
+        }
+      }
+      
+      // If no menu is open, try to open the context menu first
+      const menuOpened = await openContextMenu()
+      if (!menuOpened) {
+        // Fallback: Try alternative approach with direct button search
+        const allButtons = document.querySelectorAll<HTMLElement>('ytmusic-player-bar button, ytmusic-player-bar tp-yt-paper-icon-button, ytmusic-player-bar yt-icon-button, ytmusic-player-bar [role="button"], ytmusic-player-bar *[id="icon"]')
+        
+        for (let i = 0; i < allButtons.length; i++) {
+          const button = allButtons[i]
+          const ariaLabel = button.getAttribute('aria-label') || ''
+          const title = button.getAttribute('title') || ''
+          const textContent = button.textContent?.trim() || ''
+          const id = button.getAttribute('id') || ''
+          const className = button.getAttribute('class') || ''
+          
+          // Try more liberal matching for menu buttons (with multilingual support)
+          if (ariaLabel.toLowerCase().includes('more') || 
+              title.toLowerCase().includes('more') || 
+              ariaLabel.toLowerCase().includes('menu') ||
+              title.toLowerCase().includes('menu') ||
+              ariaLabel.toLowerCase().includes('option') ||
+              title.toLowerCase().includes('option') ||
+              // German language support
+              ariaLabel.toLowerCase().includes('aktionsmenü') ||
+              ariaLabel.toLowerCase().includes('aktion') ||
+              title.toLowerCase().includes('aktionsmenü') ||
+              title.toLowerCase().includes('aktion') ||
+              // French language support
+              ariaLabel.toLowerCase().includes('actions') ||
+              ariaLabel.toLowerCase().includes('plus') ||
+              // Spanish language support
+              ariaLabel.toLowerCase().includes('acciones') ||
+              ariaLabel.toLowerCase().includes('más') ||
+              id === 'icon' ||
+              className.includes('more') ||
+              textContent.includes('⋮') || // vertical dots
+              textContent.includes('⋯') || // horizontal dots
+              textContent.includes('•••')) { // bullet dots
+            
+            try {
+              button.click()
+              const menuOpened = await waitForMenu(500)
+              if (menuOpened) {
+                break
+              }
+            } catch (err) {
+              // Continue to next button
+            }
+          }
+        }
+        
+        // If still no menu found, try searching the entire document for menu buttons
+        if (document.querySelectorAll('ytmusic-menu-popup-renderer tp-yt-paper-listbox').length === 0) {
+          const allDocButtons = document.querySelectorAll<HTMLElement>('button, tp-yt-paper-icon-button, yt-icon-button, [role="button"], *[id="icon"]')
+          
+          for (let i = 0; i < Math.min(allDocButtons.length, 50); i++) { // Limit to first 50 to avoid spam
+            const button = allDocButtons[i]
+            const ariaLabel = button.getAttribute('aria-label') || ''
+            const id = button.getAttribute('id') || ''
+            const className = button.getAttribute('class') || ''
+            const textContent = button.textContent?.trim() || ''
+            
+            // Look for buttons that might open the song menu
+            if ((ariaLabel.toLowerCase().includes('more') && 
+                 (button.closest('ytmusic-player-bar') || button.closest('ytmusic-player'))) ||
+                (id === 'icon' && button.closest('ytmusic-player-bar')) ||
+                (className.includes('more') && button.closest('ytmusic-player-bar')) ||
+                textContent.includes('⋮') || textContent.includes('⋯')) {
+              
+              try {
+                button.click()
+                const menuOpened = await waitForMenu(500)
+                if (menuOpened) {
+                  break
+                }
+              } catch (err) {
+                // Continue to next button
+              }
+            }
+          }
+        }
+      }
+      
+      // Wait a bit more for menu to fully load
+      await new Promise(resolve => setTimeout(resolve, 200))
+      
+      const newMenus = document.querySelectorAll<HTMLElement>('ytmusic-menu-popup-renderer tp-yt-paper-listbox')
+      
+      // First try to find direct add to playlist item
+      for (const menu of newMenus) {
+        const addToPlaylistItem = findAddToPlaylistItem(menu)
+        if (addToPlaylistItem) {
+          simulateClick(addToPlaylistItem)
+          return true
+        }
+      }
+      
+      // If not found, try expand button approach
+      for (const menu of newMenus) {
+        const expandButton = findAndClickExpandButton(menu)
+        if (expandButton) {
+          simulateClick(expandButton)
+          
+          // Wait for expanded menu
+          await new Promise(resolve => setTimeout(resolve, 200))
+          
+          const allMenusAfterExpand = document.querySelectorAll<HTMLElement>('ytmusic-menu-popup-renderer tp-yt-paper-listbox')
+          for (const menuAfterExpand of allMenusAfterExpand) {
+            const addToPlaylistItem = findAddToPlaylistItem(menuAfterExpand)
+            if (addToPlaylistItem) {
+              simulateClick(addToPlaylistItem)
+              return true
+            }
+          }
+        }
+      }
+      
+      return false
+      
+    } catch (error) {
+      return false
+    }
+  }
+
   // Setup fullscreen change listener
   onMount(() => {
     const handleFullscreenChange = () => {
@@ -1600,8 +1992,8 @@ function YTMusicPlayer() {
         </div>
 
         <div class="ytmusic-additional-controls">
-          <button class="ytmusic-menu-btn" title="Add to Queue">
-            <img src={addToQueue} alt="Add to Queue" />
+          <button class="ytmusic-menu-btn" onClick={triggerAddToPlaylist} title="Add to Playlist">
+            <img src={addToQueue} alt="Add to Playlist" />
           </button>
           <button class="ytmusic-menu-btn" onClick={toggleMiniplayer} title="Toggle Miniplayer">
             <img src={miniplayer} alt="Toggle Miniplayer" />
