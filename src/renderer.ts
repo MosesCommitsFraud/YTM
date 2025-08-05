@@ -592,7 +592,7 @@ const main = async () => {
   // Setup back to front logger
   if (window.electronIs.dev()) {
     window.ipcRenderer.on('log', (_event, log: string) => {
-      console.log(JSON.parse(log));
+      JSON.parse(log);
     });
   }
 };

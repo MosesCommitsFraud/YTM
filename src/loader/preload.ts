@@ -31,10 +31,7 @@ export const forceUnloadPreloadPlugin = async (id: string) => {
     context: createContext(id),
   });
   if (hasStopped || (hasStopped === null && loadedPluginMap[id].preload)) {
-    console.log(
-      LoggerPrefix,
-      `Plugins unloaded: ${id}`,
-    );
+
     delete loadedPluginMap[id];
   } else {
     console.error(
@@ -63,10 +60,7 @@ export const forceLoadPreloadPlugin = async (id: string) => {
       loadedPluginMap[id] = plugin;
     }
 
-    console.log(
-      LoggerPrefix,
-      `Plugins loaded: ${id}`,
-    );
+
   } catch (err) {
     console.error(
       LoggerPrefix,

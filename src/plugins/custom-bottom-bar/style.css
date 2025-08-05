@@ -241,14 +241,13 @@ ytmusic-player-bar .chapter-info,
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 44px !important;
+  height: 44px !important;
   position: relative;
 }
 
 .ytmusic-control-btn:hover {
   color: #fff;
-  background: rgba(255, 255, 255, 0.1);
 }
 
 /* CLEAN: Simple red color for active buttons, no glow */
@@ -256,13 +255,11 @@ ytmusic-player-bar .chapter-info,
   color: #ff2d55 !important;
 }
 
-.ytmusic-control-btn.active:hover {
-  background: rgba(255, 255, 255, 0.1);
-}
+
 
 .ytmusic-control-btn img {
-  width: 20px;
-  height: 20px;
+  width: 22px;
+  height: 22px;
   filter: brightness(0) saturate(100%) invert(67%) sepia(0%) saturate(0%) hue-rotate(93deg) brightness(87%)
     contrast(86%);
 }
@@ -288,17 +285,20 @@ ytmusic-player-bar .chapter-info,
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 44px !important;
+  height: 44px !important;
 }
 
-.ytmusic-nav-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-}
+
 
 .ytmusic-nav-btn img {
-  width: 24px;
-  height: 24px;
+  width: 22px;
+  height: 22px;
+  filter: brightness(0) saturate(100%) invert(67%) sepia(0%) saturate(0%) hue-rotate(93deg) brightness(87%)
+    contrast(86%);
+}
+
+.ytmusic-nav-btn:hover img {
   filter: brightness(0) saturate(100%) invert(100%) sepia(0%) saturate(7500%) hue-rotate(109deg) brightness(99%)
     contrast(107%);
 }
@@ -327,6 +327,21 @@ ytmusic-player-bar .chapter-info,
   height: 24px;
   filter: brightness(0) saturate(100%) invert(0%) sepia(0%) saturate(7500%) hue-rotate(109deg) brightness(0%)
     contrast(107%);
+  /* Ensure proper centering */
+  display: block;
+  margin: auto;
+}
+
+/* Move play icon slightly right for better visual centering */
+.ytmusic-play-btn img.play-icon {
+  transform: translateX(1px);
+}
+
+/* Make pause icon slightly smaller and move right slightly */
+.ytmusic-play-btn img.pause-icon {
+  width: 22px;
+  height: 22px;
+  transform: translateX(0.5px);
 }
 
 .ytmusic-progress {
@@ -471,8 +486,8 @@ ytmusic-player-bar .chapter-info,
 }
 
 .ytmusic-volume-btn img {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   filter: brightness(0) saturate(100%) invert(67%) sepia(0%) saturate(0%) hue-rotate(93deg) brightness(87%)
     contrast(86%);
 }

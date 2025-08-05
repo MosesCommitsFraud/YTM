@@ -613,9 +613,7 @@ export async function downloadPlaylist(givenUrl?: string | URL) {
 
   const sendFeedback = (message?: unknown) => sendFeedback_(win, message);
 
-  console.log(
-    `Trying to get playlist ID: ${playlistId}`,
-  );
+
   sendFeedback('Getting playlist info...');
   let playlist: Playlist;
   const items: YTNodes.MusicResponsiveListItem[] = [];
@@ -708,9 +706,7 @@ export async function downloadPlaylist(givenUrl?: string | URL) {
   });
 
   if (is.dev()) {
-    console.log(
-      `Downloading playlist: ${playlistTitle}, size: ${items.length}, ID: ${playlistId}`,
-    );
+    // Downloading playlist info
   }
 
   win.setProgressBar(2); // Starts with indefinite bar

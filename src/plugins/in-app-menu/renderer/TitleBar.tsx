@@ -392,7 +392,7 @@ export const TitleBar = (props: TitleBarProps) => {
         const orig = document.querySelector('#right-content > ytmusic-settings-button');
         const searchBarContainer = document.querySelector('.ytm-custom-search-bar')?.parentElement;
         
-        console.log('Looking for account button...', { orig: !!orig, container: !!searchBarContainer, tries });
+
         
         if (orig && searchBarContainer) {
           const origEl = orig as HTMLElement;
@@ -438,11 +438,11 @@ export const TitleBar = (props: TitleBarProps) => {
           
           // Move the button
           if (avatarWrapper.contains(origEl)) {
-            console.log('Account button already moved');
+
           } else {
             avatarWrapper.appendChild(origEl);
             searchBarContainer.appendChild(avatarWrapper);
-            console.log('Account button moved successfully');
+
           }
         } else if (tries < maxTries) {
           tries++;
@@ -691,7 +691,7 @@ function SearchBar() {
     const handleClick = (e: PointerEvent) => {
       if (barRef && inputRef) {
         if (!barRef.contains(e.target as Node)) {
-          console.log('Blurring search input due to outside click');
+
           inputRef.blur();
         }
       }

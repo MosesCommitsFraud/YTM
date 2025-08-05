@@ -63,7 +63,7 @@ export class DiscordService {
 
     this.rpc.on('connected', () => {
       if (dev()) {
-        console.log(LoggerPrefix, 'Discord backend connected');
+        // Discord backend connected
       }
       this.refreshCallbacks.forEach((cb) => cb());
     });
@@ -156,7 +156,7 @@ export class DiscordService {
     this.lastProgressUpdate = 0;
     this.timerManager.clearAll();
     if (dev()) {
-      console.log(LoggerPrefix, 'Discord backend disconnected');
+      // Discord backend disconnected
     }
   }
 
@@ -214,10 +214,7 @@ export class DiscordService {
   connect(showErrorDialog = false): void {
     if (this.rpc.isConnected) {
       if (dev()) {
-        console.log(
-          LoggerPrefix,
-          'Discord backend already connected',
-        );
+        // Discord backend already connected
       }
       return;
     }

@@ -127,9 +127,9 @@ app.commandLine.appendSwitch(
   'OverlayScrollbar,SharedArrayBuffer,UseOzonePlatform,WaylandWindowDecorations',
 );
 if (config.get('options.disableHardwareAcceleration')) {
-  if (is.dev()) {
-    console.log('Disabling hardware acceleration');
-  }
+        if (is.dev()) {
+        // Disabling hardware acceleration
+      }
 
   app.disableHardwareAcceleration();
 }
@@ -150,7 +150,7 @@ if (config.get('options.proxy')) {
     // Use global proxy settings
     proxyToUse = config.get('options.proxy') || '';
   }
-  console.log(LoggerPrefix, `Using proxy: ${proxyToUse}`);
+
   app.commandLine.appendSwitch('proxy-server', proxyToUse);
 }
 
@@ -549,7 +549,7 @@ app.once('browser-window-created', (_event, win) => {
         '\t',
       );
       if (is.dev()) {
-        console.log(log);
+        // Log error details
       }
 
       if (
@@ -594,10 +594,7 @@ app.whenReady().then(async () => {
     // Clear cache after 20s
     const clearCacheTimeout = setTimeout(() => {
       if (is.dev()) {
-        console.log(
-          LoggerPrefix,
-          'Clearing cache after 20s',
-        );
+        // Clearing cache after 20s
       }
       session.defaultSession.clearCache();
       clearTimeout(clearCacheTimeout);
@@ -655,11 +652,11 @@ app.whenReady().then(async () => {
       event.returnValue = [
         null,
         `
-        console.log('${LoggerPrefix}', 'Loading vite from dev server');
+
         (async () => {
           await new Promise((resolve) => {
             if (document.readyState === 'loading') {
-              console.log('${LoggerPrefix}', 'Waiting for DOM to load');
+
               document.addEventListener('DOMContentLoaded', () => resolve(), { once: true });
             } else {
               resolve();

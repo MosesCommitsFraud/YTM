@@ -421,8 +421,7 @@ export const injectRm3 = () => {
             if (!availablePool)
               availablePools.set(eKey, availablePool = new LinkedArray());
             if (!(availablePool instanceof LinkedArray)) throw new Error();
-            DEBUG_OPT &&
-              console.log(3885, 'add key', eKey, availablePools.size);
+            DEBUG_OPT && void 0; // add key debug
             // rm3.showSize = ()=>availablePools.size
             // setTimeout(()=>{
             //   // window?.euu1 = availablePools
@@ -631,21 +630,13 @@ export const injectRm3 = () => {
                     jC1 = await digestMessage(jC1);
                     jC2 = await digestMessage(jC2);
 
-                    console.log(
-                      83804,
-                      jKey,
-                      jC1.substring(0, 7),
-                      jC2.substring(0, 7),
-                    );
+                    // Debug info removed
                   })();
                 }, 1000);
               }
 
               if (entryRecord[5] < 1e9) entryRecord[5] += 1;
-              DEBUG_OPT &&
-                Promise.resolve().then(() =>
-                  console.log(`${eKey} reuse`, entryRecord),
-                ); // give some time for attach process
+              DEBUG_OPT && void 0; // reuse debug
               DEBUG_OPT && reuseRecord_.add([Date.now(), cnt.is, entryRecord]);
               DEBUG_OPT &&
                 reuseCount_.set(cnt.is, (reuseCount_.get(cnt.is) || 0) + 1);

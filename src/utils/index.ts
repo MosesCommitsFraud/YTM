@@ -104,12 +104,7 @@ export const startPlugin = async <Config extends PluginConfig>(
       options.context as Config & typeof options.context,
     );
 
-    console.log(
-      LoggerPrefix,
-      `Plugins executed at ${id} in ${options.ctx} context in ${
-        (performance.now() - start).toFixed(2)
-      }ms`,
-    );
+
 
     return lifecycle ? true : null;
   } catch (err) {
@@ -141,13 +136,6 @@ export const stopPlugin = async <Config extends PluginConfig>(
     await stop.call(
       def[options.ctx],
       options.context as Config & typeof options.context,
-    );
-
-    console.log(
-      LoggerPrefix,
-      `Plugins executed at ${id} in ${options.ctx} context in ${
-        performance.now() - start
-      }ms`,
     );
 
     return true;

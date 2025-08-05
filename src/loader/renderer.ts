@@ -56,10 +56,7 @@ export const forceUnloadRendererPlugin = async (id: string) => {
     document.querySelector(`style#plugin-${id}`)?.remove();
   }
   if (hasStopped || (hasStopped === null && plugin?.renderer)) {
-    console.log(
-      LoggerPrefix,
-      `Plugin "${id}" unloaded.`,
-    );
+
   } else {
     console.error(
       LoggerPrefix,
@@ -100,15 +97,7 @@ export const forceLoadRendererPlugin = async (id: string) => {
       ];
     }
 
-    console.log(
-      LoggerPrefix,
-      `Plugin "${id}" loaded.`,
-    );
-  } else {
-    console.log(
-      LoggerPrefix,
-      `Failed to initialize plugin "${id}".`,
-    );
+
   }
 };
 

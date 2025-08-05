@@ -71,14 +71,10 @@ export const forceUnloadMainPlugin = async (
         plugin.backend)
     ) {
       delete loadedPluginMap[id];
-      console.log(
-        LoggerPrefix,
-        `Plugins unloaded: ${id}`,
-      );
+
       return;
     } else {
       const message = `Failed to unload plugin: ${id}`;
-      console.log(LoggerPrefix, message);
       return Promise.reject(new Error(message));
     }
   } catch (err) {
@@ -112,7 +108,6 @@ export const forceLoadMainPlugin = async (
       loadedPluginMap[id] = plugin;
     } else {
       const message = `Failed to load plugin: ${id}`;
-      console.log(LoggerPrefix, message);
       return Promise.reject(new Error(message));
     }
   } catch (err) {
@@ -126,7 +121,7 @@ export const forceLoadMainPlugin = async (
 };
 
 export const loadAllMainPlugins = async (win: BrowserWindow) => {
-  console.log(LoggerPrefix, 'Loading all main plugins...');
+
   const pluginConfigs = config.plugins.getPlugins();
   const queue: Promise<void>[] = [];
 

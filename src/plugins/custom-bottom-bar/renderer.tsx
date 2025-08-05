@@ -16,10 +16,13 @@ import skipPrevious from "../../../assets/svgs/skip_previous.svg"
 import playArrow from "../../../assets/svgs/play_arrow.svg"
 import pause from "../../../assets/svgs/pause.svg"
 import skipNext from "../../../assets/svgs/skip_next.svg"
-import repeat from "../../../assets/svgs/repeat.svg"
-import pictureInPicture from "../../../assets/svgs/picture_in_picture_medium.svg"
-import fullscreen from "../../../assets/svgs/fullscreen.svg"
+import repeatAll from "../../../assets/svgs/icon-repeate-music.svg"
+import repeatOne from "../../../assets/svgs/icon-repeate-one.svg"
+import miniplayer from "../../../assets/svgs/miniplayer.svg"
+import expandFullscreen from "../../../assets/svgs/Expand_fullscreen.svg"
+import shrinkFullscreen from "../../../assets/svgs/Shrink_fullscreen.svg"
 import expandSong from "../../../assets/svgs/expand_song.svg"
+import addToQueue from "../../../assets/svgs/Add_To_Queue.svg"
 
 function clamp(val: number, min: number, max: number) {
   return Math.max(min, Math.min(max, val))
@@ -49,7 +52,9 @@ function YTMusicPlayer() {
   // Media tracking - handles both audio-only and video content
   const [currentVideoId, setCurrentVideoId] = createSignal<string | null>(null)
   const [currentMediaElement, setCurrentMediaElement] = createSignal<HTMLVideoElement | null>(null)
-  const [isVideoContent, setIsVideoContent] = createSignal(false)
+  
+  // Fullscreen state tracking
+  const [isFullscreen, setIsFullscreen] = createSignal(false)
   
   // Native progress bar reference
   let nativeProgressBar: HTMLElement | null = null
@@ -73,17 +78,6 @@ function YTMusicPlayer() {
   // Volume HUD state
   const [volumeHudVisible, setVolumeHudVisible] = createSignal(false)
   const [volumeHudText, setVolumeHudText] = createSignal("")
-  
-  // Helper to determine if current track has video content
-  const hasVideoContent = () => {
-    const mediaType = song().mediaType
-    return (
-      mediaType === 'ORIGINAL_MUSIC_VIDEO' ||
-      mediaType === 'USER_GENERATED_CONTENT' ||
-      mediaType === 'OTHER_VIDEO'
-    )
-  }
-
   // === NATIVE ELEMENT SETUP ===
   // Setup functions defined before onMount to avoid hoisting issues
   let nativeProgressObserver: MutationObserver | null = null
@@ -231,7 +225,7 @@ function YTMusicPlayer() {
     
     // Content type detection
     const onLoadStart = () => {
-      setIsVideoContent(hasVideoContent())
+      
     }
     
     // Attach minimal listeners - native elements handle progress and volume tracking
@@ -251,7 +245,7 @@ function YTMusicPlayer() {
     // Initial state sync
     onPlayPause()
     setIsMuted(mediaElement.muted)
-    setIsVideoContent(hasVideoContent())
+    
   }
 
   // === VOLUME CONTROLS ===
@@ -538,7 +532,7 @@ function YTMusicPlayer() {
           setupMediaListeners(mediaElement)
           
           // Update video content state
-          setIsVideoContent(hasVideoContent())
+          
         }
         
         return mediaElement
@@ -569,7 +563,7 @@ function YTMusicPlayer() {
       // Track video ID changes for content type detection
       if (oldVideoId !== newVideoId) {
         setCurrentVideoId(newVideoId)
-        setIsVideoContent(hasVideoContent())
+        
         // Detect like state for the new song
         setTimeout(detectLikeState, 200)
       }
@@ -906,16 +900,7 @@ function YTMusicPlayer() {
           isDislikedState = false
         }
         
-        // Debug logging
-        console.log('detectLikeState:', {
-          likeStatus,
-          likePressed,
-          dislikePressed,
-          isLikedState,
-          isDislikedState,
-          currentLiked: isLiked(),
-          currentDisliked: isDisliked()
-        })
+
         
         // Update states only if they changed
         if (isLikedState !== isLiked()) {
@@ -925,13 +910,10 @@ function YTMusicPlayer() {
           setIsDisliked(isDislikedState)
         }
       } else {
-        console.log('detectLikeState: Could not find like/dislike buttons', {
-          likeButtonRenderer,
-          allButtons: likeButtonRenderer.querySelectorAll('button')
-        })
+
       }
     } else {
-      console.log('detectLikeState: Could not find #like-button-renderer')
+
     }
   }
 
@@ -940,12 +922,24 @@ function YTMusicPlayer() {
     const repeatBtn = document.querySelector('yt-icon-button.repeat')
     if (repeatBtn) {
         const title = repeatBtn.getAttribute('title')?.toLowerCase() || ''
+        const ariaLabel = repeatBtn.getAttribute('aria-label')?.toLowerCase() || ''
         let newMode = 0 // Default to off
 
-        if (title === 'repeat all') {
+        // Check both title and aria-label for different variations
+        if (title.includes('repeat all') || ariaLabel.includes('repeat all') || 
+            title.includes('repeat: all') || ariaLabel.includes('repeat: all')) {
             newMode = 1
-        } else if (title === 'repeat one') {
+        } else if (title.includes('repeat one') || ariaLabel.includes('repeat one') || 
+                   title.includes('repeat: one') || ariaLabel.includes('repeat: one') ||
+                   title.includes('repeat 1') || ariaLabel.includes('repeat 1')) {
             newMode = 2
+        }
+
+        // Also check for active state classes
+        if (newMode === 0 && (repeatBtn.classList.contains('style-primary-text') || 
+                               repeatBtn.getAttribute('aria-pressed') === 'true')) {
+            // If button appears active but we couldn't determine mode, assume repeat all
+            newMode = 1
         }
 
         if (newMode !== repeatMode()) {
@@ -1076,7 +1070,7 @@ function YTMusicPlayer() {
   }
 
   const toggleLike = () => {
-    console.log('toggleLike called, current state:', isLiked())
+
     // Use the proper YouTube Music API method for the currently playing song
     const likeButtonRenderer = document.querySelector('#like-button-renderer') as HTMLElement & { updateLikeStatus: (status: string) => void }
     if (likeButtonRenderer && likeButtonRenderer.updateLikeStatus) {
@@ -1091,7 +1085,7 @@ function YTMusicPlayer() {
   }
 
   const toggleDislike = () => {
-    console.log('toggleDislike called, current state:', isDisliked())
+
     // Use the proper YouTube Music API method for the currently playing song
     const likeButtonRenderer = document.querySelector('#like-button-renderer') as HTMLElement & { updateLikeStatus: (status: string) => void }
     if (likeButtonRenderer && likeButtonRenderer.updateLikeStatus) {
@@ -1113,34 +1107,6 @@ function YTMusicPlayer() {
   const toggleRepeat = () => {
     (document.querySelector('yt-icon-button.repeat button') as HTMLElement)?.click()
     setTimeout(requestRepeat, SYNC_DELAY)
-  }
-
-  // === CONTENT-AWARE FEATURES ===
-  // Some features behave differently for audio vs video content
-  
-  // Picture-in-Picture: Only available for actual video content
-  const togglePictureInPicture = async () => {
-    const mediaElement = currentMediaElement()
-    if (!mediaElement) return
-    
-    if (isVideoContent()) {
-      // Real video content - use native PiP
-      try {
-        if (document.pictureInPictureElement) {
-          await document.exitPictureInPicture()
-        } else {
-          await mediaElement.requestPictureInPicture()
-        }
-      } catch (err) {
-        console.warn('PiP failed for video content:', err)
-      }
-    } else {
-      // Audio-only content - use custom image PiP
-      const imgSrc = song().imageSrc
-      if (imgSrc) {
-        await showImageInPiP(imgSrc as string)
-      }
-    }
   }
 
   // === UTILITY FUNCTIONS ===
@@ -1171,69 +1137,6 @@ function YTMusicPlayer() {
     }
   }
 
-  // Helper: show the song image in PiP using a canvas hack for audio-only tracks
-  const showImageInPiP = async (imgSrc: string) => {
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    
-    const img = new window.Image();
-    img.crossOrigin = 'anonymous';
-    img.src = imgSrc;
-    
-    try {
-      await new Promise<void>((resolve, reject) => {
-        img.onload = () => resolve();
-        img.onerror = () => reject();
-      });
-      
-      canvas.width = img.width;
-      canvas.height = img.height;
-      ctx.drawImage(img, 0, 0, img.width, img.height);
-      
-      // Add a message overlay to the canvas
-      ctx.fillStyle = 'rgba(0,0,0,0.6)';
-      ctx.fillRect(0, canvas.height - 40, canvas.width, 40);
-      ctx.font = '16px sans-serif';
-      ctx.fillStyle = '#fff';
-      ctx.textAlign = 'center';
-      ctx.fillText('Audio-only track - Pause/play controls work in PiP', canvas.width / 2, canvas.height - 15);
-      
-      // Create a video from the canvas stream
-      const stream = canvas.captureStream();
-      const video = document.createElement('video');
-      video.srcObject = stream;
-      video.muted = true;
-      video.playsInline = true;
-      video.autoplay = true;
-      video.style.display = 'none';
-      document.body.appendChild(video);
-      
-      await video.play();
-      await new Promise<void>((resolve) => {
-        if (video.readyState >= 2) resolve();
-        else {
-          const handler = () => {
-            video.removeEventListener('canplay', handler);
-            resolve();
-          };
-          video.addEventListener('canplay', handler);
-        }
-      });
-      
-      await video.requestPictureInPicture();
-      
-      // Remove the video element when PiP closes
-      video.addEventListener('leavepictureinpicture', () => {
-        video.pause();
-        video.srcObject = null;
-        video.remove();
-      });
-    } catch (err) {
-      console.warn('Failed to create PiP for audio track:', err);
-    }
-  }
-
   const expandSongPage = () => {
     (document.querySelector('.toggle-player-page-button') as HTMLElement | null)?.click()
   }
@@ -1245,6 +1148,23 @@ function YTMusicPlayer() {
       document.exitFullscreen()
     }
   }
+
+  // Setup fullscreen change listener
+  onMount(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement)
+    }
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange)
+    
+    // Initialize the state
+    setIsFullscreen(!!document.fullscreenElement)
+
+    // Cleanup
+    onCleanup(() => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange)
+    })
+  })
 
   return (
     <div
@@ -1545,7 +1465,11 @@ function YTMusicPlayer() {
           </button>
 
           <button class="ytmusic-play-btn" onClick={playPause} title={isPaused() ? "Play" : "Pause"}>
-            <img src={isPaused() ? playArrow : pause} alt={isPaused() ? "Play" : "Pause"} />
+            <img 
+              src={isPaused() ? playArrow : pause} 
+              alt={isPaused() ? "Play" : "Pause"} 
+              class={isPaused() ? "play-icon" : "pause-icon"}
+            />
           </button>
 
           <button class="ytmusic-nav-btn" onClick={next} title="Next">
@@ -1559,11 +1483,7 @@ function YTMusicPlayer() {
             title={`Repeat ${repeatMode() === 0 ? 'off' : repeatMode() === 1 ? 'all' : 'one'} • Volume: ${volumeToPercentage(volume())}% (±${getVolumeSteps()}% steps)`}
             style={{ position: 'relative' }}
           >
-            <img src={repeat} alt="Repeat" />
-            {/* The dot now correctly shows for "repeat one song" (mode 2) */}
-            {repeatMode() === 2 && (
-              <span class="ytmusic-repeat-dot" />
-            )}
+            <img src={repeatMode() === 2 ? repeatOne : repeatAll} alt={repeatMode() === 2 ? "Repeat One" : "Repeat All"} />
           </button>
         </div>
 
@@ -1623,28 +1543,18 @@ function YTMusicPlayer() {
         </div>
 
         <div class="ytmusic-additional-controls">
-          <button class="ytmusic-menu-btn" title="Queue">
-            <svg viewBox="0 0 24 24" fill="currentColor">
-              <path d="M15 6H3v2h12V6zm0 4H3v2h12v-2zM3 16h8v-2H3v2zM17 6v8.18c-.31-.11-.65-.18-1-.18-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3V8h3V6h-5z" />
-            </svg>
+          <button class="ytmusic-menu-btn" title="Add to Queue">
+            <img src={addToQueue} alt="Add to Queue" />
           </button>
           <button class="ytmusic-menu-btn" onClick={toggleMiniplayer} title="Toggle Miniplayer">
-            <svg viewBox="0 0 24 24" fill="currentColor">
-              <path d="M18 5H4v14h7v1H3V4h16v8h-1V5ZM6 7h5v1H7.707L12 12.293l-.707.707L7 8.707V12H6V7Zm7 7h9v8h-9v-8Z" />
-            </svg>
+            <img src={miniplayer} alt="Toggle Miniplayer" />
           </button>
-          <button 
-            class="ytmusic-menu-btn" 
-            onClick={togglePictureInPicture} 
-            title={isVideoContent() ? "Picture-in-Picture" : "Picture-in-Picture (Album Art)"}
-          >
-            <img src={pictureInPicture} alt="Picture-in-Picture" />
-          </button>
+
           <button class="ytmusic-menu-btn" onClick={expandSongPage} title="Expand Song">
             <img src={expandSong} alt="Expand Song" />
           </button>
-          <button class="ytmusic-menu-btn" onClick={toggleFullscreen} title="Fullscreen">
-            <img src={fullscreen} alt="Fullscreen" />
+          <button class="ytmusic-menu-btn" onClick={toggleFullscreen} title={isFullscreen() ? "Exit Fullscreen" : "Enter Fullscreen"}>
+            <img src={isFullscreen() ? shrinkFullscreen : expandFullscreen} alt={isFullscreen() ? "Exit Fullscreen" : "Enter Fullscreen"} />
           </button>
         </div>
       </div>

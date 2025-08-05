@@ -48,10 +48,7 @@ export const forceLoadMenuPlugin = async (id: string, win: BrowserWindow) => {
       }
     } else return;
 
-    console.log(
-      LoggerPrefix,
-      `Plugins loaded: ${id}::menu`,
-    );
+
   } catch (err) {
     console.error(
       LoggerPrefix,
