@@ -79,18 +79,26 @@ function showOverlaySearch() {
 
   // Search bar container
   const bar = document.createElement('div');
-  bar.style.background = '#222';
-  bar.style.borderRadius = '6px'; // YT Music subtle roundness
+  bar.style.background = '#181818';
+  bar.style.borderRadius = '10px'; // Match titlebar searchbar
+  bar.style.border = '1.5px solid #333';
   bar.style.boxShadow = '0 4px 32px #000a';
   bar.style.display = 'flex';
   bar.style.alignItems = 'center';
-  bar.style.padding = '0 24px 0 16px';
-  bar.style.height = '56px';
-  bar.style.minWidth = '420px';
-  bar.style.maxWidth = '600px';
-  bar.style.width = '40vw';
+  bar.style.padding = '0 12px';
+  bar.style.height = '40px';
+  bar.style.minHeight = '40px';
+  bar.style.minWidth = '320px';
+  bar.style.maxWidth = '540px';
+  bar.style.width = 'min(480px, 40vw)';
   bar.style.position = 'relative';
   bar.style.flex = 'none';
+  bar.style.transition = 'border 0.15s, box-shadow 0.15s';
+
+  // Search icon
+  const searchIcon = document.createElement('span');
+  searchIcon.style.marginRight = '8px';
+  searchIcon.innerHTML = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#aaa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>';
 
   // Input
   input = document.createElement('input');
@@ -99,24 +107,32 @@ function showOverlaySearch() {
   input.style.background = 'transparent';
   input.style.border = 'none';
   input.style.outline = 'none';
-  input.style.color = '#fff';
+  input.style.color = '#eee';
   input.style.fontSize = '1.3em';
+  input.style.fontFamily = 'inherit';
+  input.style.boxShadow = 'none';
+  input.style.padding = '0 8px';
+  input.style.height = '40px';
   input.style.flex = '1';
-  input.style.height = '100%';
-  input.style.marginRight = '12px';
   input.style.minWidth = '0';
-  input.style.width = '100%';
-  input.style.maxWidth = '100%';
 
-  // Keycap visual (Ctrl + K) to the right of the input, outside the input
-  bar.appendChild(input);
+  // Add focus state handling
+  const updateFocusState = (focused: boolean) => {
+    if (focused) {
+      bar.style.border = '1.5px solid #ff2d55';
+      bar.style.boxShadow = '0 0 0 2px #ff2d5522, 0 2px 8px #0002';
+    } else {
+      bar.style.border = '1.5px solid #333';
+      bar.style.boxShadow = '0 4px 32px #000a';
+    }
+  };
+
+  // Keycap visual (Ctrl + K) to the right of the input
   const keycapRow = document.createElement('div');
   keycapRow.style.display = 'flex';
   keycapRow.style.alignItems = 'center';
-  keycapRow.style.marginLeft = 'auto';
   keycapRow.style.gap = '0';
-  keycapRow.style.height = '100%';
-  keycapRow.style.paddingRight = '2px';
+  keycapRow.style.marginRight = '8px';
   const keycapCtrl = createKeycap('Ctrl');
   const plus = document.createElement('span');
   plus.textContent = '+';
@@ -129,6 +145,10 @@ function showOverlaySearch() {
   keycapRow.appendChild(keycapCtrl);
   keycapRow.appendChild(plus);
   keycapRow.appendChild(keycapK);
+
+  // Assemble the bar
+  bar.appendChild(searchIcon);
+  bar.appendChild(input);
   bar.appendChild(keycapRow);
 
   // Legend row (keycap instructions)
@@ -192,22 +212,30 @@ function showOverlaySearch() {
   suggestionBox = document.createElement('div');
   suggestionBox.className = 'ytm-overlay-suggestion-scroll';
   suggestionBox.style.background = '#222';
-  suggestionBox.style.borderRadius = '6px'; // YT Music subtle roundness
-  suggestionBox.style.marginTop = '12px';
+  suggestionBox.style.borderRadius = '6px';
+  suggestionBox.style.marginTop = '4px';
   suggestionBox.style.boxShadow = '0 2px 16px #0007';
   suggestionBox.style.width = '100%';
-  suggestionBox.style.maxWidth = '600px';
-  suggestionBox.style.minWidth = '420px';
   suggestionBox.style.display = 'none';
-  suggestionBox.style.position = 'relative';
+  suggestionBox.style.position = 'absolute';
+  suggestionBox.style.left = '0';
+  suggestionBox.style.top = '100%';
   suggestionBox.style.zIndex = '100000';
   suggestionBox.style.overflowY = 'auto';
-  suggestionBox.style.maxHeight = '50vh'; // never exceed half the viewport
-  suggestionBox.style.paddingRight = '6px'; // space for scrollbar
+  suggestionBox.style.maxHeight = '50vh';
 
-  overlay.appendChild(bar);
+  // Create a wrapper container for the search bar and suggestions
+  const searchContainer = document.createElement('div');
+  searchContainer.style.position = 'relative';
+  searchContainer.style.display = 'flex';
+  searchContainer.style.flexDirection = 'column';
+  searchContainer.style.alignItems = 'center';
+  
+  searchContainer.appendChild(bar);
+  searchContainer.appendChild(suggestionBox);
+  
+  overlay.appendChild(searchContainer);
   overlay.appendChild(legend);
-  overlay.appendChild(suggestionBox);
   document.body.appendChild(overlay);
 
   setTimeout(() => input?.focus(), 10);
@@ -215,6 +243,8 @@ function showOverlaySearch() {
   // Event listeners
   input.addEventListener('input', onInput);
   input.addEventListener('keydown', onKeyDown);
+  input.addEventListener('focus', () => updateFocusState(true));
+  input.addEventListener('blur', () => updateFocusState(false));
   overlay.addEventListener('click', (e) => {
     if (e.target === overlay) closeOverlay();
   });
@@ -316,12 +346,14 @@ function renderSuggestions() {
     const item = document.createElement('div');
     item.style.display = 'flex';
     item.style.alignItems = 'center';
-    item.style.padding = '10px 24px';
+    item.style.padding = '10px 12px';
     item.style.cursor = 'pointer';
     item.style.background = i === selectedIndex ? 'rgba(255,255,255,0.08)' : 'transparent';
     item.style.borderRadius = '4px';
     item.style.margin = '2px 0';
     item.style.transition = 'background 0.15s';
+    item.style.width = '100%';
+    item.style.boxSizing = 'border-box';
     // Icon/thumbnail
     if (s.icon) {
       const img = document.createElement('img');
@@ -350,14 +382,14 @@ function renderSuggestions() {
     const title = document.createElement('div');
     title.textContent = s.text;
     title.style.fontWeight = '500';
-    title.style.fontSize = '1.08em';
+    title.style.fontSize = '1.25em'; // Match titlebar
     title.style.color = '#fff';
     textCol.appendChild(title);
     // Subtitle
     if (s.subtitle) {
       const subtitle = document.createElement('div');
       subtitle.textContent = s.subtitle;
-      subtitle.style.fontSize = '0.97em';
+      subtitle.style.fontSize = '1.1em'; // Match titlebar
       subtitle.style.color = '#aaa';
       subtitle.style.marginTop = '2px';
       textCol.appendChild(subtitle);
@@ -372,9 +404,13 @@ function renderSuggestions() {
       badge.style.fontSize = '0.92em';
       badge.style.padding = '2px 10px';
       badge.style.borderRadius = '6px';
-      badge.style.marginLeft = '16px';
+      badge.style.marginLeft = '8px'; // Match titlebar
       badge.style.fontWeight = '400';
       badge.style.letterSpacing = '0.03em';
+      badge.style.whiteSpace = 'nowrap';
+      badge.style.maxWidth = '40%';
+      badge.style.overflow = 'hidden';
+      badge.style.textOverflow = 'ellipsis';
       item.appendChild(badge);
     }
     item.addEventListener('mouseenter', () => {
