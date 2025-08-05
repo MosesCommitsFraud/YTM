@@ -564,8 +564,14 @@ function YTMusicPlayer() {
       if (oldVideoId !== newVideoId) {
         setCurrentVideoId(newVideoId)
         
-        // Detect like state for the new song
-        setTimeout(detectLikeState, 200)
+        // Sync all states for the new song
+        setTimeout(() => {
+          detectLikeState()
+          detectShuffleState()
+          detectRepeatState()
+          requestShuffle()
+          requestRepeat()
+        }, 200)
       }
       
       // Sync play/pause state if provided
@@ -773,13 +779,51 @@ function YTMusicPlayer() {
     setupScrollWheelSupport()
     setupKeyboardShortcuts()
 
-    // General state check interval
+    // General state check interval (reduced frequency since IPC is primary)
     const stateInterval = setInterval(() => {
-      // Periodically check state for resilience
+      // Periodically check state for resilience, but rely more on IPC
       detectShuffleState()
       detectRepeatState()
       detectLikeState()
-    }, 2000) // Check states every 2 seconds
+    }, 5000) // Check states every 5 seconds (reduced frequency)
+
+    // Setup mutation observers for real-time state detection
+    const setupControlObservers = () => {
+      // Observer for shuffle button changes
+      const shuffleBtn = document.querySelector('yt-icon-button.shuffle')
+      if (shuffleBtn) {
+        const shuffleObserver = new MutationObserver(() => {
+          setTimeout(detectShuffleState, 100) // Small delay to ensure DOM is updated
+        })
+        shuffleObserver.observe(shuffleBtn, {
+          attributes: true,
+          attributeFilter: ['aria-pressed', 'class', 'title', 'aria-label'],
+          subtree: true
+        })
+        
+        // Cleanup on unmount
+        onCleanup(() => shuffleObserver.disconnect())
+      }
+
+      // Observer for repeat button changes
+      const repeatBtn = document.querySelector('yt-icon-button.repeat')
+      if (repeatBtn) {
+        const repeatObserver = new MutationObserver(() => {
+          setTimeout(detectRepeatState, 100) // Small delay to ensure DOM is updated
+        })
+        repeatObserver.observe(repeatBtn, {
+          attributes: true,
+          attributeFilter: ['aria-pressed', 'class', 'title', 'aria-label'],
+          subtree: true
+        })
+        
+        // Cleanup on unmount
+        onCleanup(() => repeatObserver.disconnect())
+      }
+    }
+
+    // Setup observers after a delay to ensure YouTube Music is fully loaded
+    setTimeout(setupControlObservers, 2000)
 
     // Cleanup function
     onCleanup(() => {
@@ -842,13 +886,26 @@ function YTMusicPlayer() {
     window.ipcRenderer.send("ytmd:get-repeat")
   }
 
-  // Helper to detect DOM state directly (fallback)
+  // Enhanced shuffle state detection with multiple fallback methods
   const detectShuffleState = () => {
-    const shuffleBtn = document.querySelector('yt-icon-button.shuffle, button[aria-label*="Shuffle"]')
+    // Primary method: look for the shuffle button
+    let shuffleBtn = document.querySelector('yt-icon-button.shuffle')
+    
+    // Fallback: try different selectors
+    if (!shuffleBtn) {
+      shuffleBtn = document.querySelector('button[aria-label*="Shuffle" i], button[title*="Shuffle" i]')
+    }
+    
     if (shuffleBtn) {
+      // Check multiple indicators for active state
       const isActive = shuffleBtn.classList.contains('style-primary-text') || 
-                      shuffleBtn.getAttribute('aria-pressed') === 'true'
-      setIsShuffle(isActive)
+                      shuffleBtn.getAttribute('aria-pressed') === 'true' ||
+                      shuffleBtn.querySelector('.yt-spec-icon-badge-shape__badge') !== null ||
+                      getComputedStyle(shuffleBtn).color === 'rgb(255, 255, 255)' // White text indicates active
+      
+      if (isActive !== isShuffle()) {
+        setIsShuffle(isActive)
+      }
     }
   }
 
@@ -917,34 +974,69 @@ function YTMusicPlayer() {
     }
   }
 
-  // Reliable repeat state detection
+  // Enhanced repeat state detection with comprehensive fallback methods
   const detectRepeatState = () => {
-    const repeatBtn = document.querySelector('yt-icon-button.repeat')
+    // Primary method: look for the repeat button
+    let repeatBtn = document.querySelector('yt-icon-button.repeat')
+    
+    // Fallback: try different selectors
+    if (!repeatBtn) {
+      repeatBtn = document.querySelector('button[aria-label*="Repeat" i], button[title*="Repeat" i]')
+    }
+    
     if (repeatBtn) {
-        const title = repeatBtn.getAttribute('title')?.toLowerCase() || ''
-        const ariaLabel = repeatBtn.getAttribute('aria-label')?.toLowerCase() || ''
-        let newMode = 0 // Default to off
+      const title = repeatBtn.getAttribute('title')?.toLowerCase() || ''
+      const ariaLabel = repeatBtn.getAttribute('aria-label')?.toLowerCase() || ''
+      let newMode = 0 // Default to off
 
-        // Check both title and aria-label for different variations
-        if (title.includes('repeat all') || ariaLabel.includes('repeat all') || 
-            title.includes('repeat: all') || ariaLabel.includes('repeat: all')) {
+      // Check for repeat one first (be very specific)
+      if (title.includes('repeat one') || ariaLabel.includes('repeat one') || 
+          title.includes('repeat: one') || ariaLabel.includes('repeat: one') ||
+          title.includes('repeat 1') || ariaLabel.includes('repeat 1')) {
+        newMode = 2
+      }
+      // Check for repeat all (be specific)
+      else if (title.includes('repeat all') || ariaLabel.includes('repeat all') || 
+               title.includes('repeat: all') || ariaLabel.includes('repeat: all')) {
+        newMode = 1
+      }
+      // Check if button is visually active (fallback detection)
+      else {
+        const isVisuallyActive = repeatBtn.classList.contains('style-primary-text') || 
+                                repeatBtn.getAttribute('aria-pressed') === 'true' ||
+                                getComputedStyle(repeatBtn).color === 'rgb(255, 255, 255)'
+
+        if (isVisuallyActive) {
+          // Check the SVG icon to determine if it's repeat one or repeat all
+          const svgIcon = repeatBtn.querySelector('svg')
+          if (svgIcon) {
+            const svgContent = svgIcon.innerHTML.toLowerCase()
+            // Be very specific about repeat one detection - look for actual "1" text or very specific paths
+            const hasRepeatOneIndicators = svgContent.includes('<text') && svgContent.includes('1') ||
+                                         svgContent.includes('m13,15.5h-2v-2h2v15.5z') || // Very specific repeat one path
+                                         svgIcon.querySelector('text')?.textContent?.includes('1')
+            
+            newMode = hasRepeatOneIndicators ? 2 : 1
+          } else {
+            // If no SVG found, assume repeat all when active
             newMode = 1
-        } else if (title.includes('repeat one') || ariaLabel.includes('repeat one') || 
-                   title.includes('repeat: one') || ariaLabel.includes('repeat: one') ||
-                   title.includes('repeat 1') || ariaLabel.includes('repeat 1')) {
-            newMode = 2
+          }
         }
+      }
 
-        // Also check for active state classes
-        if (newMode === 0 && (repeatBtn.classList.contains('style-primary-text') || 
-                               repeatBtn.getAttribute('aria-pressed') === 'true')) {
-            // If button appears active but we couldn't determine mode, assume repeat all
-            newMode = 1
-        }
-
-        if (newMode !== repeatMode()) {
-            setRepeatMode(newMode)
-        }
+      // Debug logging to help troubleshoot
+      if (newMode !== repeatMode()) {
+        console.log('Repeat state change detected:', {
+          oldMode: repeatMode(),
+          newMode,
+          title,
+          ariaLabel,
+          isVisuallyActive: repeatBtn.classList.contains('style-primary-text') || 
+                           repeatBtn.getAttribute('aria-pressed') === 'true',
+          svgContent: repeatBtn.querySelector('svg')?.innerHTML?.substring(0, 150)
+        })
+        setRepeatMode(newMode)
+      }
     }
   }
 
@@ -954,7 +1046,11 @@ function YTMusicPlayer() {
   }
 
   const handleRepeatChanged = (_: any, repeatModeValue: number) => {
-    setRepeatMode(repeatModeValue)
+    console.log('Repeat mode changed via IPC:', repeatModeValue)
+    // IPC should be the authoritative source for repeat state
+    if (typeof repeatModeValue === 'number' && repeatModeValue !== repeatMode()) {
+      setRepeatMode(repeatModeValue)
+    }
   }
 
   // Format time
@@ -1100,13 +1196,43 @@ function YTMusicPlayer() {
   }
 
   const toggleShuffle = () => {
-    (document.querySelector('yt-icon-button.shuffle button') as HTMLElement)?.click()
-    setTimeout(requestShuffle, SYNC_DELAY)
+    // Click the original YouTube Music shuffle button
+    const shuffleBtn = document.querySelector('yt-icon-button.shuffle button') as HTMLElement
+    if (shuffleBtn) {
+      shuffleBtn.click()
+      
+      // Immediate state update with multiple checks for responsiveness
+      setTimeout(() => {
+        detectShuffleState()
+        requestShuffle()
+      }, 50)
+      
+      // Additional check after standard delay
+      setTimeout(() => {
+        detectShuffleState()
+        requestShuffle()
+      }, SYNC_DELAY)
+    }
   }
 
   const toggleRepeat = () => {
-    (document.querySelector('yt-icon-button.repeat button') as HTMLElement)?.click()
-    setTimeout(requestRepeat, SYNC_DELAY)
+    // Click the original YouTube Music repeat button
+    const repeatBtn = document.querySelector('yt-icon-button.repeat button') as HTMLElement
+    if (repeatBtn) {
+      repeatBtn.click()
+      
+      // Immediate state update with multiple checks for responsiveness
+      setTimeout(() => {
+        detectRepeatState()
+        requestRepeat()
+      }, 50)
+      
+      // Additional check after standard delay
+      setTimeout(() => {
+        detectRepeatState()
+        requestRepeat()
+      }, SYNC_DELAY)
+    }
   }
 
   // === UTILITY FUNCTIONS ===
@@ -1480,7 +1606,7 @@ function YTMusicPlayer() {
           <button
             class={`ytmusic-control-btn ${repeatMode() > 0 ? "active" : ""}`}
             onClick={toggleRepeat}
-            title={`Repeat ${repeatMode() === 0 ? 'off' : repeatMode() === 1 ? 'all' : 'one'} • Volume: ${volumeToPercentage(volume())}% (±${getVolumeSteps()}% steps)`}
+            title={`Repeat ${repeatMode() === 0 ? 'off' : repeatMode() === 1 ? 'all' : 'one'} (Mode: ${repeatMode()}) • Click to cycle modes • Volume: ${volumeToPercentage(volume())}% (±${getVolumeSteps()}% steps)`}
             style={{ position: 'relative' }}
           >
             <img src={repeatMode() === 2 ? repeatOne : repeatAll} alt={repeatMode() === 2 ? "Repeat One" : "Repeat All"} />
