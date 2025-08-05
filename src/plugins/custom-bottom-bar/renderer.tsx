@@ -564,11 +564,13 @@ function YTMusicPlayer() {
       if (oldVideoId !== newVideoId) {
         setCurrentVideoId(newVideoId)
         
+        // Handle repeat state logic for new song
+        handleSongChange()
+        
         // Sync all states for the new song
         setTimeout(() => {
           detectLikeState()
           detectShuffleState()
-          detectRepeatState()
           requestShuffle()
           requestRepeat()
         }, 200)
@@ -645,15 +647,7 @@ function YTMusicPlayer() {
     sidebarObserver.observe(document.body, { childList: true, subtree: false }) // Only watch direct children
 
     // Monitor for attribute changes on the repeat button for instant updates
-    const setupRepeatButtonWatcher = () => {
-      const repeatBtn = document.querySelector('yt-icon-button.repeat')
-      if (repeatBtn) {
-        const repeatObserver = new MutationObserver(detectRepeatState)
-        repeatObserver.observe(repeatBtn, { attributes: true, attributeFilter: ['title'] })
-        return () => repeatObserver.disconnect()
-      }
-      return () => {}
-    }
+    // Removed: setupRepeatButtonWatcher - no longer needed with simplified repeat logic
     
     // NEW: Monitor for changes in like/dislike buttons
     const setupLikeButtonWatcher = () => {
@@ -705,7 +699,6 @@ function YTMusicPlayer() {
       }
     }
     
-    const cleanupRepeatWatcher = setupRepeatButtonWatcher()
     const cleanupLikeWatcher = setupLikeButtonWatcher()
 
     // Detect expanded mode
@@ -755,7 +748,6 @@ function YTMusicPlayer() {
         requestShuffle()
         requestRepeat()
         detectShuffleState()
-        detectRepeatState()
         detectLikeState()
     }, 1000)
 
@@ -783,7 +775,6 @@ function YTMusicPlayer() {
     const stateInterval = setInterval(() => {
       // Periodically check state for resilience, but rely more on IPC
       detectShuffleState()
-      detectRepeatState()
       detectLikeState()
     }, 5000) // Check states every 5 seconds (reduced frequency)
 
@@ -805,21 +796,7 @@ function YTMusicPlayer() {
         onCleanup(() => shuffleObserver.disconnect())
       }
 
-      // Observer for repeat button changes
-      const repeatBtn = document.querySelector('yt-icon-button.repeat')
-      if (repeatBtn) {
-        const repeatObserver = new MutationObserver(() => {
-          setTimeout(detectRepeatState, 100) // Small delay to ensure DOM is updated
-        })
-        repeatObserver.observe(repeatBtn, {
-          attributes: true,
-          attributeFilter: ['aria-pressed', 'class', 'title', 'aria-label'],
-          subtree: true
-        })
-        
-        // Cleanup on unmount
-        onCleanup(() => repeatObserver.disconnect())
-      }
+      // Removed: repeat button observer - no longer needed with simplified repeat logic
     }
 
     // Setup observers after a delay to ensure YouTube Music is fully loaded
@@ -832,7 +809,6 @@ function YTMusicPlayer() {
       cleanupMediaTracking()
       cleanupMediaListeners() // Clean up media listeners and native observers
       clearInterval(stateInterval)
-      cleanupRepeatWatcher()
       cleanupLikeWatcher()
       window.ipcRenderer.off("ytmd:shuffle-changed", handleShuffleChanged)
       window.ipcRenderer.off("ytmd:repeat-changed", handleRepeatChanged)
@@ -974,69 +950,48 @@ function YTMusicPlayer() {
     }
   }
 
-  // Enhanced repeat state detection with comprehensive fallback methods
-  const detectRepeatState = () => {
-    // Primary method: look for the repeat button
-    let repeatBtn = document.querySelector('yt-icon-button.repeat')
+  // Simplified repeat state management - ignore YouTube Music's state detection
+  // Mode 0: Default for new songs
+  // Mode 1: Maintained in playlist if previous was mode 1 
+  // Mode 2: Only changes when manually deactivated
+  let lastSongId = ''
+  let lastPlaylistContext = ''
+  
+  const handleSongChange = () => {
+    const currentSong = song()
+    const currentSongId = currentSong.title + currentSong.artist
     
-    // Fallback: try different selectors
-    if (!repeatBtn) {
-      repeatBtn = document.querySelector('button[aria-label*="Repeat" i], button[title*="Repeat" i]')
-    }
+    // Detect if we're in the same playlist context
+    // This is a simple heuristic - you might need to adjust based on your needs
+    const currentPlaylistContext = document.querySelector('ytmusic-player-queue-item.playing')?.closest('ytmusic-player-queue')?.getAttribute('data-context') || 'unknown'
     
-    if (repeatBtn) {
-      const title = repeatBtn.getAttribute('title')?.toLowerCase() || ''
-      const ariaLabel = repeatBtn.getAttribute('aria-label')?.toLowerCase() || ''
-      let newMode = 0 // Default to off
-
-      // Check for repeat one first (be very specific)
-      if (title.includes('repeat one') || ariaLabel.includes('repeat one') || 
-          title.includes('repeat: one') || ariaLabel.includes('repeat: one') ||
-          title.includes('repeat 1') || ariaLabel.includes('repeat 1')) {
-        newMode = 2
+    if (currentSongId !== lastSongId) {
+      console.log('Song changed:', { 
+        from: lastSongId, 
+        to: currentSongId,
+        repeatMode: repeatMode(),
+        playlistContext: currentPlaylistContext
+      })
+      
+      // If we were in repeat one mode (mode 2), stay in it since we're repeating the same song
+      if (repeatMode() === 2) {
+        // Only reset if the song actually changed (shouldn't happen in true repeat one)
+        console.log('Was in repeat one, but song changed - resetting to mode 0')
+        setRepeatMode(0)
       }
-      // Check for repeat all (be specific)
-      else if (title.includes('repeat all') || ariaLabel.includes('repeat all') || 
-               title.includes('repeat: all') || ariaLabel.includes('repeat: all')) {
-        newMode = 1
+      // If we were in repeat all (mode 1) and we're in the same playlist, keep mode 1
+      else if (repeatMode() === 1 && currentPlaylistContext === lastPlaylistContext && currentPlaylistContext !== 'unknown') {
+        console.log('Staying in repeat all mode - same playlist')
+        // Keep mode 1
       }
-      // Check if button is visually active (fallback detection)
+      // Otherwise, default to mode 0 for new songs
       else {
-        const isVisuallyActive = repeatBtn.classList.contains('style-primary-text') || 
-                                repeatBtn.getAttribute('aria-pressed') === 'true' ||
-                                getComputedStyle(repeatBtn).color === 'rgb(255, 255, 255)'
-
-        if (isVisuallyActive) {
-          // Check the SVG icon to determine if it's repeat one or repeat all
-          const svgIcon = repeatBtn.querySelector('svg')
-          if (svgIcon) {
-            const svgContent = svgIcon.innerHTML.toLowerCase()
-            // Be very specific about repeat one detection - look for actual "1" text or very specific paths
-            const hasRepeatOneIndicators = svgContent.includes('<text') && svgContent.includes('1') ||
-                                         svgContent.includes('m13,15.5h-2v-2h2v15.5z') || // Very specific repeat one path
-                                         svgIcon.querySelector('text')?.textContent?.includes('1')
-            
-            newMode = hasRepeatOneIndicators ? 2 : 1
-          } else {
-            // If no SVG found, assume repeat all when active
-            newMode = 1
-          }
-        }
+        console.log('New song - defaulting to repeat off')
+        setRepeatMode(0)
       }
-
-      // Debug logging to help troubleshoot
-      if (newMode !== repeatMode()) {
-        console.log('Repeat state change detected:', {
-          oldMode: repeatMode(),
-          newMode,
-          title,
-          ariaLabel,
-          isVisuallyActive: repeatBtn.classList.contains('style-primary-text') || 
-                           repeatBtn.getAttribute('aria-pressed') === 'true',
-          svgContent: repeatBtn.querySelector('svg')?.innerHTML?.substring(0, 150)
-        })
-        setRepeatMode(newMode)
-      }
+      
+      lastSongId = currentSongId
+      lastPlaylistContext = currentPlaylistContext
     }
   }
 
@@ -1216,22 +1171,26 @@ function YTMusicPlayer() {
   }
 
   const toggleRepeat = () => {
-    // Click the original YouTube Music repeat button
+    // Simple manual state cycling: 0 -> 1 -> 2 -> 0
+    const currentMode = repeatMode()
+    let nextMode = 0
+    
+    if (currentMode === 0) {
+      nextMode = 1 // Off -> Repeat All
+    } else if (currentMode === 1) {
+      nextMode = 2 // Repeat All -> Repeat One
+    } else {
+      nextMode = 0 // Repeat One -> Off
+    }
+    
+    console.log(`Manual repeat toggle: ${currentMode} -> ${nextMode}`)
+    setRepeatMode(nextMode)
+    
+    // Optional: Still click the native button to keep YTM in sync if needed
+    // But we ignore its state detection
     const repeatBtn = document.querySelector('yt-icon-button.repeat button') as HTMLElement
     if (repeatBtn) {
       repeatBtn.click()
-      
-      // Immediate state update with multiple checks for responsiveness
-      setTimeout(() => {
-        detectRepeatState()
-        requestRepeat()
-      }, 50)
-      
-      // Additional check after standard delay
-      setTimeout(() => {
-        detectRepeatState()
-        requestRepeat()
-      }, SYNC_DELAY)
     }
   }
 
@@ -1602,14 +1561,17 @@ function YTMusicPlayer() {
             <img src={skipNext} alt="Next" />
           </button>
 
-          {/* CORRECTED: Visual logic for repeat button */}
+          {/* CORRECTED: Visual logic for repeat button with distinct states */}
           <button
             class={`ytmusic-control-btn ${repeatMode() > 0 ? "active" : ""}`}
             onClick={toggleRepeat}
             title={`Repeat ${repeatMode() === 0 ? 'off' : repeatMode() === 1 ? 'all' : 'one'} (Mode: ${repeatMode()}) • Click to cycle modes • Volume: ${volumeToPercentage(volume())}% (±${getVolumeSteps()}% steps)`}
             style={{ position: 'relative' }}
           >
-            <img src={repeatMode() === 2 ? repeatOne : repeatAll} alt={repeatMode() === 2 ? "Repeat One" : "Repeat All"} />
+            <img 
+              src={repeatMode() === 2 ? repeatOne : repeatAll} 
+              alt={repeatMode() === 0 ? "Repeat Off" : repeatMode() === 1 ? "Repeat All" : "Repeat One"} 
+            />
           </button>
         </div>
 
