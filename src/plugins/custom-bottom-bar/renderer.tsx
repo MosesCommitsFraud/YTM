@@ -1506,9 +1506,9 @@ function YTMusicPlayer() {
               ariaLabel.toLowerCase().includes('más') ||
               id === 'icon' ||
               className.includes('more') ||
-              textContent.includes('⋮') || // vertical dots
-              textContent.includes('⋯') || // horizontal dots
-              textContent.includes('•••')) { // bullet dots
+              textContent.includes('⋮') || 
+              textContent.includes('⋯') || 
+              textContent.includes('•••')) { 
             
             try {
               button.click()
