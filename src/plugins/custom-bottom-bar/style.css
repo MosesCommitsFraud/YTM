@@ -355,6 +355,7 @@ ytmusic-player-bar .chapter-info,
   z-index: 2147483648;
   background: #000000;
   padding: 2px 0;
+  transform: translateY(-3px);
 }
 
 .ytmusic-time {
@@ -617,8 +618,8 @@ ytmusic-player-bar .chapter-info,
 /* Fullscreen button - 1px smaller than other menu buttons */
 .ytmusic-menu-btn[title*="Fullscreen"] img,
 .ytmusic-menu-btn[title*="fullscreen"] img {
-  width: 16px;
-  height: 16px;
+  width: 15px;
+  height: 15px;
 }
 
 /* Dropdown Menu */
