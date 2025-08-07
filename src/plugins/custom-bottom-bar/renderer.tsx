@@ -46,6 +46,8 @@ function YTMusicPlayer() {
   
   // Progress tracking state - using native YTM progress bar
   const [progress, setProgress] = createSignal(0)
+  // Element ref for progress slider to control CSS-driven animation
+  let progressInputEl: HTMLInputElement | null = null
   const [isSeeking, setIsSeeking] = createSignal(false)
   
   // Media tracking - handles both audio-only and video content
@@ -82,6 +84,44 @@ function YTMusicPlayer() {
   let nativeProgressObserver: MutationObserver | null = null
   let nativeVolumeObserver: MutationObserver | null = null
   let mediaListenerCleanup: (() => void)[] = []
+  // Animation state for smooth progress (CSS-driven)
+  let lastProgressAnchor = 0
+  let lastAnchorTime = 0
+  let playbackRate = 1
+  const ANCHOR_DRIFT_EPSILON_SECONDS = 1.0
+  let rafId: number | null = null
+
+  const clampProgressToDuration = (value: number) => {
+    const duration = song().songDuration || 0
+    if (duration <= 0) return 0
+    return Math.max(0, Math.min(value, duration))
+  }
+
+  const getNowProgress = () => {
+    const duration = song().songDuration || 0
+    if (duration <= 0) return 0
+    if (isPaused()) return clampProgressToDuration(progress())
+    const now = performance.now()
+    const deltaSec = (now - lastAnchorTime) / 1000
+    return clampProgressToDuration(lastProgressAnchor + deltaSec * (playbackRate || 1))
+  }
+
+  const recomputeProgressAnimation = () => {
+    const el = progressInputEl
+    if (!el) return
+    const duration = song().songDuration || 0
+    if (duration <= 0) {
+      el.style.setProperty('--progress-duration', '0s')
+      el.style.setProperty('--progress-scale', '0')
+      return
+    }
+    const current = getNowProgress()
+    const scale = Math.max(0, Math.min(current / duration, 1))
+    // Always snap to current; rAF will advance smoothly every frame
+    el.style.setProperty('--progress-duration', '0s')
+    el.style.setProperty('--progress-scale', `${scale}`)
+    el.value = String(current)
+  }
   
   const cleanupMediaListeners = () => {
     mediaListenerCleanup.forEach(cleanup => cleanup())
@@ -114,7 +154,17 @@ function YTMusicPlayer() {
         if (mutation.attributeName === 'value') {
           const newValue = Number(target.value) || 0
           if (newValue >= 0 && isFinite(newValue)) {
+            // Always keep the logical progress in sync (for accuracy)
             setProgress(newValue)
+            // Only re-anchor the visual animation if we drifted significantly
+            const now = performance.now()
+            const expected = lastProgressAnchor + ((now - lastAnchorTime) / 1000) * (playbackRate || 1)
+            const drift = Math.abs(newValue - expected)
+            if (drift > ANCHOR_DRIFT_EPSILON_SECONDS) {
+              lastProgressAnchor = newValue
+              lastAnchorTime = now
+              recomputeProgressAnimation()
+            }
           }
         }
       }
@@ -127,6 +177,9 @@ function YTMusicPlayer() {
     // Initial sync
     const initialValue = Number((nativeProgressBar as any).value) || 0
     setProgress(initialValue)
+    lastProgressAnchor = initialValue
+    lastAnchorTime = performance.now()
+    recomputeProgressAnimation()
   }
 
   const setupNativeVolumeTracking = () => {
@@ -213,6 +266,10 @@ function YTMusicPlayer() {
     // Play/pause state sync
     const onPlayPause = () => {
       setIsPaused(mediaElement.paused)
+      // Re-anchor on play/pause transitions
+      lastProgressAnchor = getNowProgress()
+      lastAnchorTime = performance.now()
+      recomputeProgressAnimation()
     }
     
     // Mute state sync (volume level handled by native tracking)
@@ -226,19 +283,28 @@ function YTMusicPlayer() {
     const onLoadStart = () => {
       
     }
+    const onRateChange = () => {
+      playbackRate = mediaElement.playbackRate || 1
+      // Re-anchor when rate changes to avoid jumps
+      lastProgressAnchor = getNowProgress()
+      lastAnchorTime = performance.now()
+      recomputeProgressAnimation()
+    }
     
     // Attach minimal listeners - native elements handle progress and volume tracking
     mediaElement.addEventListener('play', onPlayPause)
     mediaElement.addEventListener('pause', onPlayPause)
     mediaElement.addEventListener('loadstart', onLoadStart)
     mediaElement.addEventListener('volumechange', onVolumeChange)
+    mediaElement.addEventListener('ratechange', onRateChange)
     
     // Store cleanup functions
     mediaListenerCleanup.push(
       () => mediaElement.removeEventListener('play', onPlayPause),
       () => mediaElement.removeEventListener('pause', onPlayPause),
       () => mediaElement.removeEventListener('loadstart', onLoadStart),
-      () => mediaElement.removeEventListener('volumechange', onVolumeChange)
+      () => mediaElement.removeEventListener('volumechange', onVolumeChange),
+      () => mediaElement.removeEventListener('ratechange', onRateChange)
     )
     
     // Initial state sync
@@ -752,6 +818,10 @@ function YTMusicPlayer() {
     const initialVideo = document.querySelector("video") as HTMLVideoElement
     if (initialVideo) {
       setProgress(initialVideo.currentTime || 0)
+      lastProgressAnchor = initialVideo.currentTime || 0
+      lastAnchorTime = performance.now()
+      playbackRate = initialVideo.playbackRate || 1
+      recomputeProgressAnimation()
       // Set current video ID from song info if not set
       if (!currentVideoId() && song().videoId) {
         setCurrentVideoId(song().videoId)
@@ -766,6 +836,15 @@ function YTMusicPlayer() {
     // Setup enhanced volume features
     setupScrollWheelSupport()
     setupKeyboardShortcuts()
+
+    // rAF drives steady updates of the CSS scale to ensure continuous motion
+    const tick = () => {
+      if (!isSeeking()) {
+        recomputeProgressAnimation()
+      }
+      rafId = requestAnimationFrame(tick)
+    }
+    rafId = requestAnimationFrame(tick)
 
     // General state check interval (reduced frequency since IPC is primary)
     const stateInterval = setInterval(() => {
@@ -813,6 +892,7 @@ function YTMusicPlayer() {
       document.removeEventListener("touchend", handleGlobalMouseUp)
       sidebarObserver?.disconnect()
       observer?.disconnect()
+      if (rafId) cancelAnimationFrame(rafId)
     })
   })
 
@@ -977,7 +1057,10 @@ function YTMusicPlayer() {
   
   const onSeekInput = (e: Event) => {
     const val = Number((e.target as HTMLInputElement).value)
-    setProgress(val) // Update UI immediately for responsiveness
+    setProgress(val) // Update anchor value
+    lastProgressAnchor = val
+    lastAnchorTime = performance.now()
+    recomputeProgressAnimation()
   }
 
   const onSeekStart = () => {
@@ -1004,6 +1087,9 @@ function YTMusicPlayer() {
     }
     
     setProgress(val)
+    lastProgressAnchor = val
+    lastAnchorTime = performance.now()
+    recomputeProgressAnimation()
     
     // Re-enable progress sync after a brief delay
     setTimeout(() => {
@@ -1043,6 +1129,9 @@ function YTMusicPlayer() {
       }
       
       setProgress(newTime)
+      lastProgressAnchor = newTime
+      lastAnchorTime = performance.now()
+      recomputeProgressAnimation()
       
       setTimeout(() => {
         setIsSeeking(false)
@@ -1948,9 +2037,7 @@ function YTMusicPlayer() {
               onTouchEnd={onSeekEnd}
               onKeyDown={onSeekKeyDown}
               class="ytmusic-slider"
-              style={{
-                "--progress": `${Math.min((progress() / (song().songDuration || 1)) * 100, 100)}%`,
-              }}
+              ref={(el) => { progressInputEl = el as HTMLInputElement; }}
             />
           </div>
           <span class="ytmusic-time">{fmt(song().songDuration || 0)}</span>

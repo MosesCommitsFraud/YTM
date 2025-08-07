@@ -398,10 +398,12 @@ ytmusic-player-bar .chapter-info,
   top: 0;
   left: 0;
   height: 100%;
-  width: var(--progress, 0%);
+  width: 100%;
   background: #fff;
   border-radius: 4px;
-  transition: background 0.2s ease;
+  transform-origin: left center;
+  transform: scaleX(var(--progress-scale, 0));
+  transition: transform var(--progress-duration, 0s) linear, background 0.2s ease;
   pointer-events: none;
   z-index: 1;
 }
