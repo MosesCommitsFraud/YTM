@@ -9,8 +9,7 @@ import "./style.css"
 import volumeOff from "../../../assets/svgs/volume_off.svg"
 import volumeDown from "../../../assets/svgs/volume_down.svg"
 import volumeUp from "../../../assets/svgs/volume_up.svg"
-import thumbUp from "../../../assets/svgs/thumb_up.svg"
-import thumbDown from "../../../assets/svgs/thumb_down.svg"
+import heart from "../../../assets/svgs/Heart.svg"
 import shuffle from "../../../assets/svgs/shuffle.svg"
 import skipPrevious from "../../../assets/svgs/skip_previous.svg"
 import playArrow from "../../../assets/svgs/play_arrow.svg"
@@ -1891,10 +1890,7 @@ function YTMusicPlayer() {
 
         <div class="ytmusic-like-section">
           <button class={`ytmusic-like-btn ${isLiked() ? "liked" : ""}`} onClick={toggleLike} title="Like">
-            <img src={thumbUp} alt="Like" />
-          </button>
-          <button class={`ytmusic-like-btn ${isDisliked() ? "disliked" : ""}`} onClick={toggleDislike} title="Dislike">
-            <img src={thumbDown} alt="Dislike" />
+            <img src={heart} alt="Like" />
           </button>
         </div>
       </div>

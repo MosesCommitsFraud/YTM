@@ -5,8 +5,7 @@
   right: 0;
   bottom: 0;
   height: 72px;
-  background: #212121;
-  border-top: 1px solid #303030;
+  background: #000000;
   color: #fff;
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
@@ -59,7 +58,11 @@ ytmusic-app-layout > [slot='nav-bar'],
 }
 
 #nav-bar-divider.ytmusic-app-layout {
-  top: var(--menu-bar-height, 32px) !important;
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  height: 0 !important;
+  border: none !important;
 }
 
 /* Ensure guide renderer height is correct */
@@ -101,6 +104,7 @@ ytmusic-player-bar .chapter-info,
   align-items: center;
   min-width: 180px;
   overflow: hidden;
+  transform: translateY(-4px);
 }
 
 .ytmusic-album-cover,
@@ -165,7 +169,6 @@ ytmusic-player-bar .chapter-info,
 .ytmusic-like-section {
   display: flex;
   align-items: center;
-  gap: 4px;
   flex-shrink: 0;
 }
 
@@ -198,8 +201,8 @@ ytmusic-player-bar .chapter-info,
 }
 
 .ytmusic-like-btn img {
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
   filter: brightness(0) saturate(100%) invert(67%) sepia(0%) saturate(0%) hue-rotate(93deg) brightness(87%)
     contrast(86%);
 }
@@ -221,6 +224,7 @@ ytmusic-player-bar .chapter-info,
   width: 100%;
   position: relative;
   z-index: 2147483648;
+  transform: translateY(-6px);
 }
 
 .ytmusic-controls {
@@ -258,8 +262,8 @@ ytmusic-player-bar .chapter-info,
 
 
 .ytmusic-control-btn img {
-  width: 22px;
-  height: 22px;
+  width: 18px;
+  height: 18px;
   filter: brightness(0) saturate(100%) invert(67%) sepia(0%) saturate(0%) hue-rotate(93deg) brightness(87%)
     contrast(86%);
 }
@@ -308,8 +312,8 @@ ytmusic-player-bar .chapter-info,
   border: none;
   color: #000;
   cursor: pointer;
-  width: 40px;
-  height: 40px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -321,8 +325,8 @@ ytmusic-player-bar .chapter-info,
 }
 
 .ytmusic-play-btn img {
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
   filter: brightness(0) saturate(100%) invert(0%) sepia(0%) saturate(7500%) hue-rotate(109deg) brightness(0%)
     contrast(107%);
   /* Ensure proper centering */
@@ -335,10 +339,10 @@ ytmusic-player-bar .chapter-info,
   transform: translateX(1px);
 }
 
-/* Make pause icon slightly smaller and move right slightly */
+/* Make pause icon the same size as play icon */
 .ytmusic-play-btn img.pause-icon {
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
   transform: translateX(0.5px);
 }
 
@@ -349,7 +353,7 @@ ytmusic-player-bar .chapter-info,
   gap: 8px;
   position: relative;
   z-index: 2147483648;
-  background: #212121;
+  background: #000000;
   padding: 2px 0;
 }
 
@@ -484,8 +488,8 @@ ytmusic-player-bar .chapter-info,
 }
 
 .ytmusic-volume-btn img {
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
   filter: brightness(0) saturate(100%) invert(67%) sepia(0%) saturate(0%) hue-rotate(93deg) brightness(87%)
     contrast(86%);
 }
@@ -608,6 +612,13 @@ ytmusic-player-bar .chapter-info,
 .ytmusic-menu-btn:hover img {
   filter: brightness(0) saturate(100%) invert(100%) sepia(0%) saturate(7500%) hue-rotate(109deg) brightness(99%)
     contrast(107%);
+}
+
+/* Fullscreen button - 1px smaller than other menu buttons */
+.ytmusic-menu-btn[title*="Fullscreen"] img,
+.ytmusic-menu-btn[title*="fullscreen"] img {
+  width: 16px;
+  height: 16px;
 }
 
 /* Dropdown Menu */
