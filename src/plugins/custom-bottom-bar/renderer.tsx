@@ -1139,6 +1139,43 @@ function YTMusicPlayer() {
     }
   }
 
+  // Tooltip positioning helper - prevents cutoff at top or sides
+  const adjustTooltipPosition = (buttonEl: HTMLElement) => {
+    const rect = buttonEl.getBoundingClientRect()
+    const viewportWidth = window.innerWidth
+
+    // Reset any previous overrides
+    buttonEl.style.removeProperty('--tooltip-shift-x')
+    buttonEl.removeAttribute('data-tooltip-pos')
+
+    // If not enough space above, show below
+    if (rect.top < 42) {
+      buttonEl.setAttribute('data-tooltip-pos', 'below')
+    }
+
+    // Compute horizontal overflow and nudge tooltip
+    const centerX = rect.left + rect.width / 2
+    const margin = 8
+    const estimatedTooltipHalfWidth = 70 // approx average tooltip width
+    let shiftX = 0
+    if (centerX - estimatedTooltipHalfWidth < margin) {
+      shiftX = margin - (centerX - estimatedTooltipHalfWidth)
+    } else if (centerX + estimatedTooltipHalfWidth > viewportWidth - margin) {
+      shiftX = (viewportWidth - margin) - (centerX + estimatedTooltipHalfWidth)
+    }
+
+    if (shiftX !== 0) {
+      buttonEl.style.setProperty('--tooltip-shift-x', `${shiftX}px`)
+    }
+  }
+
+  const suppressTooltip = (buttonEl: HTMLElement, durationMs: number = 600) => {
+    buttonEl.setAttribute('data-tooltip-suppressed', 'true')
+    window.setTimeout(() => {
+      buttonEl.removeAttribute('data-tooltip-suppressed')
+    }, durationMs)
+  }
+
   // === PLAYBACK CONTROLS ===
   // Enhanced to work properly with both audio and video content
   
@@ -1978,7 +2015,7 @@ function YTMusicPlayer() {
         </div>
 
         <div class="ytmusic-like-section">
-          <button class={`ytmusic-like-btn ${isLiked() ? "liked" : ""}`} onClick={toggleLike} title="Like">
+          <button class={`ytmusic-like-btn ${isLiked() ? "liked" : ""}`} onClick={(ev) => { toggleLike(); suppressTooltip(ev.currentTarget as HTMLElement) }} aria-label="Like" data-tooltip="Like" onMouseEnter={(e) => adjustTooltipPosition(e.currentTarget as HTMLElement)}>
             <img src={heart} alt="Like" />
           </button>
         </div>
@@ -1987,36 +2024,39 @@ function YTMusicPlayer() {
       {/* Center Section - Controls & Progress */}
       <div class="ytmusic-center">
         <div class="ytmusic-controls">
-          <button class={`ytmusic-control-btn ${isShuffle() ? "active" : ""}`} onClick={toggleShuffle} title="Shuffle">
-            <img src={shuffle} alt="Shuffle" />
+          <button class={`ytmusic-control-btn ${isShuffle() ? "active" : ""}`} onClick={(ev) => { toggleShuffle(); suppressTooltip(ev.currentTarget as HTMLElement) }} aria-label="Shuffle" data-tooltip="Shuffle" onMouseEnter={(e) => adjustTooltipPosition(e.currentTarget as HTMLElement)}>
+            <img src={shuffle} alt="Shuffle" class="icon" />
           </button>
 
-          <button class="ytmusic-nav-btn" onClick={prev} title="Previous">
-            <img src={skipPrevious} alt="Previous" />
+          <button class="ytmusic-nav-btn" onClick={(ev) => { prev(); suppressTooltip(ev.currentTarget as HTMLElement) }} aria-label="Previous" data-tooltip="Previous" onMouseEnter={(e) => adjustTooltipPosition(e.currentTarget as HTMLElement)}>
+            <img src={skipPrevious} alt="Previous" class="icon" />
           </button>
 
-          <button class="ytmusic-play-btn" onClick={playPause} title={isPaused() ? "Play" : "Pause"}>
+          <button class="ytmusic-play-btn" onClick={(ev) => { playPause(); suppressTooltip(ev.currentTarget as HTMLElement) }} aria-label={isPaused() ? "Play" : "Pause"} data-tooltip={isPaused() ? "Play" : "Pause"} onMouseEnter={(e) => adjustTooltipPosition(e.currentTarget as HTMLElement)}>
             <img 
               src={isPaused() ? playArrow : pause} 
               alt={isPaused() ? "Play" : "Pause"} 
-              class={isPaused() ? "play-icon" : "pause-icon"}
+              class={isPaused() ? "play-icon icon" : "pause-icon icon"}
             />
           </button>
 
-          <button class="ytmusic-nav-btn" onClick={next} title="Next">
-            <img src={skipNext} alt="Next" />
+          <button class="ytmusic-nav-btn" onClick={(ev) => { next(); suppressTooltip(ev.currentTarget as HTMLElement) }} aria-label="Next" data-tooltip="Next" onMouseEnter={(e) => adjustTooltipPosition(e.currentTarget as HTMLElement)}>
+            <img src={skipNext} alt="Next" class="icon" />
           </button>
 
           {/* CORRECTED: Visual logic for repeat button with distinct states */}
           <button
             class={`ytmusic-control-btn ${repeatMode() > 0 ? "active" : ""}`}
-            onClick={toggleRepeat}
-            title={`Repeat ${repeatMode() === 0 ? 'off' : repeatMode() === 1 ? 'all' : 'one'} (Mode: ${repeatMode()}) • Click to cycle modes • Volume: ${volumeToPercentage(volume())}% (±${getVolumeSteps()}% steps)`}
+            onClick={(ev) => { toggleRepeat(); suppressTooltip(ev.currentTarget as HTMLElement) }}
+            aria-label={`Repeat ${repeatMode() === 0 ? 'off' : repeatMode() === 1 ? 'all' : 'one'}`}
+            data-tooltip={`Repeat ${repeatMode() === 0 ? 'off' : repeatMode() === 1 ? 'all' : 'one'}`}
+            onMouseEnter={(e) => adjustTooltipPosition(e.currentTarget as HTMLElement)}
             style={{ position: 'relative' }}
           >
             <img 
               src={repeatMode() === 2 ? repeatOne : repeatAll} 
               alt={repeatMode() === 0 ? "Repeat Off" : repeatMode() === 1 ? "Repeat All" : "Repeat One"} 
+              class="icon"
             />
           </button>
         </div>
@@ -2049,10 +2089,12 @@ function YTMusicPlayer() {
         <div class="ytmusic-volume">
           <button 
             class="ytmusic-volume-btn" 
-            onClick={toggleMute} 
-            title={`${isMuted() ? 'Unmute' : 'Mute'} • Volume: ${volumeToPercentage(volume())}%`}
+            onClick={(ev) => { toggleMute(); suppressTooltip(ev.currentTarget as HTMLElement) }} 
+            aria-label={isMuted() ? 'Unmute' : 'Mute'}
+            data-tooltip={isMuted() ? 'Unmute' : 'Mute'}
+            onMouseEnter={(e) => adjustTooltipPosition(e.currentTarget as HTMLElement)}
           >
-            <img src={getVolumeIcon()} alt="Volume" />
+            <img src={getVolumeIcon()} alt="Volume" class="icon" />
           </button>
           <div class="ytmusic-volume-bar">
             <input
@@ -2066,7 +2108,6 @@ function YTMusicPlayer() {
               onMouseDown={onVolumeMouseDown}
               onTouchStart={onVolumeMouseDown}
               class="ytmusic-volume-slider"
-              title={`Volume: ${volumeToPercentage(volume())}% • Steps: ${getVolumeSteps()}% • Scroll wheel: ±${getVolumeSteps()}% • Arrows: ${getArrowsShortcut() ? 'Enabled' : 'Disabled'}`}
               style={{
                 "--volume": `${(isMuted() ? 0 : volume()) * 100}%`,
               }}
@@ -2075,18 +2116,18 @@ function YTMusicPlayer() {
         </div>
 
         <div class="ytmusic-additional-controls">
-          <button class="ytmusic-menu-btn" onClick={triggerAddToPlaylist} title="Add to Playlist">
-            <img src={addToQueue} alt="Add to Playlist" />
+          <button class="ytmusic-menu-btn" onClick={async (ev) => { await triggerAddToPlaylist(); suppressTooltip(ev.currentTarget as HTMLElement) }} aria-label="Add to Playlist" data-tooltip="Add to Playlist" onMouseEnter={(e) => adjustTooltipPosition(e.currentTarget as HTMLElement)}>
+            <img src={addToQueue} alt="Add to Playlist" class="icon" />
           </button>
-          <button class="ytmusic-menu-btn" onClick={toggleMiniplayer} title="Toggle Miniplayer">
-            <img src={miniplayer} alt="Toggle Miniplayer" />
+          <button class="ytmusic-menu-btn" onClick={(ev) => { toggleMiniplayer(); suppressTooltip(ev.currentTarget as HTMLElement) }} aria-label="Toggle Miniplayer" data-tooltip="Toggle Miniplayer" onMouseEnter={(e) => adjustTooltipPosition(e.currentTarget as HTMLElement)}>
+            <img src={miniplayer} alt="Toggle Miniplayer" class="icon" />
           </button>
 
-          <button class="ytmusic-menu-btn" onClick={expandSongPage} title="Expand Song">
-            <img src={expandSong} alt="Expand Song" />
+          <button class="ytmusic-menu-btn" onClick={(ev) => { expandSongPage(); suppressTooltip(ev.currentTarget as HTMLElement) }} aria-label="Expand Song" data-tooltip="Expand Song" onMouseEnter={(e) => adjustTooltipPosition(e.currentTarget as HTMLElement)}>
+            <img src={expandSong} alt="Expand Song" class="icon" />
           </button>
-          <button class="ytmusic-menu-btn" onClick={toggleFullscreen} title={isFullscreen() ? "Exit Fullscreen" : "Enter Fullscreen"}>
-            <img src={isFullscreen() ? shrinkFullscreen : expandFullscreen} alt={isFullscreen() ? "Exit Fullscreen" : "Enter Fullscreen"} />
+          <button class="ytmusic-menu-btn" onClick={(ev) => { toggleFullscreen(); suppressTooltip(ev.currentTarget as HTMLElement) }} aria-label={isFullscreen() ? "Exit Fullscreen" : "Enter Fullscreen"} data-tooltip={isFullscreen() ? "Exit Fullscreen" : "Enter Fullscreen"} onMouseEnter={(e) => adjustTooltipPosition(e.currentTarget as HTMLElement)}>
+            <img src={isFullscreen() ? shrinkFullscreen : expandFullscreen} alt={isFullscreen() ? "Exit Fullscreen" : "Enter Fullscreen"} class="icon" />
           </button>
         </div>
       </div>

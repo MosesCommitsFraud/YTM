@@ -1,3 +1,13 @@
+/* Tame hover for Shuffle and Repeat (less aggressive) */
+.ytmusic-bottom-bar .ytmusic-control-btn[data-tooltip="Shuffle"]:hover img.icon,
+.ytmusic-bottom-bar .ytmusic-control-btn[data-tooltip^="Repeat"]:hover img.icon {
+  --hover-scale: 1.005;
+}
+/* Tame hover for Shuffle and Repeat (less aggressive) */
+.ytmusic-bottom-bar .ytmusic-control-btn[data-tooltip="Shuffle"]:hover img.icon,
+.ytmusic-bottom-bar .ytmusic-control-btn[data-tooltip^="Repeat"]:hover img.icon {
+  --hover-scale: 1.0065;
+}
 /* YouTube Music Style Bottom Bar */
 .ytmusic-bottom-bar {
   position: fixed;
@@ -202,8 +212,8 @@ ytmusic-player-bar .chapter-info,
 }
 
 .ytmusic-like-btn img {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   filter: brightness(0) saturate(100%) invert(67%) sepia(0%) saturate(0%) hue-rotate(93deg) brightness(87%)
     contrast(86%);
 }
@@ -313,13 +323,15 @@ ytmusic-player-bar .chapter-info,
   border: none;
   color: #000;
   cursor: pointer;
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   margin: 0 4px;
+  transition: transform 90ms ease-out;
+  transform-origin: center center;
 }
 
 
@@ -334,28 +346,28 @@ ytmusic-player-bar .chapter-info,
   margin: auto;
 }
 
-/* Move play icon slightly right for better visual centering */
-.ytmusic-play-btn img.play-icon {
-  transform: translateX(1px);
+/* Play icon centered */
+.ytmusic-play-btn img.play-icon.icon {
+  --tx: 0px;
 }
 
-/* Make pause icon the same size as play icon */
-.ytmusic-play-btn img.pause-icon {
+/* Pause icon centered */
+.ytmusic-play-btn img.pause-icon.icon {
   width: 18px;
   height: 18px;
-  transform: translateX(0.5px);
+  --tx: 0px;
 }
 
 /* Nudge the repeat icon 1px down */
-.ytmusic-controls > .ytmusic-control-btn:last-child img {
-  transform: translateY(1px);
+.ytmusic-controls > .ytmusic-control-btn:last-child img.icon {
+  --ty: 1px;
 }
 
 .ytmusic-progress {
   display: flex;
   align-items: center;
   width: 100%;
-  gap: 8px;
+  gap: 2px;
   position: relative;
   z-index: 2147483648;
   background: #000000;
@@ -366,9 +378,106 @@ ytmusic-player-bar .chapter-info,
 .ytmusic-time {
   font-size: 11px;
   color: #aaaaaa;
-  min-width: 40px;
+  min-width: 36px;
   text-align: center;
   font-variant-numeric: tabular-nums;
+}
+
+/* Subtle icon-only growth to avoid layout shift and position drift */
+.ytmusic-bottom-bar button img.icon {
+  --tx: 0px; /* fine-tune X per icon */
+  --ty: 0px; /* fine-tune Y per icon */
+  --hover-scale: 1;
+  transform: translate(var(--tx), var(--ty)) scale(var(--hover-scale));
+  transform-origin: center center;
+  transition: transform 90ms ease-out;
+}
+
+.ytmusic-bottom-bar button:hover img.icon {
+  --hover-scale: 1.011; /* slightly stronger default */
+}
+
+/* Do not scale play/pause on hover to avoid wobble */
+.ytmusic-bottom-bar .ytmusic-play-btn:hover img.icon {
+  --hover-scale: 1;
+}
+
+/* Grow the play/pause circle itself on hover */
+.ytmusic-bottom-bar .ytmusic-play-btn:hover {
+  transform: scale(1.045);
+}
+
+/* Custom tooltip for any element with data-tooltip */
+.ytmusic-bottom-bar [data-tooltip] {
+  position: relative;
+}
+
+.ytmusic-bottom-bar [data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  left: 50%;
+  bottom: 100%;
+  transform: translate(calc(-50% + var(--tooltip-shift-x, 0px)), -6px);
+  background: rgba(28, 28, 28, 0.96);
+  color: #fff;
+  padding: 6px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  line-height: 1;
+  white-space: nowrap;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  z-index: 2147483649;
+  transition: opacity 0.16s ease, transform 0.16s ease;
+  transition-delay: 0.5s; /* show on longer hover */
+}
+
+.ytmusic-bottom-bar [data-tooltip]::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 100%;
+  transform: translate(calc(-50% + var(--tooltip-shift-x, 0px)), -2px);
+  border-width: 6px 6px 0 6px;
+  border-style: solid;
+  border-color: rgba(28, 28, 28, 0.96) transparent transparent transparent;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  z-index: 2147483649;
+  transition: opacity 0.16s ease, transform 0.16s ease;
+  transition-delay: 0.5s;
+}
+
+.ytmusic-bottom-bar [data-tooltip]:hover::after,
+.ytmusic-bottom-bar [data-tooltip]:hover::before {
+  opacity: 1;
+  visibility: visible;
+  transform: translate(-50%, -10px);
+}
+
+/* Tooltip suppression on click */
+.ytmusic-bottom-bar [data-tooltip][data-tooltip-suppressed="true"]::after,
+.ytmusic-bottom-bar [data-tooltip][data-tooltip-suppressed="true"]::before {
+  opacity: 0 !important;
+  visibility: hidden !important;
+  transition-delay: 0s !important;
+}
+
+/* Tooltip below positioning when needed */
+.ytmusic-bottom-bar [data-tooltip][data-tooltip-pos="below"]::after {
+  top: 100%;
+  bottom: auto;
+  transform: translate(calc(-50% + var(--tooltip-shift-x, 0px)), 6px);
+}
+
+.ytmusic-bottom-bar [data-tooltip][data-tooltip-pos="below"]::before {
+  top: 100%;
+  bottom: auto;
+  transform: translate(calc(-50% + var(--tooltip-shift-x, 0px)), 2px);
+  border-width: 0 6px 6px 6px;
+  border-color: transparent transparent rgba(28, 28, 28, 0.96) transparent;
 }
 
 .ytmusic-progress-bar {
@@ -656,11 +765,17 @@ ytmusic-player-bar .chapter-info,
     contrast(107%);
 }
 
-/* Fullscreen button - 1px smaller than other menu buttons */
-.ytmusic-menu-btn[title*="Fullscreen"] img,
-.ytmusic-menu-btn[title*="fullscreen"] img {
+/* Fullscreen icon size override */
+.ytmusic-menu-btn[data-tooltip*="Fullscreen" i] img.icon,
+.ytmusic-menu-btn[aria-label*="Fullscreen" i] img.icon,
+.ytmusic-menu-btn[data-tooltip*="Vollbild" i] img.icon {
   width: 15px;
   height: 15px;
+}
+
+/* Disable hover scaling for only play/pause */
+.ytmusic-bottom-bar .ytmusic-play-btn:hover img.icon {
+  --hover-scale: 1;
 }
 
 /* Dropdown Menu */
