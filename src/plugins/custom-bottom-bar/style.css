@@ -1,4 +1,13 @@
-/* (Removed) scale-based hover tweaks for Shuffle/Repeat */
+/* Tame hover for Shuffle and Repeat (less aggressive) */
+.ytmusic-bottom-bar .ytmusic-control-btn[data-tooltip="Shuffle"]:hover img.icon,
+.ytmusic-bottom-bar .ytmusic-control-btn[data-tooltip^="Repeat"]:hover img.icon {
+  --hover-scale: 1.005;
+}
+/* Tame hover for Shuffle and Repeat (less aggressive) */
+.ytmusic-bottom-bar .ytmusic-control-btn[data-tooltip="Shuffle"]:hover img.icon,
+.ytmusic-bottom-bar .ytmusic-control-btn[data-tooltip^="Repeat"]:hover img.icon {
+  --hover-scale: 1.0065;
+}
 /* YouTube Music Style Bottom Bar */
 .ytmusic-bottom-bar {
   position: fixed;
@@ -375,29 +384,27 @@ ytmusic-player-bar .chapter-info,
 }
 
 /* Subtle icon-only growth to avoid layout shift and position drift */
-/* Size-based hover animation for ALL bottom-bar buttons (no transform scaling) */
-/* Base icon size variables set per button type; icons are centered and grow by a few pixels on hover */
-.ytmusic-control-btn { --icon-w: 18px; --icon-h: 18px; }
-.ytmusic-nav-btn { --icon-w: 22px; --icon-h: 22px; }
-.ytmusic-play-btn { --icon-w: 18px; --icon-h: 18px; }
-.ytmusic-volume-btn { --icon-w: 20px; --icon-h: 20px; }
-.ytmusic-menu-btn { --icon-w: 18px; --icon-h: 18px; }
-.ytmusic-like-btn { --icon-w: 18px; --icon-h: 18px; }
-
-/* Ensure all button icons center and animate via width/height (clean zoom) */
-.ytmusic-bottom-bar button img {
-  display: block;
-  margin: 0 auto;
-  width: var(--icon-w, 18px);
-  height: var(--icon-h, 18px);
-  transition: width 120ms ease, height 120ms ease, filter 120ms ease;
+.ytmusic-bottom-bar button img.icon {
+  --tx: 0px; /* fine-tune X per icon */
+  --ty: 0px; /* fine-tune Y per icon */
+  --hover-scale: 1;
+  transform: translate(var(--tx), var(--ty)) scale(var(--hover-scale));
+  transform-origin: center center;
+  transition: transform 90ms ease-out;
 }
 
-/* Unified hover growth: increase icon size by 2px in each dimension (customizable) */
-.ytmusic-bottom-bar button { --icon-grow: 1px; }
-.ytmusic-bottom-bar button:hover img {
-  width: calc(var(--icon-w, 18px) + var(--icon-grow));
-  height: calc(var(--icon-h, 18px) + var(--icon-grow));
+.ytmusic-bottom-bar button:hover img.icon {
+  --hover-scale: 1.011; /* slightly stronger default */
+}
+
+/* Do not scale play/pause on hover to avoid wobble */
+.ytmusic-bottom-bar .ytmusic-play-btn:hover img.icon {
+  --hover-scale: 1;
+}
+
+/* Grow the play/pause circle itself on hover */
+.ytmusic-bottom-bar .ytmusic-play-btn:hover {
+  transform: scale(1.045);
 }
 
 /* Custom tooltip for any element with data-tooltip */
@@ -762,12 +769,14 @@ ytmusic-player-bar .chapter-info,
 .ytmusic-menu-btn[data-tooltip*="Fullscreen" i] img.icon,
 .ytmusic-menu-btn[aria-label*="Fullscreen" i] img.icon,
 .ytmusic-menu-btn[data-tooltip*="Vollbild" i] img.icon {
-  /* Set base size via variables so hover animation stays centered */
-  --icon-w: 15px;
-  --icon-h: 15px;
+  width: 15px;
+  height: 15px;
 }
 
-/* (Removed) special-case transform scaling disable for play/pause */
+/* Disable hover scaling for only play/pause */
+.ytmusic-bottom-bar .ytmusic-play-btn:hover img.icon {
+  --hover-scale: 1;
+}
 
 /* Dropdown Menu */
 .ytmusic-dropdown {
@@ -927,4 +936,36 @@ ytmusic-player-bar::after {
 .ytmusic-album:hover {
   color: #fff;
   text-decoration: underline;
+}
+
+/* --- Disable all animations on icons in the bottom bar --- */
+/* Remove transitions/animations from icon images and their button wrappers */
+.ytmusic-bottom-bar button img.icon,
+.ytmusic-bottom-bar .ytmusic-control-btn,
+.ytmusic-bottom-bar .ytmusic-nav-btn,
+.ytmusic-bottom-bar .ytmusic-volume-btn,
+.ytmusic-bottom-bar .ytmusic-menu-btn,
+.ytmusic-bottom-bar .ytmusic-like-btn,
+.ytmusic-bottom-bar .ytmusic-play-btn {
+  transition: none !important;
+  animation: none !important;
+}
+
+/* Prevent any hover scaling or transform animations on icons */
+.ytmusic-bottom-bar button img.icon {
+  --hover-scale: 1 !important;
+  transform: translate(var(--tx, 0), var(--ty, 0)) scale(1) !important;
+}
+
+.ytmusic-bottom-bar button:hover img.icon {
+  --hover-scale: 1 !important;
+}
+
+/* Also prevent the play/pause circular button from animating/transforming */
+.ytmusic-bottom-bar .ytmusic-play-btn {
+  transform: none !important;
+}
+
+.ytmusic-bottom-bar .ytmusic-play-btn:hover {
+  transform: none !important;
 }
