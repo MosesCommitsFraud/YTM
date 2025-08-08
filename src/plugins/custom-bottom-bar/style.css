@@ -231,7 +231,7 @@ ytmusic-player-bar .chapter-info,
 .ytmusic-controls {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
   margin-bottom: 4px;
 }
 
@@ -313,21 +313,20 @@ ytmusic-player-bar .chapter-info,
   border: none;
   color: #000;
   cursor: pointer;
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin: 0 8px;
+  margin: 0 4px;
 }
 
-.ytmusic-play-btn:hover {
-}
+
 
 .ytmusic-play-btn img {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   filter: brightness(0) saturate(100%) invert(0%) sepia(0%) saturate(7500%) hue-rotate(109deg) brightness(0%)
     contrast(107%);
   /* Ensure proper centering */
@@ -342,9 +341,14 @@ ytmusic-player-bar .chapter-info,
 
 /* Make pause icon the same size as play icon */
 .ytmusic-play-btn img.pause-icon {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   transform: translateX(0.5px);
+}
+
+/* Nudge the repeat icon 1px down */
+.ytmusic-controls > .ytmusic-control-btn:last-child img {
+  transform: translateY(1px);
 }
 
 .ytmusic-progress {
