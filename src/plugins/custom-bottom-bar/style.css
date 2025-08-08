@@ -638,7 +638,7 @@ ytmusic-player-bar .chapter-info,
 }
 
 .ytmusic-volume-bar {
-  width: 93px;
+  width: 140px;
   position: relative;
   height: 12px;
   display: flex;
@@ -773,6 +773,15 @@ ytmusic-player-bar .chapter-info,
   height: 15px;
 }
 
+/* Slightly smaller Shuffle and Repeat icons */
+.ytmusic-bottom-bar .ytmusic-control-btn[data-tooltip="Shuffle"] img.icon,
+.ytmusic-bottom-bar .ytmusic-control-btn[aria-label="Shuffle" i] img.icon,
+.ytmusic-bottom-bar .ytmusic-control-btn[data-tooltip^="Repeat"] img.icon,
+.ytmusic-bottom-bar .ytmusic-control-btn[aria-label^="Repeat" i] img.icon {
+  width: 16px;
+  height: 16px;
+}
+
 /* Disable hover scaling for only play/pause */
 .ytmusic-bottom-bar .ytmusic-play-btn:hover img.icon {
   --hover-scale: 1;
@@ -839,7 +848,7 @@ ytmusic-player-bar .chapter-info,
   }
 
   .ytmusic-volume-bar {
-    width: 70px;
+    width: 90px;
   }
 }
 
@@ -866,7 +875,7 @@ ytmusic-player-bar .chapter-info,
   }
 
   .ytmusic-volume-bar {
-    width: 80px;
+    width: 120px;
   }
 }
 
@@ -968,4 +977,15 @@ ytmusic-player-bar::after {
 
 .ytmusic-bottom-bar .ytmusic-play-btn:hover {
   transform: none !important;
+}
+
+/* Pull Shuffle closer to Previous, and Repeat closer to Next */
+.ytmusic-controls .ytmusic-control-btn[data-tooltip="Shuffle"],
+.ytmusic-controls .ytmusic-control-btn[aria-label="Shuffle" i] {
+  margin-right: -8px;
+}
+
+.ytmusic-controls .ytmusic-control-btn[data-tooltip^="Repeat"],
+.ytmusic-controls .ytmusic-control-btn[aria-label^="Repeat" i] {
+  margin-left: -8px;
 }
