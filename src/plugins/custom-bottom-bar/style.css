@@ -530,9 +530,10 @@ ytmusic-player-bar .chapter-info,
   width: 100%;
   background: #fff;
   border-radius: 4px;
-  transform-origin: left center;
-  transform: scaleX(var(--progress-scale, 0));
-  transition: transform var(--progress-duration, 0s) linear, background 0.2s ease;
+  /* Reveal only the progressed portion using a GPU-friendly clip-path */
+  clip-path: inset(0 calc((1 - var(--progress-scale, 0)) * 100%) 0 0 round 4px);
+  transition: clip-path var(--progress-duration, 0s) linear, background 0.2s ease;
+  will-change: clip-path;
   pointer-events: none;
   z-index: 1;
 }
@@ -579,10 +580,7 @@ ytmusic-player-bar .chapter-info,
   height: 4px;
   border-radius: 4px;
   background: #fff;
-  border-top-left-radius: 4px;
-  border-bottom-left-radius: 4px;
-  border-top-right-radius: 0;
-  border-bottom-right-radius: 0;
+  /* Keep rounded corners at both ends for consistent appearance */
 }
 
 .ytmusic-progress-bar:hover .ytmusic-slider::-moz-range-progress {
