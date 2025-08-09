@@ -1139,6 +1139,28 @@ function YTMusicPlayer() {
     }
   }
 
+  // Measure tooltip width for precise overflow detection
+  const measureTooltipWidth = (buttonEl: HTMLElement, text: string): number => {
+    const measure = document.createElement('span')
+    measure.textContent = text
+    // Match ::after styles
+    measure.style.position = 'fixed'
+    measure.style.left = '0'
+    measure.style.top = '0'
+    measure.style.visibility = 'hidden'
+    measure.style.whiteSpace = 'nowrap'
+    measure.style.fontSize = '12px'
+    measure.style.lineHeight = '1'
+    measure.style.padding = '6px 8px'
+    // Inherit font-family from button to closely match rendering
+    const computed = getComputedStyle(buttonEl)
+    measure.style.fontFamily = computed.fontFamily || 'inherit'
+    document.body.appendChild(measure)
+    const width = measure.getBoundingClientRect().width
+    document.body.removeChild(measure)
+    return width
+  }
+
   // Tooltip positioning helper - prevents cutoff at top or sides
   const adjustTooltipPosition = (buttonEl: HTMLElement) => {
     const rect = buttonEl.getBoundingClientRect()
@@ -1153,15 +1175,24 @@ function YTMusicPlayer() {
       buttonEl.setAttribute('data-tooltip-pos', 'below')
     }
 
-    // Compute horizontal overflow and nudge tooltip
+    // Compute horizontal overflow and nudge tooltip only if it would be cut off
+    const label = buttonEl.getAttribute('data-tooltip') || buttonEl.getAttribute('aria-label') || ''
+    const tooltipWidth = measureTooltipWidth(buttonEl, label)
+    const halfWidth = tooltipWidth / 2
     const centerX = rect.left + rect.width / 2
     const margin = 8
-    const estimatedTooltipHalfWidth = 70 // approx average tooltip width
+
+    const leftEdge = centerX - halfWidth
+    const rightEdge = centerX + halfWidth
+
     let shiftX = 0
-    if (centerX - estimatedTooltipHalfWidth < margin) {
-      shiftX = margin - (centerX - estimatedTooltipHalfWidth)
-    } else if (centerX + estimatedTooltipHalfWidth > viewportWidth - margin) {
-      shiftX = (viewportWidth - margin) - (centerX + estimatedTooltipHalfWidth)
+    const leftOverflow = margin - leftEdge // positive if overflowing left
+    const rightOverflow = (viewportWidth - margin) - rightEdge // negative if overflowing right
+
+    if (leftOverflow > 0) {
+      shiftX = leftOverflow
+    } else if (rightOverflow < 0) {
+      shiftX = rightOverflow
     }
 
     if (shiftX !== 0) {
