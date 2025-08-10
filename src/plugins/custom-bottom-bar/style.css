@@ -113,7 +113,7 @@ ytmusic-player-bar .chapter-info,
   display: flex;
   align-items: center;
   min-width: 180px;
-  overflow: hidden;
+  overflow: visible; /* allow tooltips from like button to render */
   transform: translateY(-4px);
 }
 
@@ -189,7 +189,7 @@ ytmusic-player-bar .chapter-info,
   cursor: pointer;
   padding: 6px;
   border-radius: 50%;
-  transition: all 0.2s ease;
+  transition: color 0.2s ease; /* limit to color to avoid area hover effects */
   display: flex;
   align-items: center;
   justify-content: center;
@@ -200,7 +200,7 @@ ytmusic-player-bar .chapter-info,
 
 .ytmusic-like-btn:hover {
   color: #fff;
-  background: rgba(255, 255, 255, 0.1);
+  background: transparent; /* remove area hover background */
 }
 
 .ytmusic-like-btn.liked {
@@ -218,12 +218,24 @@ ytmusic-player-bar .chapter-info,
     contrast(86%);
 }
 
+/* match hover behavior of other buttons: only lighten SVG paths */
+.ytmusic-like-btn:hover img {
+  filter: brightness(0) saturate(100%) invert(100%) sepia(0%) saturate(7500%) hue-rotate(109deg) brightness(99%)
+    contrast(107%);
+}
+
 .ytmusic-like-btn.liked img {
   filter: brightness(0) saturate(100%) invert(36%) sepia(99%) saturate(7492%) hue-rotate(329deg) brightness(104%) contrast(104%) !important;
 }
 
 .ytmusic-like-btn.disliked img {
   filter: brightness(0) saturate(100%) invert(36%) sepia(99%) saturate(7492%) hue-rotate(329deg) brightness(104%) contrast(104%) !important;
+}
+
+/* Liked hover: use a slightly lighter red for visual feedback */
+.ytmusic-like-btn.liked:hover img {
+  /* noticeably lighter red on hover while liked */
+  filter: brightness(0) saturate(115%) invert(36%) sepia(99%) saturate(7600%) hue-rotate(329deg) brightness(140%) contrast(106%) !important;
 }
 
 /* Center Section - Controls & Progress */

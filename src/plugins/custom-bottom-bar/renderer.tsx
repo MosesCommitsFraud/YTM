@@ -2047,7 +2047,7 @@ function YTMusicPlayer() {
 
         <div class="ytmusic-like-section">
           <button class={`ytmusic-like-btn ${isLiked() ? "liked" : ""}`} onClick={(ev) => { toggleLike(); suppressTooltip(ev.currentTarget as HTMLElement) }} aria-label="Like" data-tooltip="Like" onMouseEnter={(e) => adjustTooltipPosition(e.currentTarget as HTMLElement)}>
-            <img src={heart} alt="Like" />
+            <img src={heart} alt="Like" class="icon" />
           </button>
         </div>
       </div>
