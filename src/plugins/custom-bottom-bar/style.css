@@ -697,7 +697,6 @@ ytmusic-player-bar .chapter-info,
   cursor: pointer;
   opacity: 0;
   transition: opacity 0.2s ease;
-  margin-left: 5px;
   position: relative;
   z-index: 10;
 }
