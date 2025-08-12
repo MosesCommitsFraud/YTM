@@ -552,6 +552,67 @@ const preload = async () => {
   }
 };
 
+/**
+ * Suppress native browser tooltips by removing `title` attributes globally,
+ * except when explicitly opted-in via `data-allow-native-tooltip`.
+ * Custom tooltips implemented via `[data-tooltip]` remain unaffected.
+ */
+function suppressNativeTooltips(root: ParentNode = document) {
+  const processElement = (el: Element) => {
+    if (el.hasAttribute('data-allow-native-tooltip')) return;
+    if (el.hasAttribute('title')) {
+      const original = el.getAttribute('title');
+      if (original && !el.hasAttribute('data-original-title')) {
+        el.setAttribute('data-original-title', original);
+      }
+      el.removeAttribute('title');
+    }
+  };
+
+  // Initial sweep
+  root.querySelectorAll('[title]').forEach(processElement);
+
+  // Intercept future attempts to set title dynamically
+  const observer = new MutationObserver((mutations) => {
+    for (const mutation of mutations) {
+      if (mutation.type === 'attributes' && mutation.attributeName === 'title') {
+        const target = mutation.target as Element;
+        processElement(target);
+      } else if (mutation.type === 'childList') {
+        mutation.addedNodes.forEach((node) => {
+          if (node.nodeType === Node.ELEMENT_NODE) {
+            const element = node as Element;
+            processElement(element);
+            element.querySelectorAll?.('[title]').forEach(processElement);
+          }
+        });
+      }
+    }
+  });
+
+  observer.observe(document.documentElement, {
+    subtree: true,
+    childList: true,
+    attributes: true,
+    attributeFilter: ['title'],
+  });
+
+  // Defensive: clear tooltip just before it would show
+  const clearOnHover = (e: Event) => {
+    const target = e.target as Element | null;
+    if (!target || target.hasAttribute('data-allow-native-tooltip')) return;
+    if (target.hasAttribute('title')) {
+      const original = target.getAttribute('title');
+      if (original && !target.hasAttribute('data-original-title')) {
+        target.setAttribute('data-original-title', original);
+      }
+      target.removeAttribute('title');
+    }
+  };
+  document.addEventListener('mouseover', clearOnHover, { passive: true });
+  document.addEventListener('focusin', clearOnHover, { passive: true });
+}
+
 const main = async () => {
   await loadAllRendererPlugins();
   isPluginLoaded = true;
@@ -585,6 +646,9 @@ const main = async () => {
 
   // Wait for complete load of YouTube api
   await listenForApiLoad();
+
+  // Disable native tooltips globally
+  suppressNativeTooltips();
 
   // Blocks the "Are You Still There?" popup by setting the last active time to Date.now every 15min
   setInterval(() => (window._lact = Date.now()), 900_000);

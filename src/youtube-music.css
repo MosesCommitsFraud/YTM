@@ -96,3 +96,28 @@ tp-yt-paper-dialog {
 yt-music-search-box, ytmusic-search-box {
   display: none !important;
 }
+
+/* === Global interaction restrictions === */
+/* Disable selecting any text/content across the app */
+html, body, ytmusic-app, ytmusic-app * {
+  -webkit-user-select: none !important;
+  user-select: none !important;
+}
+
+/* Extra: make selection highlight invisible */
+::selection {
+  background: transparent;
+}
+
+/* Prevent dragging of media and links */
+img, picture, svg, video, a {
+  -webkit-user-drag: none !important;
+  user-drag: none !important;
+}
+
+/* Suppress built-in tooltips (allow custom ones via [data-tooltip]) */
+tp-yt-paper-tooltip,
+.ytp-tooltip,
+*[role="tooltip"] {
+  display: none !important;
+}
