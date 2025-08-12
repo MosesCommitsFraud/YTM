@@ -1,13 +1,4 @@
-/* Tame hover for Shuffle and Repeat (less aggressive) */
-.ytmusic-bottom-bar .ytmusic-control-btn[data-tooltip="Shuffle"]:hover img.icon,
-.ytmusic-bottom-bar .ytmusic-control-btn[data-tooltip^="Repeat"]:hover img.icon {
-  --hover-scale: 1.005;
-}
-/* Tame hover for Shuffle and Repeat (less aggressive) */
-.ytmusic-bottom-bar .ytmusic-control-btn[data-tooltip="Shuffle"]:hover img.icon,
-.ytmusic-bottom-bar .ytmusic-control-btn[data-tooltip^="Repeat"]:hover img.icon {
-  --hover-scale: 1.0065;
-}
+/* (removed old transform-based hover scale tweaks) */
 /* YouTube Music Style Bottom Bar */
 .ytmusic-bottom-bar {
   position: fixed;
@@ -276,13 +267,14 @@ ytmusic-player-bar .chapter-info,
   cursor: pointer;
   padding: 8px;
   border-radius: 50%;
-  transition: all 0.2s ease;
+  transition: color 0.15s ease;
   display: flex;
   align-items: center;
   justify-content: center;
   width: 44px !important;
   height: 44px !important;
   position: relative;
+  contain: paint;
 }
 
 .ytmusic-control-btn:hover {
@@ -320,12 +312,13 @@ ytmusic-player-bar .chapter-info,
   cursor: pointer;
   padding: 8px;
   border-radius: 50%;
-  transition: all 0.2s ease;
+  transition: color 0.15s ease;
   display: flex;
   align-items: center;
   justify-content: center;
   width: 44px !important;
   height: 44px !important;
+  contain: paint;
 }
 
 
@@ -354,8 +347,9 @@ ytmusic-player-bar .chapter-info,
   align-items: center;
   justify-content: center;
   margin: 0 4px;
-  transition: transform 120ms ease-out;
+  transition: color 0.15s ease;
   transform-origin: center center;
+  contain: paint;
 }
 
 
@@ -378,7 +372,7 @@ ytmusic-player-bar .chapter-info,
 
 /* Nudge the repeat icon 1px down */
 .ytmusic-controls > .ytmusic-control-btn:last-child img.icon {
-  --ty: 1px;
+  margin-top: 1px;
 }
 
 .ytmusic-progress {
@@ -402,13 +396,14 @@ ytmusic-player-bar .chapter-info,
 }
 
 /* Subtle icon-only growth to avoid layout shift and position drift */
+/* Switch from transform-based scaling to size transitions to avoid jitter */
 .ytmusic-bottom-bar button img.icon {
-  --tx: 0px; /* fine-tune X per icon */
-  --ty: 0px; /* fine-tune Y per icon */
-  --hover-scale: 1;
-  transform: translate(var(--tx), var(--ty)) scale(var(--hover-scale));
-  transform-origin: center center;
-  transition: transform 90ms ease-out;
+  --tx: 0px; /* legacy tuning vars retained (no-op without transform) */
+  --ty: 0px;
+  transition: width 90ms ease-out, height 90ms ease-out, filter 90ms ease-out;
+  will-change: width, height;
+  backface-visibility: hidden;
+  display: block;
 }
 
 /* Remove circle grow on hover (icons include their own circle) */
@@ -635,12 +630,13 @@ ytmusic-player-bar .chapter-info,
   cursor: pointer;
   padding: 8px;
   border-radius: 50%;
-  transition: all 0.2s ease;
+  transition: color 0.15s ease;
   display: flex;
   align-items: center;
   justify-content: center;
   width: 32px;
   height: 32px;
+  contain: paint;
 }
 
 .ytmusic-volume-btn:hover {
@@ -762,13 +758,14 @@ ytmusic-player-bar .chapter-info,
   cursor: pointer;
   padding: 8px;
   border-radius: 50%;
-  transition: all 0.2s ease;
+  transition: color 0.15s ease;
   display: flex;
   align-items: center;
   justify-content: center;
   width: 32px;
   height: 32px;
   position: relative;
+  contain: paint;
 }
 
 .ytmusic-menu-btn:hover {
@@ -966,50 +963,55 @@ ytmusic-player-bar::after {
   text-decoration: underline;
 }
 
-/* --- Micro-zoom hover (+0.5px per side for all except play/pause), centered, no layout shift --- */
-/* Base transform handled above via --hover-scale */
-
-/* Default: control/menu/like use 18px icons → 18→19px = 1.056x */
+/* --- Size-based hover (no transform): subtle bump, stays optically centered --- */
+/* Default 18px icons in control/menu/like: 18 → 18.5 */
 .ytmusic-bottom-bar .ytmusic-control-btn:hover img.icon,
 .ytmusic-bottom-bar .ytmusic-menu-btn:hover img.icon,
 .ytmusic-bottom-bar .ytmusic-like-btn:hover img.icon {
-  --hover-scale: 1.056;
+  width: 19px;
+  height: 19px;
 }
 
-/* Shuffle/Repeat use 16px icons → 16→17px = 1.0625x */
+/* Shuffle/Repeat 16px → 16.5px */
 .ytmusic-bottom-bar .ytmusic-control-btn[data-tooltip="Shuffle"]:hover img.icon,
 .ytmusic-bottom-bar .ytmusic-control-btn[aria-label="Shuffle" i]:hover img.icon,
 .ytmusic-bottom-bar .ytmusic-control-btn[data-tooltip^="Repeat"]:hover img.icon,
 .ytmusic-bottom-bar .ytmusic-control-btn[aria-label^="Repeat" i]:hover img.icon {
-  --hover-scale: 1.0625;
+  width: 17px;
+  height: 17px;
 }
 
-/* Navigation (prev/next) use 23px icons → 23→24px = ~1.043x */
+/* Navigation 23px → 24px */
 .ytmusic-bottom-bar .ytmusic-nav-btn:hover img.icon {
-  --hover-scale: 1.043;
+  width: 24px;
+  height: 24px;
 }
 
-/* Volume uses 20px icons → 20→21px = 1.05x */
+/* Volume 20px → 20.5px */
 .ytmusic-bottom-bar .ytmusic-volume-btn:hover img.icon {
-  --hover-scale: 1.05;
+  width: 21px;
+  height: 21px;
 }
 
-/* Play/Pause uses 30px icons → 30→31px ≈ 1.033x */
+/* Play/Pause 30px → 31px */
 .ytmusic-bottom-bar .ytmusic-play-btn:hover img.icon {
-  --hover-scale: 1.033;
+  width: 32px;
+  height: 32px;
 }
 
-/* Fullscreen override uses 15px icon → 15→15.5px = 1.0333x */
+/* Fullscreen 15px → 15.5px */
 .ytmusic-bottom-bar .ytmusic-menu-btn[data-tooltip*="Fullscreen" i]:hover img.icon,
 .ytmusic-bottom-bar .ytmusic-menu-btn[aria-label*="Fullscreen" i]:hover img.icon,
 .ytmusic-bottom-bar .ytmusic-menu-btn[data-tooltip*="Vollbild" i]:hover img.icon {
-  --hover-scale: 1.0111;
+  width: 15.5px;
+  height: 15.5px;
 }
 
-/* Expand Song uses 18px icon → 18→18.5px = 1.0278x */
+/* Expand Song (18px base) → 18.5px */
 .ytmusic-bottom-bar .ytmusic-menu-btn[data-tooltip*="Expand Song" i]:hover img.icon,
 .ytmusic-bottom-bar .ytmusic-menu-btn[aria-label*="Expand Song" i]:hover img.icon {
-  --hover-scale: 1.0151;
+  width: 18.5px;
+  height: 18.5px;
 }
 
 /* Pull Shuffle closer to Previous, and Repeat closer to Next */
