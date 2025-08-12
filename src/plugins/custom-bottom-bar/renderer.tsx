@@ -1413,53 +1413,40 @@ function YTMusicPlayer() {
     // Enhanced text matching function with better internationalization support
     const matchesPlaylistText = (text: string | null) => {
       if (!text) return false
-      const normalizedText = text.toLowerCase().trim()
-      
-      const patterns = [
-        // English variations - specific playlist terms
-        /\b(add to playlist|save to playlist|add to library|save to library)\b/,
-        /\b(library|playlist)\b.*\b(add|save)\b/,
-        /\b(add|save)\b.*\b(library|playlist)\b/,
-        
-        // German variations - SPECIFIC playlist/library terms only (avoid generic "speichern")
-        /\b(zur mediathek hinzufügen|in mediathek speichern)\b/,
-        /\b(zu playlist hinzufügen|zur playlist hinzufügen|zur wiedergabeliste hinzufügen)\b/,
-        /\b(wiedergabeliste erstellen|playlist erstellen)\b/,
-        /\bwiedergabeliste\b.*\b(hinzufügen|erstellen)\b/,
-        /\bplaylist\b.*\b(hinzufügen|erstellen)\b/,
-        /\bmediathek\b.*\b(hinzufügen)\b/, // Only "hinzufügen" with mediathek, not generic "speichern"
-        
-        // French variations
-        /\b(ajouter à la playlist|enregistrer dans la bibliothèque)\b/,
-        /\b(créer une playlist|ajouter à une playlist)\b/,
-        
-        // Spanish variations
-        /\b(agregar a playlist|guardar en biblioteca)\b/,
-        /\b(crear playlist|añadir a playlist)\b/,
-        
-        // Icon-based detection patterns
-        /library_add|playlist_add/,
-        
-        // More specific patterns - must include playlist/library context
-        /\bto playlist\b/,
-        /\bto library\b/,
-        /\bzur playlist\b/,
-        /\bzur mediathek\b/,
-        /\bin mediathek\b/,
-        
-        // SPECIFIC playlist-related terms only (removed generic save/add)
-        /\bplaylist\b/,
-        /\blibrary\b/,
-        /\bmediathek\b/,
-        /\bwiedergabeliste\b/,
-        /\bbibliothek\b/,
-        
-        // Only allow these generic terms if they appear with playlist context
-        /\b(hinzufügen|erstellen)\b.*\b(playlist|wiedergabeliste|mediathek)\b/,
-        /\b(add|create)\b.*\b(playlist|library)\b/
+      const t = text.toLowerCase().trim()
+
+      // Hard exclude any library-only actions
+      const libraryWords = [
+        'library',      // EN
+        'mediathek',    // DE
+        'bibliothek',   // DE alt
+        'biblioteca',   // ES/PT/IT
       ]
-      
-      return patterns.some(pattern => pattern.test(normalizedText))
+      if (libraryWords.some(w => t.includes(w))) return false
+
+      // Prefer explicit playlist phrasing across locales
+      const playlistWords = [
+        'playlist',               // EN/FR/ES
+        'wiedergabeliste',        // DE
+        'lista de reproducción',  // ES
+        'lista de reproduccion',  // ES no accent
+        'lista de reprodução',    // PT
+        'lista di riproduzione',  // IT
+      ]
+
+      const addWords = [
+        'add', 'save', 'create',          // EN
+        'hinzufügen', 'erstellen',        // DE
+        'ajouter', 'créer',               // FR
+        'agregar', 'añadir', 'crear',     // ES
+        'adicionar', 'criar',             // PT
+        'aggiungi', 'crea',               // IT
+      ]
+
+      // If it mentions playlist words, accept; if verbs + playlist also accept
+      if (playlistWords.some(w => t.includes(w))) return true
+      if (addWords.some(v => t.includes(v)) && playlistWords.some(w => t.includes(w))) return true
+      return false
     }
 
     // Enhanced helper function to find add to playlist item with better detection
@@ -1474,18 +1461,30 @@ function YTMusicPlayer() {
       const isLikeButton = (text: string) => {
         return excludeLikePatterns.some(pattern => pattern.test(text.toLowerCase()))
       }
+
+      const isLibraryAction = (text: string) => {
+        const t = text.toLowerCase()
+        return (
+          t.includes('library') ||
+          t.includes('mediathek') ||
+          t.includes('bibliothek') ||
+          t.includes('biblioteca')
+        )
+      }
       
       // Check toggle service items first (most reliable for playlist actions)
       const toggleItems = container.querySelectorAll<HTMLElement>('ytmusic-toggle-menu-service-item-renderer')
       for (let i = 0; i < toggleItems.length; i++) {
         const item = toggleItems[i]
+        // Prefer icon-based detection where available
+        const hasPlaylistIcon = !!item.querySelector('yt-icon[icon*="playlist_add" i], yt-icon[icon*="playlist" i]')
         const textElement = item.querySelector<HTMLElement>('yt-formatted-string')
         const text = textElement?.textContent || ''
         
         // Skip if this looks like a like/dislike button
-        if (isLikeButton(text)) continue
+        if (isLikeButton(text) || isLibraryAction(text)) continue
         
-        if (textElement && matchesPlaylistText(textElement.textContent)) {
+        if (hasPlaylistIcon || (textElement && matchesPlaylistText(textElement.textContent))) {
           return item
         }
       }
@@ -1494,13 +1493,14 @@ function YTMusicPlayer() {
       const navItems = container.querySelectorAll<HTMLElement>('ytmusic-menu-navigation-item-renderer')
       for (let i = 0; i < navItems.length; i++) {
         const item = navItems[i]
+        const hasPlaylistIcon = !!item.querySelector('yt-icon[icon*="playlist_add" i], yt-icon[icon*="playlist" i]')
         const textElement = item.querySelector<HTMLElement>('yt-formatted-string')
         const text = textElement?.textContent || ''
         
         // Skip if this looks like a like/dislike button
-        if (isLikeButton(text)) continue
+        if (isLikeButton(text) || isLibraryAction(text)) continue
         
-        if (textElement && matchesPlaylistText(textElement.textContent)) {
+        if (hasPlaylistIcon || (textElement && matchesPlaylistText(textElement.textContent))) {
           return item
         }
       }
@@ -1509,14 +1509,15 @@ function YTMusicPlayer() {
       const allMenuItems = container.querySelectorAll<HTMLElement>('*[role="menuitem"], ytmusic-toggle-menu-service-item-renderer, ytmusic-menu-navigation-item-renderer, ytmusic-menu-service-item-renderer')
       for (let i = 0; i < allMenuItems.length; i++) {
         const item = allMenuItems[i]
+        const hasPlaylistIcon = !!item.querySelector('yt-icon[icon*="playlist_add" i], yt-icon[icon*="playlist" i]')
         const textElement = item.querySelector<HTMLElement>('yt-formatted-string') || item.querySelector<HTMLElement>('.text') || item
         const text = textElement?.textContent?.trim() || item.textContent?.trim() || ''
         const ariaLabel = item.getAttribute('aria-label') || ''
         
         // Skip if this looks like a like/dislike button
-        if (isLikeButton(text) || isLikeButton(ariaLabel)) continue
+        if (isLikeButton(text) || isLikeButton(ariaLabel) || isLibraryAction(text) || isLibraryAction(ariaLabel)) continue
         
-        if (matchesPlaylistText(text) || matchesPlaylistText(ariaLabel)) {
+        if (hasPlaylistIcon || matchesPlaylistText(text) || matchesPlaylistText(ariaLabel)) {
           return item
         }
       }
@@ -1529,7 +1530,7 @@ function YTMusicPlayer() {
         const ariaLabel = item.getAttribute('aria-label') || ''
         
         // Skip if this looks like a like/dislike button
-        if (isLikeButton(text) || isLikeButton(ariaLabel)) continue
+        if (isLikeButton(text) || isLikeButton(ariaLabel) || isLibraryAction(text) || isLibraryAction(ariaLabel)) continue
         
         if (matchesPlaylistText(text) || matchesPlaylistText(ariaLabel)) {
           return item
