@@ -521,7 +521,7 @@ ytmusic-player-bar .chapter-info,
 
 .ytmusic-slider {
   width: 100%;
-  height: 4px;
+  height: 3.5px;
   background: transparent;
   border-radius: 2px;
   outline: none;
@@ -541,9 +541,9 @@ ytmusic-player-bar .chapter-info,
   height: 100%;
   width: 100%;
   background: #fff;
-  border-radius: 4px;
+  border-radius: 3.5px;
   /* Reveal only the progressed portion using a GPU-friendly clip-path */
-  clip-path: inset(0 calc((1 - var(--progress-scale, 0)) * 100%) 0 0 round 4px);
+  clip-path: inset(0 calc((1 - var(--progress-scale, 0)) * 100%) 0 0 round 3.5px);
   transition: clip-path var(--progress-duration, 0s) linear, background 0.2s ease;
   will-change: clip-path;
   pointer-events: none;
@@ -556,8 +556,8 @@ ytmusic-player-bar .chapter-info,
 
 /* Webkit browsers */
 .ytmusic-slider::-webkit-slider-runnable-track {
-  height: 4px;
-  border-radius: 4px;
+  height: 3.5px;
+  border-radius: 3.5px;
   background: #535353;
 }
 
@@ -570,7 +570,7 @@ ytmusic-player-bar .chapter-info,
   cursor: pointer;
   opacity: 0;
   transition: opacity 0.2s ease;
-  margin-top: -4px;
+  margin-top: -4.25px;
   margin-left: -4px;
   position: relative;
   z-index: 10;
@@ -582,15 +582,15 @@ ytmusic-player-bar .chapter-info,
 
 /* Firefox */
 .ytmusic-slider::-moz-range-track {
-  height: 4px;
-  border-radius: 4px;
+  height: 3.5px;
+  border-radius: 3.5px;
   background: #535353;
   border: none;
 }
 
 .ytmusic-slider::-moz-range-progress {
-  height: 4px;
-  border-radius: 4px;
+  height: 3.5px;
+  border-radius: 3.5px;
   background: #fff;
   /* Keep rounded corners at both ends for consistent appearance */
 }
@@ -673,9 +673,9 @@ ytmusic-player-bar .chapter-info,
 
 .ytmusic-volume-slider {
   width: 100%;
-  height: 4px;
+  height: 3.5px;
   background: #535353;
-  border-radius: 4px;
+  border-radius: 3.5px;
   outline: none;
   cursor: pointer;
   appearance: none;
@@ -683,9 +683,9 @@ ytmusic-player-bar .chapter-info,
 }
 
 .ytmusic-volume-slider::-webkit-slider-track {
-  height: 4px;
+  height: 3.5px;
   background: #535353;
-  border-radius: 4px;
+  border-radius: 3.5px;
 }
 
 .ytmusic-volume-slider::-webkit-slider-thumb {
@@ -706,9 +706,9 @@ ytmusic-player-bar .chapter-info,
 }
 
 .ytmusic-volume-slider::-moz-range-track {
-  height: 4px;
+  height: 3.5px;
   background: #535353;
-  border-radius: 4px;
+  border-radius: 3.5px;
   border: none;
 }
 
@@ -743,7 +743,7 @@ ytmusic-player-bar .chapter-info,
   height: 100%;
   width: var(--volume, 100%);
   background: #fff;
-  border-radius: 4px;
+  border-radius: 3.5px;
   transition: background 0.2s ease;
 }
 
