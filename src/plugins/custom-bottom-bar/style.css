@@ -115,6 +115,7 @@ ytmusic-player-bar .chapter-info,
   min-width: 180px;
   overflow: visible; /* allow tooltips from like button to render */
   transform: translateY(0);
+  height: 100%;
 }
 
 .ytmusic-album-cover,
@@ -182,6 +183,7 @@ ytmusic-player-bar .chapter-info,
   display: flex;
   align-items: center;
   flex-shrink: 0;
+  align-self: center;
 }
 
 .ytmusic-like-btn {
@@ -250,6 +252,7 @@ ytmusic-player-bar .chapter-info,
   position: relative;
   z-index: 2147483648;
   transform: translateY(-8px);
+  height: 100%;
 }
 
 .ytmusic-controls {
@@ -624,12 +627,14 @@ ytmusic-player-bar .chapter-info,
   justify-content: flex-end;
   gap: 8px;
   min-width: 180px;
+  height: 100%;
 }
 
 .ytmusic-volume {
   display: flex;
   align-items: center;
   gap: 8px;
+  align-self: center;
 }
 
 .ytmusic-volume-btn {
@@ -669,6 +674,7 @@ ytmusic-player-bar .chapter-info,
   height: 12px;
   display: flex;
   align-items: center;
+  align-self: center;
 }
 
 .ytmusic-volume-slider {
@@ -755,6 +761,7 @@ ytmusic-player-bar .chapter-info,
   display: flex;
   align-items: center;
   gap: 4px;
+  align-self: center;
 }
 
 .ytmusic-menu-btn {
