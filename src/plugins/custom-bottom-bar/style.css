@@ -157,6 +157,12 @@ ytmusic-player-bar .chapter-info,
   flex: 1;
   min-width: 0;
   margin-right: 12px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-self: center;
+  height: 100%;
+  transform: translateY(-2px);
 }
 
 .ytmusic-title {
@@ -260,7 +266,7 @@ ytmusic-player-bar .chapter-info,
   align-items: center;
   gap: 4px;
   margin-bottom: 4px;
-  transform: translateY(8px);
+  transform: translateY(13px);
 }
 
 .ytmusic-control-btn {
@@ -390,7 +396,7 @@ ytmusic-player-bar .chapter-info,
   z-index: 2147483648;
   background: #000000;
   padding: 2px 0;
-  transform: translateY(2px);
+  transform: translateY(7px);
 }
 
 .ytmusic-time {
