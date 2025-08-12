@@ -1,4 +1,5 @@
 /* (removed old transform-based hover scale tweaks) */
+@import url('https://fonts.googleapis.com/css2?family=Host+Grotesk:wght@400;500;600&display=swap');
 /* YouTube Music Style Bottom Bar */
 .ytmusic-bottom-bar {
   position: fixed;
@@ -393,6 +394,8 @@ ytmusic-player-bar .chapter-info,
   min-width: 36px;
   text-align: center;
   font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1, "lnum" 1;
+  font-family: "Host Grotesk", "Roboto", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
 /* Subtle icon-only growth to avoid layout shift and position drift */
