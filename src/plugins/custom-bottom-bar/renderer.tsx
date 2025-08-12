@@ -84,6 +84,7 @@ function YTMusicPlayer() {
   // === NATIVE ELEMENT SETUP ===
   // Setup functions defined before onMount to avoid hoisting issues
   let nativeProgressObserver: MutationObserver | null = null
+  let nativeProgressContainerObserver: MutationObserver | null = null
   let nativeVolumeObserver: MutationObserver | null = null
   let mediaListenerCleanup: (() => void)[] = []
   // Animation state for smooth progress (CSS-driven)
@@ -92,6 +93,8 @@ function YTMusicPlayer() {
   let playbackRate = 1
   const ANCHOR_DRIFT_EPSILON_SECONDS = 1.0
   let rafId: number | null = null
+  let lastNativeProgressUpdateAt = 0
+  let failSafeInterval: number | null = null
 
   const clampProgressToDuration = (value: number) => {
     const duration = song().songDuration || 0
@@ -158,6 +161,7 @@ function YTMusicPlayer() {
           if (newValue >= 0 && isFinite(newValue)) {
             // Always keep the logical progress in sync (for accuracy)
             setProgress(newValue)
+            lastNativeProgressUpdateAt = performance.now()
             // Only re-anchor the visual animation if we drifted significantly
             const now = performance.now()
             const expected = lastProgressAnchor + ((now - lastAnchorTime) / 1000) * (playbackRate || 1)
@@ -181,7 +185,85 @@ function YTMusicPlayer() {
     setProgress(initialValue)
     lastProgressAnchor = initialValue
     lastAnchorTime = performance.now()
+    lastNativeProgressUpdateAt = lastAnchorTime
     recomputeProgressAnimation()
+
+    // Observe for progress bar replacement by YTM (element often recreated)
+    const container = document.querySelector('ytmusic-player-bar') || document.body
+    if (nativeProgressContainerObserver) {
+      nativeProgressContainerObserver.disconnect()
+      nativeProgressContainerObserver = null
+    }
+    nativeProgressContainerObserver = new MutationObserver(() => {
+      const currentEl = document.querySelector('#progress-bar')
+      if (!currentEl || currentEl !== nativeProgressBar) {
+        nativeProgressObserver?.disconnect()
+        nativeProgressObserver = null
+        nativeProgressBar = currentEl as HTMLElement | null
+        if (nativeProgressBar) {
+          try {
+            nativeProgressObserver = new MutationObserver((mutations) => {
+              if (isSeeking()) return
+              for (const mutation of mutations) {
+                const target = mutation.target as HTMLElement & { value: string }
+                if (mutation.attributeName === 'value') {
+                  const newValue = Number(target.value) || 0
+                  if (newValue >= 0 && isFinite(newValue)) {
+                    setProgress(newValue)
+                    lastNativeProgressUpdateAt = performance.now()
+                    const now = performance.now()
+                    const expected = lastProgressAnchor + ((now - lastAnchorTime) / 1000) * (playbackRate || 1)
+                    const drift = Math.abs(newValue - expected)
+                    if (drift > ANCHOR_DRIFT_EPSILON_SECONDS) {
+                      lastProgressAnchor = newValue
+                      lastAnchorTime = now
+                      recomputeProgressAnimation()
+                    }
+                  }
+                }
+              }
+            })
+            nativeProgressObserver.observe(nativeProgressBar, { attributeFilter: ['value'] })
+            const v = Number((nativeProgressBar as any).value) || 0
+            setProgress(v)
+            lastProgressAnchor = v
+            lastAnchorTime = performance.now()
+            lastNativeProgressUpdateAt = lastAnchorTime
+            recomputeProgressAnimation()
+          } catch {}
+        }
+      }
+    })
+    nativeProgressContainerObserver.observe(container, { childList: true, subtree: true })
+
+    // Fail-safe: periodically re-anchor from API/media if no native updates
+    if (failSafeInterval == null) {
+      failSafeInterval = window.setInterval(() => {
+        if (isSeeking()) return
+        const now = performance.now()
+        if (now - lastNativeProgressUpdateAt > 3000) {
+          let currentTime = NaN
+          try {
+            if (api && typeof api.getCurrentTime === 'function') {
+              const t = api.getCurrentTime()
+              if (typeof t === 'number') currentTime = t
+            }
+          } catch {}
+          if (!isFinite(currentTime)) {
+            const mediaElement = currentMediaElement()
+            if (mediaElement) currentTime = mediaElement.currentTime
+          }
+          if (isFinite(currentTime)) {
+            const clamped = clampProgressToDuration(currentTime)
+            setProgress(clamped)
+            lastProgressAnchor = clamped
+            lastAnchorTime = performance.now()
+            recomputeProgressAnimation()
+            lastNativeProgressUpdateAt = performance.now()
+          }
+        }
+      }, 1000)
+    }
   }
 
   const setupNativeVolumeTracking = () => {
@@ -292,6 +374,15 @@ function YTMusicPlayer() {
       lastAnchorTime = performance.now()
       recomputeProgressAnimation()
     }
+    const onEnded = () => {
+      setIsPaused(true)
+      // Snap to end to avoid visual stall and allow next/autoplay to re-anchor
+      const end = clampProgressToDuration(mediaElement.duration || song().songDuration || 0)
+      setProgress(end)
+      lastProgressAnchor = end
+      lastAnchorTime = performance.now()
+      recomputeProgressAnimation()
+    }
     
     // Attach minimal listeners - native elements handle progress and volume tracking
     mediaElement.addEventListener('play', onPlayPause)
@@ -299,6 +390,7 @@ function YTMusicPlayer() {
     mediaElement.addEventListener('loadstart', onLoadStart)
     mediaElement.addEventListener('volumechange', onVolumeChange)
     mediaElement.addEventListener('ratechange', onRateChange)
+    mediaElement.addEventListener('ended', onEnded)
     
     // Store cleanup functions
     mediaListenerCleanup.push(
@@ -306,7 +398,8 @@ function YTMusicPlayer() {
       () => mediaElement.removeEventListener('pause', onPlayPause),
       () => mediaElement.removeEventListener('loadstart', onLoadStart),
       () => mediaElement.removeEventListener('volumechange', onVolumeChange),
-      () => mediaElement.removeEventListener('ratechange', onRateChange)
+      () => mediaElement.removeEventListener('ratechange', onRateChange),
+      () => mediaElement.removeEventListener('ended', onEnded)
     )
     
     // Initial state sync
@@ -794,6 +887,10 @@ function YTMusicPlayer() {
     const handleGlobalMouseUp = () => {
       if (isDraggingVolume()) {
         setIsDraggingVolume(false)
+      }
+      // Ensure we never get stuck in seeking mode if native events are lost
+      if (isSeeking()) {
+        setIsSeeking(false)
       }
     }
     document.addEventListener("mouseup", handleGlobalMouseUp)
