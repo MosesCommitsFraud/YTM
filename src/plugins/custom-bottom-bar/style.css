@@ -14,7 +14,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  height: 72px;
+  height: 76px;
   background: #000000;
   color: #fff;
   display: grid;
@@ -134,6 +134,7 @@ ytmusic-player-bar .chapter-info,
   background: #303030;
   flex-shrink: 0;
   align-self: center;
+  transform: translateY(-2px);
 }
 
 .ytmusic-album-cover img {
