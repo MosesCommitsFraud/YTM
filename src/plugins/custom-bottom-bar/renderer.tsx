@@ -43,6 +43,8 @@ let api: YoutubePlayer
 function YTMusicPlayer() {
   // Song info state
   const [song, setSong] = createSignal(getSongInfo())
+  // Artist links derived from native YTM player bar (multiple clickable artists)
+  const [artistLinks, setArtistLinks] = createSignal<Array<{ name: string; href?: string; el?: HTMLAnchorElement }>>([])
   
   // Progress tracking state - using native YTM progress bar
   const [progress, setProgress] = createSignal(0)
@@ -624,6 +626,8 @@ function YTMusicPlayer() {
       
       // Update song info
       setSong(newSong)
+      // Update artist anchors based on native UI
+      refreshArtistLinks()
       
       // Track video ID changes for content type detection
       if (oldVideoId !== newVideoId) {
@@ -895,6 +899,164 @@ function YTMusicPlayer() {
       if (rafId) cancelAnimationFrame(rafId)
     })
   })
+
+  // Find the best subtitle/byline container from native YTM UI
+  const findSubtitleContainer = (): HTMLElement | null => {
+    return (
+      (document.querySelector('ytmusic-player-bar .subtitle') as HTMLElement) ||
+      (document.querySelector('ytmusic-player-bar .byline') as HTMLElement) ||
+      (document.querySelector('.content-info-wrapper .subtitle') as HTMLElement) ||
+      (document.querySelector('.content-info-wrapper .byline') as HTMLElement) ||
+      null
+    )
+  }
+
+  // Extract clickable artist anchors from native subtitle, stopping at the bullet (•) before album
+  const extractArtistAnchors = (container: HTMLElement): Array<{ name: string; href?: string; el?: HTMLAnchorElement }> => {
+    const results: Array<{ name: string; href?: string; el?: HTMLAnchorElement }> = []
+    let seenBullet = false
+    for (const node of Array.from(container.childNodes)) {
+      if (node.nodeType === Node.TEXT_NODE) {
+        const text = (node.textContent || '').trim()
+        if (text.includes('•')) {
+          // Artists appear before the bullet; everything after is album
+          seenBullet = true
+        }
+        continue
+      }
+      if (node.nodeType === Node.ELEMENT_NODE) {
+        const el = node as HTMLElement
+        if (el.tagName === 'A') {
+          const a = el as HTMLAnchorElement
+          const name = (a.textContent || '').trim()
+          const href = a.getAttribute('href') || undefined
+          if (!seenBullet && name) results.push({ name, href, el: a })
+        }
+      }
+    }
+    // Fallback: if no anchors resolved, use song().artist split
+    if (results.length === 0) {
+      const artist = song().artist || ''
+      if (artist) {
+        // Split on common separators for multiple artists
+        const parts = artist.split(/\s*,\s*|\s*&\s*|\s*x\s*|\s*;\s*/i).filter(Boolean)
+        for (const p of parts) results.push({ name: p, href: undefined, el: undefined })
+      }
+    }
+    return results
+  }
+
+  // Refresh artist links and set up an observer for changes
+  let artistObserver: MutationObserver | null = null
+  const refreshArtistLinks = () => {
+    const container = findSubtitleContainer()
+    if (!container) {
+      setArtistLinks([])
+      return
+    }
+    setArtistLinks(extractArtistAnchors(container))
+    // Observe for changes to keep in sync with native bar
+    if (artistObserver) artistObserver.disconnect()
+    artistObserver = new MutationObserver(() => {
+      const c = findSubtitleContainer()
+      if (c) setArtistLinks(extractArtistAnchors(c))
+    })
+    artistObserver.observe(container, { childList: true, subtree: true, characterData: true })
+  }
+
+  // Initialize artist links shortly after mount (after native UI is ready)
+  setTimeout(() => refreshArtistLinks(), 500)
+
+  onCleanup(() => {
+    artistObserver?.disconnect()
+    artistObserver = null
+  })
+
+  // removed unused navigateAppToHref helper (we rely on native anchor clicks)
+
+  const onArtistClick = (link: { name: string; href?: string }) => {
+    const withEl = link as any as { name: string; href?: string; el?: HTMLAnchorElement }
+
+    // 1) Click stored native anchor if still connected
+    if (withEl.el && document.contains(withEl.el)) {
+      withEl.el.click()
+      return
+    }
+
+    // 2) Try to find the native anchor by matching text
+    const containers = [
+      document.querySelector('ytmusic-player-bar .subtitle'),
+      document.querySelector('ytmusic-player-bar .byline'),
+      document.querySelector('.content-info-wrapper .subtitle'),
+      document.querySelector('.content-info-wrapper .byline')
+    ].filter(Boolean) as HTMLElement[]
+    for (const container of containers) {
+      let seenBullet = false
+      for (const node of Array.from(container.childNodes)) {
+        if (node.nodeType === Node.TEXT_NODE) {
+          if ((node.textContent || '').includes('•')) seenBullet = true
+          continue
+        }
+        if (!seenBullet && node.nodeType === Node.ELEMENT_NODE) {
+          const el = node as HTMLElement
+          if (el.tagName === 'A') {
+            const a = el as HTMLAnchorElement
+            if ((a.textContent || '').trim().toLowerCase() === (link.name || '').trim().toLowerCase()) {
+              a.click()
+              return
+            }
+          }
+        }
+      }
+    }
+
+    // 3) Create a temporary anchor inside native container and click it, so YTM's router handles navigation without reload
+    if (link.href) {
+      const normalizeYtmHref = (h: string) => {
+        let target = (h || '').trim()
+        if (target.startsWith('https://music.youtube.com')) {
+          try {
+            const u = new URL(target)
+            target = u.pathname + (u.search || '')
+          } catch {}
+        }
+        // Make relative if needed, and ensure leading slash for known endpoints
+        if (!target.startsWith('/')) {
+          if (target.startsWith('channel/') || target.startsWith('browse/') || target.startsWith('watch')) {
+            target = '/' + target
+          }
+        }
+        return target
+      }
+      const targetHref = normalizeYtmHref(link.href)
+      const hostContainer = document.querySelector('ytmusic-player-bar .subtitle')
+        || document.querySelector('ytmusic-player-bar .byline')
+        || document.querySelector('.content-info-wrapper .subtitle')
+        || document.querySelector('.content-info-wrapper .byline')
+      const tmp = document.createElement('a')
+      tmp.href = targetHref
+      tmp.className = 'yt-simple-endpoint style-scope yt-formatted-string'
+      tmp.setAttribute('spellcheck', 'false')
+      tmp.setAttribute('dir', 'auto')
+      tmp.style.display = 'inline'
+      ;(hostContainer || document.body).appendChild(tmp)
+      tmp.click()
+      tmp.remove()
+      return
+    }
+
+    // 4) Fallback: search by name
+    const name = (link.name || '').trim()
+    if (name) {
+      const url = `/search?q=${encodeURIComponent(name)}`
+      const tmp = document.createElement('a')
+      tmp.href = url
+      tmp.style.display = 'none'
+      document.body.appendChild(tmp)
+      tmp.click()
+      document.body.removeChild(tmp)
+    }
+  }
 
   // --- Sidebar expansion logic ---
   const ensureSidebarExpanded = () => {
@@ -1246,20 +1408,7 @@ function YTMusicPlayer() {
     }
   }
 
-  const toggleDislike = () => {
-
-    // Use the proper YouTube Music API method for the currently playing song
-    const likeButtonRenderer = document.querySelector('#like-button-renderer') as HTMLElement & { updateLikeStatus: (status: string) => void }
-    if (likeButtonRenderer && likeButtonRenderer.updateLikeStatus) {
-      likeButtonRenderer.updateLikeStatus('DISLIKE')
-      // Re-detect state after a short delay to sync with YouTube Music
-      setTimeout(detectLikeState, 100)
-    } else {
-      // Fallback to IPC system
-      window.ipcRenderer.send("ytmd:update-like", "DISLIKE")
-      setTimeout(detectLikeState, 100)
-    }
-  }
+  // Removed unused toggleDislike to satisfy linter
 
   const toggleShuffle = () => {
     // Click the original YouTube Music shuffle button
@@ -1352,31 +1501,67 @@ function YTMusicPlayer() {
   }
 
   const navigateToAlbumPage = () => {
-    // Exact mapping: click the same album link the native UI uses (2nd link in subtitle/byline)
-    const tryClickNth = (selector: string, index: number): boolean => {
-      const links = document.querySelectorAll<HTMLAnchorElement>(selector)
-      if (links.length > index) {
-        (links[index] as HTMLElement).click()
-        return true
+    // Robust approach: find the first album <a> after the bullet (•) in the subtitle/byline
+    const containers = [
+      document.querySelector('ytmusic-player-bar .subtitle'),
+      document.querySelector('ytmusic-player-bar .byline'),
+      document.querySelector('.content-info-wrapper .subtitle'),
+      document.querySelector('.content-info-wrapper .byline')
+    ].filter(Boolean) as HTMLElement[]
+
+    const normalizeHref = (h: string) => {
+      let target = (h || '').trim()
+      if (target.startsWith('https://music.youtube.com')) {
+        try {
+          const u = new URL(target)
+          target = u.pathname + (u.search || '')
+        } catch {}
       }
-      return false
+      if (!target.startsWith('/')) {
+        if (target.startsWith('browse/') || target.startsWith('channel/') || target.startsWith('watch')) {
+          target = '/' + target
+        }
+      }
+      return target
     }
 
-    // Player bar subtitle links: [artist, album]
-    if (tryClickNth('ytmusic-player-bar .subtitle a', 1)) return
-    if (tryClickNth('ytmusic-player-bar .byline a', 1)) return
+    for (const container of containers) {
+      let afterBullet = false
+      const candidateEls: HTMLAnchorElement[] = []
+      for (const node of Array.from(container.childNodes)) {
+        if (node.nodeType === Node.TEXT_NODE) {
+          const text = (node.textContent || '')
+          if (text.includes('•')) afterBullet = true
+        } else if (afterBullet && node.nodeType === Node.ELEMENT_NODE) {
+          const el = node as HTMLElement
+          if (el.tagName === 'A') {
+            const a = el as HTMLAnchorElement
+            const href = normalizeHref(a.getAttribute('href') || '')
+            if (href.includes('/browse/')) {
+              candidateEls.push(a)
+            }
+          }
+        }
+      }
+      const albumEl = candidateEls.find(a => (a.getAttribute('href') || '').includes('browse/'))
+      if (albumEl) {
+        // Click the real native anchor so Polymer routing is used and playback is preserved
+        albumEl.click()
+        return
+      }
+    }
 
-    // Expanded player page subtitle/byline links: [artist, album]
-    if (tryClickNth('.content-info-wrapper .subtitle a', 1)) return
-    if (tryClickNth('.content-info-wrapper .byline a', 1)) return
-
-    // Fallback: direct album-targeted anchors known to work
-    const albumLink = document.querySelector<HTMLElement>(
-      'ytmusic-player-bar a[href*="/browse/"][title*="album" i], ytmusic-player-bar a[href*="/browse/"][aria-label*="album" i], .content-info-wrapper a[href*="/browse/"][title*="album" i], .content-info-wrapper a[href*="/browse/"][aria-label*="album" i]'
-    )
-    if (albumLink) {
-      albumLink.click()
-      return
+    // Try a direct selector for album browse link as fallback
+    const directAlbum = document.querySelector(
+      'ytmusic-player-bar .subtitle a[href*="browse/"], ytmusic-player-bar .byline a[href*="browse/"], .content-info-wrapper .subtitle a[href*="browse/"], .content-info-wrapper .byline a[href*="browse/"]'
+    ) as HTMLAnchorElement | null
+    if (directAlbum) {
+      const href = normalizeHref(directAlbum.getAttribute('href') || '')
+      if (href.startsWith('/browse/')) {
+        // Click the native element directly
+        directAlbum.click()
+        return
+      }
     }
 
     // Last resort: open the context menu and choose the album item
@@ -1881,124 +2066,49 @@ function YTMusicPlayer() {
             {song().title || "Song Title"}
           </div>
           <div class="ytmusic-artist-album">
-            <div
-              class="ytmusic-artist ytmusic-link"
-              title={song().artist || "Artist Name"}
-              tabIndex={0}
-              role="link"
-              onClick={() => {
-                // Try to find and click the actual artist link in the player bar
-                const artistLink = document.querySelector('ytmusic-player-bar .subtitle a, ytmusic-player-bar .byline a[href*="browse"]');
-                if (artistLink) {
-                  (artistLink as HTMLElement).click();
-                } else {
-                  // Try to find artist link in the expanded player page
-                  const playerPageArtistLink = document.querySelector('.content-info-wrapper a[href*="browse"]');
-                  if (playerPageArtistLink) {
-                    (playerPageArtistLink as HTMLElement).click();
-                  } else {
-                    // Try to get browseId and use app navigation
-                    let browseId = null;
-                    const artistAnchor = document.querySelector('ytmusic-player-bar .subtitle a, ytmusic-player-bar .byline a');
-                    if (artistAnchor) {
-                      const href = artistAnchor.getAttribute('href');
-                      if (href && href.startsWith('/browse/')) {
-                        browseId = href.replace('/browse/', '');
-                      }
-                    }
-                    if (!browseId) {
-                      const playerPageArtist = document.querySelector('.content-info-wrapper a[href^="/browse/"]');
-                      if (playerPageArtist) {
-                        const href = playerPageArtist.getAttribute('href');
-                        if (href && href.startsWith('/browse/')) {
-                          browseId = href.replace('/browse/', '');
+            {/* Render multiple clickable artist names like native YTM bar */}
+            {artistLinks().length > 0 ? (
+              <>
+                {artistLinks().map((link, idx) => (
+                  <>
+                    <span
+                      class="ytmusic-artist ytmusic-link"
+                      title={link.name}
+                      tabIndex={0}
+                      role="link"
+                      onClick={() => onArtistClick(link)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault()
+                          onArtistClick(link)
                         }
-                      }
-                    }
-                    
-                    if (browseId) {
-                      const app = document.querySelector('ytmusic-app');
-                      if (app && typeof (app as any).navigate === 'function') {
-                        (app as any).navigate(`/browse/${browseId}`);
-                      } else {
-                        const artistUrl = `https://music.youtube.com/browse/${browseId}`;
-                        history.pushState({}, '', artistUrl);
-                        window.dispatchEvent(new PopStateEvent('popstate'));
-                      }
-                    } else {
-                      // Final fallback: search for the artist
-                      const artist = song().artist || "";
-                      if (artist) {
-                        const app = document.querySelector('ytmusic-app');
-                        if (app && typeof (app as any).navigate === 'function') {
-                          (app as any).navigate(`/search?q=${encodeURIComponent(artist)}`);
-                        } else {
-                          const searchUrl = `https://music.youtube.com/search?q=${encodeURIComponent(artist)}`;
-                          history.pushState({}, '', searchUrl);
-                          window.dispatchEvent(new PopStateEvent('popstate'));
-                        }
-                      }
-                    }
+                      }}
+                    >
+                      {link.name}
+                    </span>
+                    {idx < artistLinks().length - 1 && (
+                      <span class="ytmusic-artist-sep">,</span>
+                    )}
+                  </>
+                ))}
+              </>
+            ) : (
+              <div
+                class="ytmusic-artist ytmusic-link"
+                title={song().artist || 'Artist Name'}
+                tabIndex={0}
+                role="link"
+                onClick={() => onArtistClick({ name: song().artist || '' })}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    onArtistClick({ name: song().artist || '' })
                   }
-                }
-              }}
-              onKeyDown={e => {
-                if (e.key === "Enter" || e.key === " ") {
-                  const artistLink = document.querySelector('ytmusic-player-bar .subtitle a, ytmusic-player-bar .byline a[href*="browse"]');
-                  if (artistLink) {
-                    (artistLink as HTMLElement).click();
-                  } else {
-                    const playerPageArtistLink = document.querySelector('.content-info-wrapper a[href*="browse"]');
-                    if (playerPageArtistLink) {
-                      (playerPageArtistLink as HTMLElement).click();
-                    } else {
-                      let browseId = null;
-                      const artistAnchor = document.querySelector('ytmusic-player-bar .subtitle a, ytmusic-player-bar .byline a');
-                      if (artistAnchor) {
-                        const href = artistAnchor.getAttribute('href');
-                        if (href && href.startsWith('/browse/')) {
-                          browseId = href.replace('/browse/', '');
-                        }
-                      }
-                      if (!browseId) {
-                        const playerPageArtist = document.querySelector('.content-info-wrapper a[href^="/browse/"]');
-                        if (playerPageArtist) {
-                          const href = playerPageArtist.getAttribute('href');
-                          if (href && href.startsWith('/browse/')) {
-                            browseId = href.replace('/browse/', '');
-                          }
-                        }
-                      }
-                      
-                      if (browseId) {
-                        const app = document.querySelector('ytmusic-app');
-                        if (app && typeof (app as any).navigate === 'function') {
-                          (app as any).navigate(`/browse/${browseId}`);
-                        } else {
-                          const artistUrl = `https://music.youtube.com/browse/${browseId}`;
-                          history.pushState({}, '', artistUrl);
-                          window.dispatchEvent(new PopStateEvent('popstate'));
-                        }
-                      } else {
-                        const artist = song().artist || "";
-                        if (artist) {
-                          const app = document.querySelector('ytmusic-app');
-                          if (app && typeof (app as any).navigate === 'function') {
-                            (app as any).navigate(`/search?q=${encodeURIComponent(artist)}`);
-                          } else {
-                            const searchUrl = `https://music.youtube.com/search?q=${encodeURIComponent(artist)}`;
-                            history.pushState({}, '', searchUrl);
-                            window.dispatchEvent(new PopStateEvent('popstate'));
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              }}
-            >
-              {song().artist || "Artist Name"}
-            </div>
+                }}
+              >
+                {song().artist || 'Artist Name'}
+              </div>
+            )}
             {/* Album removed from bottom bar per request */}
           </div>
         </div>

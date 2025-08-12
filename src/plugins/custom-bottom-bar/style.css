@@ -937,7 +937,7 @@ ytmusic-player-bar::after {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 0;
+  gap: 4px;
 }
 
 .ytmusic-album-section {
@@ -949,6 +949,13 @@ ytmusic-player-bar::after {
   color: #aaa;
   margin: 0 6px;
   font-size: 0.9em;
+}
+
+/* Tighter separator for artist list "," */
+.ytmusic-artist-sep {
+  color: #aaa;
+  margin: 0 3px;
+  font-size: 0.95em;
 }
 
 .ytmusic-album {
