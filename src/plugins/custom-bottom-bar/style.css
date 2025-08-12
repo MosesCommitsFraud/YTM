@@ -319,8 +319,8 @@ ytmusic-player-bar .chapter-info,
 
 
 .ytmusic-nav-btn img {
-  width: 22px;
-  height: 22px;
+  width: 23px;
+  height: 23px;
   filter: brightness(0) saturate(100%) invert(67%) sepia(0%) saturate(0%) hue-rotate(93deg) brightness(87%)
     contrast(86%);
 }
@@ -342,7 +342,7 @@ ytmusic-player-bar .chapter-info,
   align-items: center;
   justify-content: center;
   margin: 0 4px;
-  transition: transform 90ms ease-out;
+  transition: transform 120ms ease-out;
   transform-origin: center center;
 }
 
@@ -405,18 +405,15 @@ ytmusic-player-bar .chapter-info,
   transition: transform 90ms ease-out;
 }
 
-.ytmusic-bottom-bar button:hover img.icon {
-  --hover-scale: 1.011; /* slightly stronger default */
-}
-
-/* Do not scale play/pause on hover to avoid wobble */
-.ytmusic-bottom-bar .ytmusic-play-btn:hover img.icon {
-  --hover-scale: 1;
-}
-
 /* Grow the play/pause circle itself on hover */
 .ytmusic-bottom-bar .ytmusic-play-btn:hover {
-  transform: scale(1.045);
+  /* 30px -> ~32px (about +1px per side) */
+  transform: scale(1.067);
+}
+
+/* Also scale the play/pause icon: 18px → 20px = 1.111x */
+.ytmusic-bottom-bar .ytmusic-play-btn:hover img.icon {
+  --hover-scale: 1.111;
 }
 
 /* Custom tooltip for any element with data-tooltip */
@@ -971,36 +968,45 @@ ytmusic-player-bar::after {
   text-decoration: underline;
 }
 
-/* --- Disable all animations on icons in the bottom bar --- */
-/* Remove transitions/animations from icon images and their button wrappers */
-.ytmusic-bottom-bar button img.icon,
-.ytmusic-bottom-bar .ytmusic-control-btn,
-.ytmusic-bottom-bar .ytmusic-nav-btn,
-.ytmusic-bottom-bar .ytmusic-volume-btn,
-.ytmusic-bottom-bar .ytmusic-menu-btn,
-.ytmusic-bottom-bar .ytmusic-like-btn,
-.ytmusic-bottom-bar .ytmusic-play-btn {
-  transition: none !important;
-  animation: none !important;
+/* --- Micro-zoom hover (+0.5px per side for all except play/pause), centered, no layout shift --- */
+/* Base transform handled above via --hover-scale */
+
+/* Default: control/menu/like use 18px icons → 18→19px = 1.056x */
+.ytmusic-bottom-bar .ytmusic-control-btn:hover img.icon,
+.ytmusic-bottom-bar .ytmusic-menu-btn:hover img.icon,
+.ytmusic-bottom-bar .ytmusic-like-btn:hover img.icon {
+  --hover-scale: 1.056;
 }
 
-/* Prevent any hover scaling or transform animations on icons */
-.ytmusic-bottom-bar button img.icon {
-  --hover-scale: 1 !important;
-  transform: translate(var(--tx, 0), var(--ty, 0)) scale(1) !important;
+/* Shuffle/Repeat use 16px icons → 16→17px = 1.0625x */
+.ytmusic-bottom-bar .ytmusic-control-btn[data-tooltip="Shuffle"]:hover img.icon,
+.ytmusic-bottom-bar .ytmusic-control-btn[aria-label="Shuffle" i]:hover img.icon,
+.ytmusic-bottom-bar .ytmusic-control-btn[data-tooltip^="Repeat"]:hover img.icon,
+.ytmusic-bottom-bar .ytmusic-control-btn[aria-label^="Repeat" i]:hover img.icon {
+  --hover-scale: 1.0625;
 }
 
-.ytmusic-bottom-bar button:hover img.icon {
-  --hover-scale: 1 !important;
+/* Navigation (prev/next) use 23px icons → 23→24px = ~1.043x */
+.ytmusic-bottom-bar .ytmusic-nav-btn:hover img.icon {
+  --hover-scale: 1.043;
 }
 
-/* Also prevent the play/pause circular button from animating/transforming */
-.ytmusic-bottom-bar .ytmusic-play-btn {
-  transform: none !important;
+/* Volume uses 20px icons → 20→21px = 1.05x */
+.ytmusic-bottom-bar .ytmusic-volume-btn:hover img.icon {
+  --hover-scale: 1.05;
 }
 
-.ytmusic-bottom-bar .ytmusic-play-btn:hover {
-  transform: none !important;
+/* Fullscreen override uses 15px icon → 15→15.5px = 1.0333x */
+.ytmusic-bottom-bar .ytmusic-menu-btn[data-tooltip*="Fullscreen" i]:hover img.icon,
+.ytmusic-bottom-bar .ytmusic-menu-btn[aria-label*="Fullscreen" i]:hover img.icon,
+.ytmusic-bottom-bar .ytmusic-menu-btn[data-tooltip*="Vollbild" i]:hover img.icon {
+  --hover-scale: 1.0111;
+}
+
+/* Expand Song uses 18px icon → 18→18.5px = 1.0278x */
+.ytmusic-bottom-bar .ytmusic-menu-btn[data-tooltip*="Expand Song" i]:hover img.icon,
+.ytmusic-bottom-bar .ytmusic-menu-btn[aria-label*="Expand Song" i]:hover img.icon {
+  --hover-scale: 1.0151;
 }
 
 /* Pull Shuffle closer to Previous, and Repeat closer to Next */
