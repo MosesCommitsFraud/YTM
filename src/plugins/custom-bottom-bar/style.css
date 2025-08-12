@@ -343,12 +343,12 @@ ytmusic-player-bar .chapter-info,
 }
 
 .ytmusic-play-btn {
-  background: #fff;
+  background: none;
   border: none;
-  color: #000;
+  color: inherit;
   cursor: pointer;
-  width: 30px;
-  height: 30px;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -361,24 +361,18 @@ ytmusic-player-bar .chapter-info,
 
 
 .ytmusic-play-btn img {
-  width: 18px;
-  height: 18px;
-  filter: brightness(0) saturate(100%) invert(0%) sepia(0%) saturate(7500%) hue-rotate(109deg) brightness(0%)
-    contrast(107%);
-  /* Ensure proper centering */
+  width: 30px;
+  height: 30px;
+  filter: none;
   display: block;
   margin: auto;
 }
 
-/* Play icon centered */
-.ytmusic-play-btn img.play-icon.icon {
-  --tx: 0px;
-}
-
-/* Pause icon centered */
+/* Play/Pause icons centered */
+.ytmusic-play-btn img.play-icon.icon,
 .ytmusic-play-btn img.pause-icon.icon {
-  width: 18px;
-  height: 18px;
+  width: 30px;
+  height: 30px;
   --tx: 0px;
 }
 
@@ -417,16 +411,7 @@ ytmusic-player-bar .chapter-info,
   transition: transform 90ms ease-out;
 }
 
-/* Grow the play/pause circle itself on hover */
-.ytmusic-bottom-bar .ytmusic-play-btn:hover {
-  /* 30px -> ~32px (about +1px per side) */
-  transform: scale(1.067);
-}
-
-/* Also scale the play/pause icon: 18px → 20px = 1.111x */
-.ytmusic-bottom-bar .ytmusic-play-btn:hover img.icon {
-  --hover-scale: 1.111;
-}
+/* Remove circle grow on hover (icons include their own circle) */
 
 /* Custom tooltip for any element with data-tooltip */
 .ytmusic-bottom-bar [data-tooltip] {
@@ -819,10 +804,7 @@ ytmusic-player-bar .chapter-info,
   height: 16px;
 }
 
-/* Disable hover scaling for only play/pause */
-.ytmusic-bottom-bar .ytmusic-play-btn:hover img.icon {
-  --hover-scale: 1;
-}
+/* (removed: play/pause scaling was disabled previously) */
 
 /* Dropdown Menu */
 .ytmusic-dropdown {
@@ -1010,6 +992,11 @@ ytmusic-player-bar::after {
 /* Volume uses 20px icons → 20→21px = 1.05x */
 .ytmusic-bottom-bar .ytmusic-volume-btn:hover img.icon {
   --hover-scale: 1.05;
+}
+
+/* Play/Pause uses 30px icons → 30→31px ≈ 1.033x */
+.ytmusic-bottom-bar .ytmusic-play-btn:hover img.icon {
+  --hover-scale: 1.033;
 }
 
 /* Fullscreen override uses 15px icon → 15→15.5px = 1.0333x */
