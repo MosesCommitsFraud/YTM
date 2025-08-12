@@ -1044,8 +1044,9 @@ function YTMusicPlayer() {
     if (results.length === 0) {
       const artist = song().artist || ''
       if (artist) {
-        // Split on common separators for multiple artists
-        const parts = artist.split(/\s*,\s*|\s*&\s*|\s*x\s*|\s*;\s*/i).filter(Boolean)
+        // Split on common separators for multiple artists.
+        // IMPORTANT: require spaces around 'x' (or '×') to avoid splitting names like 'BOMBEI.exe'.
+        const parts = artist.split(/\s*,\s*|\s*&\s*|\s+(?:x|×)\s+|\s*;\s*/i).filter(Boolean)
         for (const p of parts) results.push({ name: p, href: undefined, el: undefined })
       }
     }
