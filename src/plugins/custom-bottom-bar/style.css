@@ -560,7 +560,6 @@ ytmusic-player-bar .chapter-info,
   opacity: 0;
   transition: opacity 0.2s ease;
   margin-top: -4.25px;
-  margin-left: -4px;
   position: relative;
   z-index: 10;
 }
@@ -599,7 +598,6 @@ ytmusic-player-bar .chapter-info,
   transition: opacity 0.2s ease;
   position: relative;
   z-index: 10;
-  transform: translateX(-4px);
 }
 
 .ytmusic-slider:hover::-moz-range-thumb {
