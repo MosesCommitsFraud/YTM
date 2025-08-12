@@ -114,7 +114,7 @@ ytmusic-player-bar .chapter-info,
   align-items: center;
   min-width: 180px;
   overflow: visible; /* allow tooltips from like button to render */
-  transform: translateY(-4px);
+  transform: translateY(0);
 }
 
 .ytmusic-album-cover,
@@ -126,13 +126,14 @@ ytmusic-player-bar .chapter-info,
 }
 
 .ytmusic-album-cover {
-  width: 48px;
-  height: 48px;
-  border-radius: 2px;
+  width: 52px;
+  height: 52px;
+  border-radius: 4px;
   overflow: hidden;
   margin-right: 12px;
   background: #303030;
   flex-shrink: 0;
+  align-self: center;
 }
 
 .ytmusic-album-cover img {
@@ -168,7 +169,7 @@ ytmusic-player-bar .chapter-info,
 }
 
 .ytmusic-artist {
-  font-size: 12px;
+  font-size: 11px;
   color: #aaaaaa;
   white-space: nowrap;
   overflow: hidden;
