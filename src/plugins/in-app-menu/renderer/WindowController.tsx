@@ -30,16 +30,6 @@ const buttonStyle = cacheNoArgs(() => css`
     background: rgba(255, 255, 255, 0.08);
   }
   
-  &.minimize-btn:hover {
-    background: rgba(255, 193, 7, 0.15);
-    color: #ffc107;
-  }
-  
-  &.maximize-btn:hover {
-    background: rgba(76, 175, 80, 0.15);
-    color: #4caf50;
-  }
-  
   &.close-btn:hover {
     background: rgba(244, 67, 54, 0.15);
     color: #f44336;
