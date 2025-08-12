@@ -81,6 +81,8 @@ function YTMusicPlayer() {
   // Volume HUD state
   const [volumeHudVisible, setVolumeHudVisible] = createSignal(false)
   const [volumeHudText, setVolumeHudText] = createSignal("")
+  // Track whether we've already applied an initial volume to avoid double-setting
+  let hasAppliedInitialVolume = false
   // === NATIVE ELEMENT SETUP ===
   // Setup functions defined before onMount to avoid hoisting issues
   let nativeProgressObserver: MutationObserver | null = null
@@ -315,24 +317,8 @@ function YTMusicPlayer() {
       }
     }
     
-    // Initial sync from native slider, API, or localStorage
+    // Initial sync: prefer stored volume, then API, then native slider
     let initialVolumeLevel = 1 // Default to 100%
-    
-    // Try to get from native slider first
-    const nativeValue = Number((nativeVolumeSlider as HTMLInputElement).value)
-    if (nativeValue >= 0 && nativeValue <= 100) {
-      initialVolumeLevel = nativeValue / 100
-    }
-    
-    // Try to get from API if available
-    if (api && typeof api.getVolume === "function") {
-      const apiVolume = api.getVolume()
-      if (typeof apiVolume === "number" && apiVolume >= 0) {
-        initialVolumeLevel = apiVolume / 100
-      }
-    }
-    
-    // Try to get from localStorage as final fallback
     try {
       const storedVolume = localStorage.getItem(VOLUME_KEY)
       if (storedVolume !== null) {
@@ -342,8 +328,27 @@ function YTMusicPlayer() {
         }
       }
     } catch {}
-    
-    setVolume(initialVolumeLevel)
+
+    if (initialVolumeLevel === 1 && api && typeof api.getVolume === 'function') {
+      const apiVolume = api.getVolume()
+      if (typeof apiVolume === 'number' && apiVolume >= 0) {
+        initialVolumeLevel = clamp(apiVolume / 100, 0, 1)
+      }
+    }
+
+    if (initialVolumeLevel === 1) {
+      const nativeValue = Number((nativeVolumeSlider as HTMLInputElement).value)
+      if (nativeValue >= 0 && nativeValue <= 100) {
+        initialVolumeLevel = nativeValue / 100
+      }
+    }
+
+    // Apply to UI and YTM immediately for consistency
+    const initialPct = volumeToPercentage(initialVolumeLevel)
+    setPreciseVolume(initialPct, false)
+    hasAppliedInitialVolume = true
+    // Ensure mute UI aligns with level
+    setIsMuted(initialVolumeLevel === 0)
   }
   
   const setupMediaListeners = (mediaElement: HTMLVideoElement) => {
@@ -420,7 +425,7 @@ function YTMusicPlayer() {
   
   // Get current volume steps from plugin config
   const getVolumeSteps = () => {
-    const steps = pluginConfig?.volumeSteps || 5
+    const steps = pluginConfig?.volumeSteps || 1
     return Math.max(1, Math.min(steps, 20))
   }
   const getArrowsShortcut = () => pluginConfig?.arrowsShortcut ?? true
@@ -565,27 +570,33 @@ function YTMusicPlayer() {
     }
   }
 
-  // Debounced functions for smooth volume updates
-  const debouncedNativeVolumeUpdate = debounce((volumePct: number) => {
-    const nativeVolumeSlider = document.querySelector('#volume-slider') as HTMLInputElement || 
-                               document.querySelector('#expand-volume-slider') as HTMLInputElement
-    if (nativeVolumeSlider && !isDraggingVolume()) {
-      nativeVolumeSlider.value = String(volumePct)
-      nativeVolumeSlider.dispatchEvent(new Event('input', { bubbles: true }))
-    }
-  }, 50)
-
-  const debouncedVolumeApiUpdate = debounce((volumePct: number) => {
-    if (api && typeof api.setVolume === "function") {
-      api.setVolume(volumePct)
-    }
-  }, 50)
+  // rAF-scheduled updates for ultra-responsive volume handling while dragging
+  let scheduledVolumeRaf: number | null = null
+  let lastScheduledVolumePct = 100
+  const scheduleVolumeUpdate = (volumePct: number) => {
+    lastScheduledVolumePct = clamp(Math.round(volumePct), 0, 100)
+    if (scheduledVolumeRaf != null) return
+    scheduledVolumeRaf = requestAnimationFrame(() => {
+      scheduledVolumeRaf = null
+      // Apply via API if available
+      if (api && typeof api.setVolume === 'function') {
+        try { api.setVolume(lastScheduledVolumePct) } catch {}
+      }
+      // Also nudge native slider so YTM UI stays consistent
+      const nativeVolumeSlider = document.querySelector('#volume-slider') as HTMLInputElement || 
+                                 document.querySelector('#expand-volume-slider') as HTMLInputElement
+      if (nativeVolumeSlider) {
+        nativeVolumeSlider.value = String(lastScheduledVolumePct)
+        nativeVolumeSlider.dispatchEvent(new Event('input', { bubbles: true }))
+      }
+    })
+  }
 
   const debouncedVolumeSave = debounce((val: number) => {
     try {
       localStorage.setItem(VOLUME_KEY, String(val))
     } catch {}
-  }, 200)
+  }, 100)
 
   const onVolumeInput = (e: Event) => {
     // Handle volume slider input (while dragging) - update volume smoothly
@@ -602,9 +613,8 @@ function YTMusicPlayer() {
       setIsMuted(false)
     }
     
-    // Debounce heavy operations for smoothness
-    debouncedNativeVolumeUpdate(volumePct)
-    debouncedVolumeApiUpdate(volumePct)
+    // Apply quickly using rAF scheduler
+    scheduleVolumeUpdate(volumePct)
     debouncedVolumeSave(val)
   }
 
@@ -648,7 +658,7 @@ function YTMusicPlayer() {
     if (!pluginConfig) {
       pluginConfig = {
         enabled: true,
-        volumeSteps: 5,
+        volumeSteps: 1,
         arrowsShortcut: true
       }
     }
@@ -660,20 +670,19 @@ function YTMusicPlayer() {
     setupNativeProgressTracking()
     setupNativeVolumeTracking()
     
-    // Ensure stored volume is applied after a delay to let YTM initialize
+    // If initial volume wasn't applied (e.g., native slider not ready), try once shortly after
     setTimeout(() => {
+      if (hasAppliedInitialVolume) return
       try {
         const storedVolume = localStorage.getItem(VOLUME_KEY)
         if (storedVolume !== null) {
           const volumeLevel = clamp(Number(storedVolume), 0, 1)
           const volumePct = volumeToPercentage(volumeLevel)
-          // Only set if different from current to avoid unnecessary updates
-          if (Math.abs(volumePct - volumeToPercentage(volume())) > 1) {
-            setPreciseVolume(volumePct, false)
-          }
+          setPreciseVolume(volumePct, false)
+          hasAppliedInitialVolume = true
         }
       } catch {}
-    }, 1000)
+    }, 300)
     
     // 2. Media Element Manager - For play/pause state and content type detection
     const setupMediaElementTracking = () => {
