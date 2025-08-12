@@ -656,7 +656,7 @@ ytmusic-player-bar .chapter-info,
 }
 
 .ytmusic-volume-bar {
-  width: 140px;
+  width: 100px;
   position: relative;
   height: 12px;
   display: flex;
@@ -864,7 +864,7 @@ ytmusic-player-bar .chapter-info,
   }
 
   .ytmusic-volume-bar {
-    width: 90px;
+    width: 100px;
   }
 }
 
@@ -891,7 +891,7 @@ ytmusic-player-bar .chapter-info,
   }
 
   .ytmusic-volume-bar {
-    width: 120px;
+    width: 100px;
   }
 }
 
