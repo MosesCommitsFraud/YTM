@@ -4,6 +4,7 @@ node_modules
 electron-builder.yml
 .vscode/settings.json
 .idea
+.cursor
 
 .pnp.*
 .yarn/*
@@ -15,3 +16,4 @@ electron-builder.yml
 .vite-inspect
 
 .DS_Store
+
