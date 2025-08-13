@@ -61,7 +61,7 @@ const defaultConfig: DefaultConfig = {
     restartOnConfigChanges: false,
     trayClickPlayPause: false,
     autoResetAppCache: false,
-    resumeOnStart: true,
+    resumeOnStart: false,
     likeButtons: '',
     proxy: '',
     startingPage: '',

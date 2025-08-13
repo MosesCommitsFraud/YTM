@@ -294,6 +294,29 @@ async function onApiLoaded() {
     },
   );
 
+  // Guard: if resumeOnStart is disabled, pause playback once when initial data loads
+  const ensurePausedOnFirstLoad = (evt: Event) => {
+    try {
+      const e = evt as CustomEvent<{ name?: string }>;
+      const shouldResume = window.mainConfig.get('options.resumeOnStart');
+      if (!shouldResume && e?.detail?.name === 'dataloaded') {
+        api?.pauseVideo?.();
+        const vid = document.querySelector<HTMLVideoElement>('video');
+        vid?.addEventListener(
+          'timeupdate',
+          () => {
+            vid.pause();
+          },
+          { once: true },
+        );
+        document.removeEventListener('videodatachange', ensurePausedOnFirstLoad as EventListener);
+      }
+    } catch {
+      // no-op
+    }
+  };
+  document.addEventListener('videodatachange', ensurePausedOnFirstLoad as EventListener);
+
   const video = document.querySelector('video')!;
   const audioContext = new AudioContext();
   const audioSource = audioContext.createMediaElementSource(video);
