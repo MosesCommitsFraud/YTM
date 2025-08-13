@@ -186,7 +186,14 @@
     },
     "directories": {
       "output": "./pack/"
-    }
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "MosesCommitsFraud",
+        "repo": "YTM"
+      }
+    ]
   },
   "scripts": {
     "test": "playwright test",

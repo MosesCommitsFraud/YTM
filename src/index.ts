@@ -699,11 +699,13 @@ app.whenReady().then(async () => {
   
   // Global F3 hotkey to enable in-app menu plugin even when disabled
   register(mainWindow, 'F3', () => {
+    const win = mainWindow;
+    if (!win) return;
     const isEnabled = config.plugins.isEnabled('in-app-menu');
     if (!isEnabled) {
       config.plugins.enable('in-app-menu');
       // The plugin requires a restart, so show a dialog
-      dialog.showMessageBox(mainWindow, {
+      dialog.showMessageBox(win, {
         type: 'info',
         title: 'In-App Menu Enabled',
         message: 'The in-app menu has been enabled. The application will restart to apply changes.',
@@ -716,7 +718,7 @@ app.whenReady().then(async () => {
       });
     } else {
       // If already enabled, just toggle the menu visibility
-      mainWindow.webContents.send('toggle-in-app-menu');
+      win.webContents.send('toggle-in-app-menu');
     }
   });
   setupProtocolHandler(mainWindow);
@@ -754,8 +756,7 @@ app.whenReady().then(async () => {
   app.setLoginItemSettings({
     openAtLogin: config.get('options.startAtLogin'),
   });
-  // TODO: Update the following update checking logic for the correct repository before enabling
-  /*
+  // Auto-update check using GitHub releases for MosesCommitsFraud/YTM
   if (!is.dev() && config.get('options.autoUpdates')) {
     const updateTimeout = setTimeout(() => {
       autoUpdater.checkForUpdatesAndNotify();
@@ -763,7 +764,7 @@ app.whenReady().then(async () => {
     }, 2000);
     autoUpdater.on('update-available', () => {
       const downloadLink =
-        'https://github.com/mosescommitsfraud/NAMEHEREFORTHEREPO/releases/latest';
+        'https://github.com/MosesCommitsFraud/YTM/releases/latest';
       const dialogOptions = {
         type: 'info' as const,
         buttons: [
@@ -793,7 +794,6 @@ app.whenReady().then(async () => {
       }
     });
   }
-  */
 });
 
 function showUnresponsiveDialog(
