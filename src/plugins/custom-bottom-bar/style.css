@@ -111,6 +111,8 @@ ytmusic-player-bar .chapter-info,
   overflow: visible; /* allow tooltips from like button to render */
   transform: translateY(0);
   height: 100%;
+  position: relative; /* ensure z-index takes effect as a stacking context */
+  z-index: 2147483649; /* raise above center controls so tooltips aren't covered */
 }
 
 .ytmusic-album-cover,
@@ -158,6 +160,7 @@ ytmusic-player-bar .chapter-info,
   height: 100%;
   transform: translateY(-2px);
   position: relative;
+  z-index: 1000001; /* ensure heart tooltip renders above album cover (z-index: 1000000) */
 }
 
 .ytmusic-text-block {
@@ -209,6 +212,9 @@ ytmusic-player-bar .chapter-info,
   flex-shrink: 0;
   align-self: center;
   margin-left: 14px;
+  position: relative;
+  overflow: visible; /* ensure tooltip can overflow upward */
+  z-index: 2147483650;
 }
 
 .ytmusic-like-btn {
@@ -226,6 +232,7 @@ ytmusic-player-bar .chapter-info,
   height: 28px;
   margin-left: 0;
   pointer-events: auto; /* clickable even though parent is non-interactive */
+  position: relative; /* needed so tooltip ::before/::after position relative to button */
 }
 
 .ytmusic-like-btn:hover {
@@ -303,7 +310,7 @@ ytmusic-player-bar .chapter-info,
   width: 44px !important;
   height: 44px !important;
   position: relative;
-  contain: paint;
+  /* match heart tooltip behavior: allow pseudo-element to render outside */
 }
 
 .ytmusic-control-btn:hover {
@@ -347,7 +354,7 @@ ytmusic-player-bar .chapter-info,
   justify-content: center;
   width: 44px !important;
   height: 44px !important;
-  contain: paint;
+  /* match heart tooltip behavior: allow pseudo-element to render outside */
 }
 
 
@@ -378,7 +385,7 @@ ytmusic-player-bar .chapter-info,
   margin: 0;
   transition: color 0.15s ease;
   transform-origin: center center;
-  contain: paint;
+  /* match heart tooltip behavior: allow pseudo-element to render outside */
 }
 
 
@@ -442,6 +449,12 @@ ytmusic-player-bar .chapter-info,
 /* Custom tooltip for any element with data-tooltip */
 .ytmusic-bottom-bar [data-tooltip] {
   position: relative;
+}
+
+/* Stronger stacking for heart tooltip specifically */
+.ytmusic-bottom-bar .ytmusic-like-btn[data-tooltip]::after,
+.ytmusic-bottom-bar .ytmusic-like-btn[data-tooltip]::before {
+  z-index: 2147483651;
 }
 
 .ytmusic-bottom-bar [data-tooltip]::after {
@@ -665,7 +678,7 @@ ytmusic-player-bar .chapter-info,
   justify-content: center;
   width: 32px;
   height: 32px;
-  contain: paint;
+  /* match heart tooltip behavior: allow pseudo-element to render outside */
 }
 
 .ytmusic-volume-btn:hover {
@@ -794,7 +807,7 @@ ytmusic-player-bar .chapter-info,
   width: 32px;
   height: 32px;
   position: relative;
-  contain: paint;
+  /* match heart tooltip behavior: allow pseudo-element to render outside */
 }
 
 .ytmusic-menu-btn:hover {
