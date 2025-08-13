@@ -2,7 +2,7 @@
   "name": "YTM",
   "desktopName": "com.github.mosescommitsfraud.ytm",
   "productName": "YouTube Music",
-  "version": "0.4.0",
+  "version": "1.0.1",
   "description": "YouTube Music Desktop App",
   "main": "./dist/main/index.js",
   "repository": "mosescommitsfraud/YTM",

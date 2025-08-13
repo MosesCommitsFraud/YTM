@@ -1,5 +1,7 @@
 import { createPlugin } from "@/utils"
 import { render } from "solid-js/web"
+import styleContent from "./style.css?inline"
+import YTMusicPlayer, { onPlayerApiReady as cb_onPlayerApiReady, onConfigChange as cb_onConfigChange } from "./renderer"
 import prompt, { CounterOptions } from 'custom-electron-prompt'
 import promptOptions from '@/providers/prompt-options'
 
@@ -84,6 +86,13 @@ export default createPlugin({
   },
   renderer: {
     start() {
+      // Ensure plugin CSS is present in production (renderer is injected as JS only)
+      if (!document.getElementById('ytmusic-custom-bar-style')) {
+        const styleEl = document.createElement('style')
+        styleEl.id = 'ytmusic-custom-bar-style'
+        styleEl.textContent = styleContent
+        document.head.appendChild(styleEl)
+      }
       // Add CSS to globally hide any remaining progress bar elements
       const hideProgressBarCSS = document.createElement('style');
       hideProgressBarCSS.id = 'ytmusic-custom-bar-overrides';
@@ -233,18 +242,35 @@ export default createPlugin({
         });
       }
 
-      // Inject the custom bar
-      let customBar = document.getElementById("ytmusic-player-root")
-      if (!customBar) {
-        customBar = document.createElement("div")
-        customBar.id = "ytmusic-player-root"
-        document.body.appendChild(customBar)
+      // Inject the custom bar with inline fallback styles
+      const ensureMount = () => {
+        let customBar = document.getElementById("ytmusic-player-root") as HTMLDivElement | null
+        if (!customBar) {
+          customBar = document.createElement("div")
+          customBar.id = "ytmusic-player-root"
+          // Minimal inline fallback styling in case CSS fails to load in prod
+          customBar.style.position = 'fixed'
+          customBar.style.left = '0'
+          customBar.style.right = '0'
+          customBar.style.bottom = '0'
+          customBar.style.zIndex = '2147483647'
+          customBar.style.pointerEvents = 'auto'
+          document.body.appendChild(customBar)
+        }
+        // Render the component (static import to work in production)
+        render(YTMusicPlayer, customBar)
       }
 
-      // Import and render the component
-      import("./renderer").then(({ default: YTMusicPlayer }) => {
-        render(YTMusicPlayer, customBar!)
+      ensureMount()
+
+      // If something removes the node, restore it
+      const mountObserver = new MutationObserver(() => {
+        const exists = document.getElementById('ytmusic-player-root')
+        if (!exists) {
+          ensureMount()
+        }
       })
+      mountObserver.observe(document.body, { childList: true, subtree: true })
 
       // Monitor for dynamic content changes and re-hide progress bars
       const observer = new MutationObserver(() => {
@@ -281,16 +307,11 @@ export default createPlugin({
     },
     
     async onPlayerApiReady(playerApi, context) {
-      // Import and call the onPlayerApiReady function
-      const { onPlayerApiReady } = await import("./renderer")
-      return onPlayerApiReady(playerApi, context)
+      return cb_onPlayerApiReady(playerApi, context)
     },
     
     onConfigChange(newConfig) {
-      // Import and call the onConfigChange function
-      import("./renderer").then(({ onConfigChange }) => {
-        onConfigChange(newConfig)
-      })
+      cb_onConfigChange(newConfig)
     },
     
     stop() {
