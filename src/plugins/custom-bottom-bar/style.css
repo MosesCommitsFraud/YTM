@@ -17,6 +17,7 @@
   font-family: "Roboto", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-size: 14px;
   pointer-events: auto;
+  box-shadow: 0 0 0 1px #2a2a2a;
 }
 
 /* Hide the original YouTube Music navigation bar completely */
