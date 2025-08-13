@@ -47,6 +47,8 @@ const titleStyle = cacheNoArgs(
     font-size: 12px;
     padding: 4px 4px 4px var(--offset-left, 4px);
     background-color: var(--titlebar-background-color, #030303);
+    /* Subtle bottom border to match bottom bar */
+    box-shadow: 0 1px 0 0 #2a2a2a;
     user-select: none;
 
     transition:
