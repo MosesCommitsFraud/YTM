@@ -33,14 +33,12 @@ ytmusic-nav-bar {
 /* Adjust the app layout to compensate for hidden navigation bar */
 ytmusic-app-layout {
   --ytmusic-nav-bar-height: 0px !important;
-  /* Ensure fallback var used below resolves to 0 instead of 32px in prod */
-  --menu-bar-height: 0px !important;
 }
 
 /* Adjust content positioning to account for hidden nav bar */
 ytmusic-app-layout > #content {
-  /* Remove unintended extra top padding and reserve space for custom bottom bar */
-  padding-top: 0 !important;
+  /* Account for window title bar overlay at the top and reserve space for custom bottom bar */
+  padding-top: var(--menu-bar-height, 32px) !important;
   padding-bottom: 76px !important;
 }
 
