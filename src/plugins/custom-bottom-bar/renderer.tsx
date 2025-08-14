@@ -96,6 +96,8 @@ function YTMusicPlayer() {
   let lastAnchorTime = 0
   let playbackRate = 1
   const ANCHOR_DRIFT_EPSILON_SECONDS = 1.0
+  // Keep in case we want to allow tiny paused drift; not used after simplifying paused logic
+  // const PAUSED_MUTATION_SEEK_THRESHOLD_SECONDS = 0.75
   let rafId: number | null = null
   let lastNativeProgressUpdateAt = 0
   let failSafeInterval: number | null = null
@@ -156,23 +158,24 @@ function YTMusicPlayer() {
     
     // Monitor native progress bar value changes
     nativeProgressObserver = new MutationObserver((mutations) => {
-      if (isSeeking()) return // Don't update while user is seeking
+      if (isSeeking() || isPaused()) return // Don't update while user is seeking/paused
       
       for (const mutation of mutations) {
         const target = mutation.target as HTMLElement & { value: string }
         if (mutation.attributeName === 'value') {
           const newValue = Number(target.value) || 0
           if (newValue >= 0 && isFinite(newValue)) {
-            // Always keep the logical progress in sync (for accuracy)
+            // Keep logical progress in sync
             setProgress(newValue)
             lastNativeProgressUpdateAt = performance.now()
-            // Only re-anchor the visual animation if we drifted significantly
+            // Re-anchor if drifted significantly or we are paused (ensure snap)
             const now = performance.now()
             const expected = lastProgressAnchor + ((now - lastAnchorTime) / 1000) * (playbackRate || 1)
             const drift = Math.abs(newValue - expected)
             if (drift > ANCHOR_DRIFT_EPSILON_SECONDS) {
               lastProgressAnchor = newValue
               lastAnchorTime = now
+              setDisplaySeconds(Math.floor(newValue))
               recomputeProgressAnimation()
             }
           }
@@ -208,7 +211,7 @@ function YTMusicPlayer() {
         if (nativeProgressBar) {
           try {
             nativeProgressObserver = new MutationObserver((mutations) => {
-              if (isSeeking()) return
+              if (isSeeking() || isPaused()) return
               for (const mutation of mutations) {
                 const target = mutation.target as HTMLElement & { value: string }
                 if (mutation.attributeName === 'value') {
@@ -222,6 +225,7 @@ function YTMusicPlayer() {
                     if (drift > ANCHOR_DRIFT_EPSILON_SECONDS) {
                       lastProgressAnchor = newValue
                       lastAnchorTime = now
+                      setDisplaySeconds(Math.floor(newValue))
                       recomputeProgressAnimation()
                     }
                   }
@@ -246,7 +250,7 @@ function YTMusicPlayer() {
       failSafeInterval = window.setInterval(() => {
         if (isSeeking()) return
         const now = performance.now()
-        if (now - lastNativeProgressUpdateAt > 3000) {
+        if (!isPaused() && (song().songDuration || 0) > 0 && now - lastNativeProgressUpdateAt > 3000) {
           let currentTime = NaN
           try {
             if (api && typeof api.getCurrentTime === 'function') {
@@ -265,6 +269,7 @@ function YTMusicPlayer() {
             lastAnchorTime = performance.now()
             recomputeProgressAnimation()
             lastNativeProgressUpdateAt = performance.now()
+            setDisplaySeconds(Math.floor(clamped))
           }
         }
       }, 1000)
@@ -357,10 +362,14 @@ function YTMusicPlayer() {
   const setupMediaListeners = (mediaElement: HTMLVideoElement) => {
     // Play/pause state sync
     const onPlayPause = () => {
-      setIsPaused(mediaElement.paused)
-      // Re-anchor on play/pause transitions
-      lastProgressAnchor = getNowProgress()
+      const pausedNow = mediaElement.paused
+      setIsPaused(pausedNow)
+      // Sync to actual media time to avoid drift
+      const current = clampProgressToDuration(mediaElement.currentTime || 0)
+      setProgress(current)
+      lastProgressAnchor = current
       lastAnchorTime = performance.now()
+      setDisplaySeconds(Math.floor(current))
       recomputeProgressAnimation()
     }
     
@@ -1366,6 +1375,7 @@ function YTMusicPlayer() {
     setProgress(val)
     lastProgressAnchor = val
     lastAnchorTime = performance.now()
+      setDisplaySeconds(Math.floor(val))
     recomputeProgressAnimation()
     
     // Re-enable progress sync after a brief delay
@@ -1408,6 +1418,7 @@ function YTMusicPlayer() {
       setProgress(newTime)
       lastProgressAnchor = newTime
       lastAnchorTime = performance.now()
+      setDisplaySeconds(Math.floor(newTime))
       recomputeProgressAnimation()
       
       setTimeout(() => {
