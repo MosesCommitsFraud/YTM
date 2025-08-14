@@ -77,6 +77,8 @@ function YTMusicPlayer() {
   const [isPaused, setIsPaused] = createSignal(true)
   const [, setShowDropdown] = createSignal(false)
   const [isExpanded, setIsExpanded] = createSignal(false)
+  // Displayed elapsed seconds (updates every second via rAF; independent from native mutation rate)
+  const [displaySeconds, setDisplaySeconds] = createSignal(0)
   
   // Volume HUD state
   const [volumeHudVisible, setVolumeHudVisible] = createSignal(false)
@@ -188,6 +190,7 @@ function YTMusicPlayer() {
     lastProgressAnchor = initialValue
     lastAnchorTime = performance.now()
     lastNativeProgressUpdateAt = lastAnchorTime
+    setDisplaySeconds(Math.floor(initialValue))
     recomputeProgressAnimation()
 
     // Observe for progress bar replacement by YTM (element often recreated)
@@ -931,6 +934,7 @@ function YTMusicPlayer() {
       lastProgressAnchor = initialVideo.currentTime || 0
       lastAnchorTime = performance.now()
       playbackRate = initialVideo.playbackRate || 1
+      setDisplaySeconds(Math.floor(initialVideo.currentTime || 0))
       recomputeProgressAnimation()
       // Set current video ID from song info if not set
       if (!currentVideoId() && song().videoId) {
@@ -951,6 +955,9 @@ function YTMusicPlayer() {
     const tick = () => {
       if (!isSeeking()) {
         recomputeProgressAnimation()
+        // Update display time only when second value changes to avoid excessive reactive updates
+        const sec = Math.floor(getNowProgress())
+        if (sec !== displaySeconds()) setDisplaySeconds(sec)
       }
       rafId = requestAnimationFrame(tick)
     }
@@ -994,6 +1001,7 @@ function YTMusicPlayer() {
       cleanupMediaTracking()
       cleanupMediaListeners() // Clean up media listeners and native observers
       clearInterval(stateInterval)
+      if (failSafeInterval != null) clearInterval(failSafeInterval)
       cleanupLikeWatcher()
       window.ipcRenderer.off("ytmd:shuffle-changed", handleShuffleChanged)
       window.ipcRenderer.off("ytmd:repeat-changed", handleRepeatChanged)
@@ -2273,7 +2281,7 @@ function YTMusicPlayer() {
         </div>
 
         <div class="ytmusic-progress">
-          <span class="ytmusic-time">{fmt(progress())}</span>
+          <span class="ytmusic-time">{fmt(displaySeconds())}</span>
           <div class="ytmusic-progress-bar">
             <input
               type="range"
