@@ -1,6 +1,5 @@
-/* (removed old transform-based hover scale tweaks) */
 @import url('https://fonts.googleapis.com/css2?family=Host+Grotesk:wght@400;500;600&display=swap');
-/* YouTube Music Style Bottom Bar */
+
 .ytmusic-bottom-bar {
   position: fixed;
   left: 0;
@@ -20,7 +19,6 @@
   box-shadow: 0 0 0 1px #2a2a2a;
 }
 
-/* Hide the original YouTube Music navigation bar completely */
 ytmusic-nav-bar {
   display: none !important;
   visibility: hidden !important;
@@ -30,19 +28,15 @@ ytmusic-nav-bar {
   pointer-events: none !important;
 }
 
-/* Adjust the app layout to compensate for hidden navigation bar */
 ytmusic-app-layout {
   --ytmusic-nav-bar-height: 0px !important;
 }
 
-/* Adjust content positioning to account for hidden nav bar */
 ytmusic-app-layout > #content {
-  /* Account for window title bar overlay at the top and reserve space for custom bottom bar */
   padding-top: var(--menu-bar-height, 32px) !important;
   padding-bottom: 76px !important;
 }
 
-/* Override macOS specific navigation bar styles */
 :where([data-os*='Macintosh']) ytmusic-app-layout#layout ytmusic-nav-bar {
   display: none !important;
   padding-top: 0 !important;
@@ -50,13 +44,11 @@ ytmusic-app-layout > #content {
   --ytmusic-nav-bar-height: 0px !important;
 }
 
-/* Ensure proper spacer positioning with hidden nav bar */
 ytmusic-app[is-bauhaus-sidenav-enabled] #guide-spacer.ytmusic-app,
 ytmusic-app[is-bauhaus-sidenav-enabled] #mini-guide-spacer.ytmusic-app {
   margin-top: var(--menu-bar-height, 32px) !important;
 }
 
-/* Ensure nav bar background and divider are properly positioned */
 ytmusic-app-layout > [slot='nav-bar'],
 #nav-bar-background.ytmusic-app-layout {
   top: var(--menu-bar-height, 32px) !important;
@@ -70,12 +62,10 @@ ytmusic-app-layout > [slot='nav-bar'],
   border: none !important;
 }
 
-/* Ensure guide renderer height is correct */
 ytmusic-guide-renderer {
   height: calc(100vh - var(--menu-bar-height, 32px)) !important;
 }
 
-/* Force hide any remaining YouTube Music progress elements */
 ytmusic-player-bar .progress-bar,
 ytmusic-player-bar .progress-info,
 ytmusic-player-bar .progress-wrapper,
@@ -103,16 +93,15 @@ ytmusic-player-bar .chapter-info,
   z-index: -1 !important;
 }
 
-/* Left Section - Song Info */
 .ytmusic-left {
   display: flex;
   align-items: center;
   min-width: 180px;
-  overflow: visible; /* allow tooltips from like button to render */
+  overflow: visible;
   transform: translateY(0);
   height: 100%;
-  position: relative; /* ensure z-index takes effect as a stacking context */
-  z-index: 2147483649; /* raise above center controls so tooltips aren't covered */
+  position: relative;
+  z-index: 2147483649;
 }
 
 .ytmusic-album-cover,
@@ -160,7 +149,7 @@ ytmusic-player-bar .chapter-info,
   height: 100%;
   transform: translateY(-2px);
   position: relative;
-  z-index: 1000001; /* ensure heart tooltip renders above album cover (z-index: 1000000) */
+  z-index: 1000001;
 }
 
 .ytmusic-text-block {
@@ -168,7 +157,7 @@ ytmusic-player-bar .chapter-info,
   flex-direction: column;
   min-width: 0;
   flex: 0 1 auto;
-  max-width: calc(100% - 42px); /* 28px heart + 14px gap */
+  max-width: calc(100% - 42px);
 }
 
 .ytmusic-title {
@@ -213,7 +202,7 @@ ytmusic-player-bar .chapter-info,
   align-self: center;
   margin-left: 14px;
   position: relative;
-  overflow: visible; /* ensure tooltip can overflow upward */
+  overflow: visible;
   z-index: 2147483650;
 }
 
@@ -224,20 +213,20 @@ ytmusic-player-bar .chapter-info,
   cursor: pointer;
   padding: 6px;
   border-radius: 50%;
-  transition: color 0.2s ease; /* limit to color to avoid area hover effects */
+  transition: color 0.2s ease;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 28px;
   height: 28px;
   margin-left: 0;
-  pointer-events: auto; /* clickable even though parent is non-interactive */
-  position: relative; /* needed so tooltip ::before/::after position relative to button */
+  pointer-events: auto;
+  position: relative;
 }
 
 .ytmusic-like-btn:hover {
   color: #fff;
-  background: transparent; /* remove area hover background */
+  background: transparent;
 }
 
 .ytmusic-like-btn.liked {
@@ -255,7 +244,6 @@ ytmusic-player-bar .chapter-info,
     contrast(86%);
 }
 
-/* match hover behavior of other buttons: only lighten SVG paths */
 .ytmusic-like-btn:hover img {
   filter: brightness(0) saturate(100%) invert(100%) sepia(0%) saturate(7500%) hue-rotate(109deg) brightness(99%)
     contrast(107%);
@@ -269,13 +257,10 @@ ytmusic-player-bar .chapter-info,
   filter: brightness(0) saturate(100%) invert(36%) sepia(99%) saturate(7492%) hue-rotate(329deg) brightness(104%) contrast(104%) !important;
 }
 
-/* Liked hover: use a slightly lighter red for visual feedback */
 .ytmusic-like-btn.liked:hover img {
-  /* noticeably lighter red on hover while liked */
   filter: brightness(0) saturate(115%) invert(36%) sepia(99%) saturate(7600%) hue-rotate(329deg) brightness(140%) contrast(106%) !important;
 }
 
-/* Center Section - Controls & Progress */
 .ytmusic-center {
   display: flex;
   flex-direction: column;
@@ -310,19 +295,15 @@ ytmusic-player-bar .chapter-info,
   width: 44px !important;
   height: 44px !important;
   position: relative;
-  /* match heart tooltip behavior: allow pseudo-element to render outside */
 }
 
 .ytmusic-control-btn:hover {
   color: #fff;
 }
 
-/* CLEAN: Simple red color for active buttons, no glow */
 .ytmusic-control-btn.active {
   color: #ff2d55 !important;
 }
-
-
 
 .ytmusic-control-btn img {
   width: 18px;
@@ -336,7 +317,6 @@ ytmusic-player-bar .chapter-info,
     contrast(107%);
 }
 
-/* CLEAN: Simple red filter for active SVGs */
 .ytmusic-control-btn.active img {
   filter: brightness(0) saturate(100%) invert(36%) sepia(99%) saturate(7492%) hue-rotate(329deg) brightness(104%) contrast(104%) !important;
 }
@@ -354,10 +334,7 @@ ytmusic-player-bar .chapter-info,
   justify-content: center;
   width: 44px !important;
   height: 44px !important;
-  /* match heart tooltip behavior: allow pseudo-element to render outside */
 }
-
-
 
 .ytmusic-nav-btn img {
   width: 23px;
@@ -385,10 +362,7 @@ ytmusic-player-bar .chapter-info,
   margin: 0;
   transition: color 0.15s ease;
   transform-origin: center center;
-  /* match heart tooltip behavior: allow pseudo-element to render outside */
 }
-
-
 
 .ytmusic-play-btn img {
   width: 30px;
@@ -398,7 +372,6 @@ ytmusic-player-bar .chapter-info,
   margin: auto;
 }
 
-/* Play/Pause icons centered */
 .ytmusic-play-btn img.play-icon.icon,
 .ytmusic-play-btn img.pause-icon.icon {
   width: 30px;
@@ -406,7 +379,6 @@ ytmusic-player-bar .chapter-info,
   --tx: 0px;
 }
 
-/* Nudge the repeat icon 1px down */
 .ytmusic-controls > .ytmusic-control-btn:last-child img.icon {
   margin-top: 1px;
 }
@@ -433,10 +405,8 @@ ytmusic-player-bar .chapter-info,
   font-family: "Host Grotesk", "Roboto", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
-/* Subtle icon-only growth to avoid layout shift and position drift */
-/* Switch from transform-based scaling to size transitions to avoid jitter */
 .ytmusic-bottom-bar button img.icon {
-  --tx: 0px; /* legacy tuning vars retained (no-op without transform) */
+  --tx: 0px;
   --ty: 0px;
   transition: width 90ms ease-out, height 90ms ease-out, filter 90ms ease-out;
   will-change: width, height;
@@ -444,14 +414,10 @@ ytmusic-player-bar .chapter-info,
   display: block;
 }
 
-/* Remove circle grow on hover (icons include their own circle) */
-
-/* Custom tooltip for any element with data-tooltip */
 .ytmusic-bottom-bar [data-tooltip] {
   position: relative;
 }
 
-/* Stronger stacking for heart tooltip specifically */
 .ytmusic-bottom-bar .ytmusic-like-btn[data-tooltip]::after,
 .ytmusic-bottom-bar .ytmusic-like-btn[data-tooltip]::before {
   z-index: 2147483651;
@@ -475,7 +441,7 @@ ytmusic-player-bar .chapter-info,
   pointer-events: none;
   z-index: 2147483649;
   transition: opacity 0.16s ease, transform 0.16s ease;
-  transition-delay: 0.5s; /* show on longer hover */
+  transition-delay: 0.5s;
 }
 
 .ytmusic-bottom-bar [data-tooltip]::before {
@@ -495,14 +461,12 @@ ytmusic-player-bar .chapter-info,
   transition-delay: 0.5s;
 }
 
-/* Show tooltip on hover while preserving horizontal shift */
 .ytmusic-bottom-bar [data-tooltip]:hover::after,
 .ytmusic-bottom-bar [data-tooltip]:hover::before {
   opacity: 1;
   visibility: visible;
 }
 
-/* Default (above) hover transform keeps --tooltip-shift-x */
 .ytmusic-bottom-bar [data-tooltip]:hover::after {
   transform: translate(calc(-50% + var(--tooltip-shift-x, 0px)), -10px);
 }
@@ -510,7 +474,6 @@ ytmusic-player-bar .chapter-info,
   transform: translate(calc(-50% + var(--tooltip-shift-x, 0px)), -4px);
 }
 
-/* Tooltip suppression on click */
 .ytmusic-bottom-bar [data-tooltip][data-tooltip-suppressed="true"]::after,
 .ytmusic-bottom-bar [data-tooltip][data-tooltip-suppressed="true"]::before {
   opacity: 0 !important;
@@ -518,7 +481,6 @@ ytmusic-player-bar .chapter-info,
   transition-delay: 0s !important;
 }
 
-/* Tooltip below positioning when needed */
 .ytmusic-bottom-bar [data-tooltip][data-tooltip-pos="below"]::after {
   top: 100%;
   bottom: auto;
@@ -533,7 +495,6 @@ ytmusic-player-bar .chapter-info,
   border-color: transparent transparent rgba(28, 28, 28, 0.96) transparent;
 }
 
-/* Below-positioned hover transform keeps --tooltip-shift-x */
 .ytmusic-bottom-bar [data-tooltip][data-tooltip-pos="below"]:hover::after {
   transform: translate(calc(-50% + var(--tooltip-shift-x, 0px)), 10px);
 }
@@ -549,8 +510,6 @@ ytmusic-player-bar .chapter-info,
   align-items: center;
   z-index: 2147483648;
 }
-
-
 
 .ytmusic-slider {
   width: 100%;
@@ -575,7 +534,6 @@ ytmusic-player-bar .chapter-info,
   width: 100%;
   background: #fff;
   border-radius: 3.5px;
-  /* Reveal only the progressed portion using a GPU-friendly clip-path */
   clip-path: inset(0 calc((1 - var(--progress-scale, 0)) * 100%) 0 0 round 3.5px);
   transition: clip-path var(--progress-duration, 0s) linear, background 0.2s ease;
   will-change: clip-path;
@@ -587,7 +545,6 @@ ytmusic-player-bar .chapter-info,
   background: #ff2d55;
 }
 
-/* Webkit browsers */
 .ytmusic-slider::-webkit-slider-runnable-track {
   height: 3.5px;
   border-radius: 3.5px;
@@ -612,7 +569,6 @@ ytmusic-player-bar .chapter-info,
   opacity: 1;
 }
 
-/* Firefox */
 .ytmusic-slider::-moz-range-track {
   height: 3.5px;
   border-radius: 3.5px;
@@ -624,7 +580,6 @@ ytmusic-player-bar .chapter-info,
   height: 3.5px;
   border-radius: 3.5px;
   background: #fff;
-  /* Keep rounded corners at both ends for consistent appearance */
 }
 
 .ytmusic-progress-bar:hover .ytmusic-slider::-moz-range-progress {
@@ -648,7 +603,6 @@ ytmusic-player-bar .chapter-info,
   opacity: 1;
 }
 
-/* Right Section - Volume & Additional Controls */
 .ytmusic-right {
   display: flex;
   align-items: center;
@@ -678,7 +632,6 @@ ytmusic-player-bar .chapter-info,
   justify-content: center;
   width: 32px;
   height: 32px;
-  /* match heart tooltip behavior: allow pseudo-element to render outside */
 }
 
 .ytmusic-volume-btn:hover {
@@ -764,7 +717,6 @@ ytmusic-player-bar .chapter-info,
   opacity: 1;
 }
 
-/* Volume bar fill effect - RED ON HOVER */
 .ytmusic-volume-slider {
   background: #535353;
   position: relative;
@@ -807,7 +759,6 @@ ytmusic-player-bar .chapter-info,
   width: 32px;
   height: 32px;
   position: relative;
-  /* match heart tooltip behavior: allow pseudo-element to render outside */
 }
 
 .ytmusic-menu-btn:hover {
@@ -826,7 +777,6 @@ ytmusic-player-bar .chapter-info,
     contrast(107%);
 }
 
-/* Fullscreen icon size override */
 .ytmusic-menu-btn[data-tooltip*="Fullscreen" i] img.icon,
 .ytmusic-menu-btn[aria-label*="Fullscreen" i] img.icon,
 .ytmusic-menu-btn[data-tooltip*="Vollbild" i] img.icon {
@@ -834,7 +784,6 @@ ytmusic-player-bar .chapter-info,
   height: 15px;
 }
 
-/* Slightly smaller Shuffle and Repeat icons */
 .ytmusic-bottom-bar .ytmusic-control-btn[data-tooltip="Shuffle"] img.icon,
 .ytmusic-bottom-bar .ytmusic-control-btn[aria-label="Shuffle" i] img.icon,
 .ytmusic-bottom-bar .ytmusic-control-btn[data-tooltip^="Repeat"] img.icon,
@@ -843,9 +792,6 @@ ytmusic-player-bar .chapter-info,
   height: 16px;
 }
 
-/* (removed: play/pause scaling was disabled previously) */
-
-/* Dropdown Menu */
 .ytmusic-dropdown {
   position: absolute;
   right: 0;
@@ -882,7 +828,6 @@ ytmusic-player-bar .chapter-info,
   margin: 4px 0;
 }
 
-/* CLEAN: Small red dot for repeat all mode (mode 2) */
 .ytmusic-repeat-dot {
   position: absolute;
   left: 50%;
@@ -899,7 +844,6 @@ ytmusic-player-bar .chapter-info,
   visibility: visible !important;
 }
 
-/* Responsive adjustments */
 @media (max-width: 1200px) {
   .ytmusic-bottom-bar {
     grid-template-columns: 30% 40% 30%;
@@ -937,23 +881,18 @@ ytmusic-player-bar .chapter-info,
   }
 }
 
-
-
-/* Force the bottom bar to be on top and fixed with enhanced protection */
 .ytmusic-bottom-bar {
   z-index: 2147483647 !important;
   position: fixed !important;
   pointer-events: auto !important;
 }
 
-/* Ensure the custom bar root container is also on top */
 #ytmusic-player-root {
   z-index: 2147483647 !important;
   position: relative !important;
   pointer-events: auto !important;
 }
 
-/* Block any YouTube Music progress elements that might appear */
 ytmusic-player-bar::after {
   content: "";
   position: absolute;
@@ -979,7 +918,7 @@ ytmusic-player-bar::after {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 0; /* avoid extra spacing around comma separator */
+  gap: 0;
 }
 
 .ytmusic-album-section {
@@ -993,10 +932,9 @@ ytmusic-player-bar::after {
   font-size: 0.9em;
 }
 
-/* Tighter separator for artist list "," */
 .ytmusic-artist-sep {
   color: #aaa;
-  margin: 0 4px 0 0; /* no space before comma, small space after */
+  margin: 0 4px 0 0;
   font-size: 0.95em;
 }
 
@@ -1012,8 +950,6 @@ ytmusic-player-bar::after {
   text-decoration: underline;
 }
 
-/* --- Size-based hover (no transform): subtle bump, stays optically centered --- */
-/* Default 18px icons in control/menu/like: 18 → 18.5 */
 .ytmusic-bottom-bar .ytmusic-control-btn:hover img.icon,
 .ytmusic-bottom-bar .ytmusic-menu-btn:hover img.icon,
 .ytmusic-bottom-bar .ytmusic-like-btn:hover img.icon {
@@ -1021,7 +957,6 @@ ytmusic-player-bar::after {
   height: 19px;
 }
 
-/* Shuffle/Repeat 16px → 16.5px */
 .ytmusic-bottom-bar .ytmusic-control-btn[data-tooltip="Shuffle"]:hover img.icon,
 .ytmusic-bottom-bar .ytmusic-control-btn[aria-label="Shuffle" i]:hover img.icon,
 .ytmusic-bottom-bar .ytmusic-control-btn[data-tooltip^="Repeat"]:hover img.icon,
@@ -1030,25 +965,21 @@ ytmusic-player-bar::after {
   height: 17px;
 }
 
-/* Navigation 23px → 24px */
 .ytmusic-bottom-bar .ytmusic-nav-btn:hover img.icon {
   width: 24px;
   height: 24px;
 }
 
-/* Volume 20px → 20.5px */
 .ytmusic-bottom-bar .ytmusic-volume-btn:hover img.icon {
   width: 21px;
   height: 21px;
 }
 
-/* Play/Pause 30px → 31px */
 .ytmusic-bottom-bar .ytmusic-play-btn:hover img.icon {
   width: 32px;
   height: 32px;
 }
 
-/* Fullscreen 15px → 15.5px */
 .ytmusic-bottom-bar .ytmusic-menu-btn[data-tooltip*="Fullscreen" i]:hover img.icon,
 .ytmusic-bottom-bar .ytmusic-menu-btn[aria-label*="Fullscreen" i]:hover img.icon,
 .ytmusic-bottom-bar .ytmusic-menu-btn[data-tooltip*="Vollbild" i]:hover img.icon {
@@ -1056,14 +987,12 @@ ytmusic-player-bar::after {
   height: 15.5px;
 }
 
-/* Expand Song (18px base) → 18.5px */
 .ytmusic-bottom-bar .ytmusic-menu-btn[data-tooltip*="Expand Song" i]:hover img.icon,
 .ytmusic-bottom-bar .ytmusic-menu-btn[aria-label*="Expand Song" i]:hover img.icon {
   width: 18.5px;
   height: 18.5px;
 }
 
-/* Pull Shuffle closer to Previous, and Repeat closer to Next */
 .ytmusic-controls .ytmusic-control-btn[data-tooltip="Shuffle"],
 .ytmusic-controls .ytmusic-control-btn[aria-label="Shuffle" i] {
   margin-right: -8px;
