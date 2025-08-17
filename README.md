@@ -65,6 +65,7 @@ Found an issue or have suggestions? Please report them via the [GitHub Issues pa
 ## What’s Next
 
 * More features in development
+* More customized and streamlined pages
 * Releases for additional platforms coming soon
 
 Stay tuned — and thank you for trying out **YTM**.
