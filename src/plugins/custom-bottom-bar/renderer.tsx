@@ -107,7 +107,10 @@ function YTMusicPlayer() {
   const getNowProgress = () => {
     const duration = song().songDuration || 0
     if (duration <= 0) return 0
-    if (isPaused()) return clampProgressToDuration(progress())
+    // Trust the actual media element paused state if available
+    const mediaElement = currentMediaElement()
+    const isActuallyPlaying = mediaElement ? !mediaElement.paused : !isPaused()
+    if (!isActuallyPlaying) return clampProgressToDuration(progress())
     const now = performance.now()
     const deltaSec = (now - lastAnchorTime) / 1000
     return clampProgressToDuration(lastProgressAnchor + deltaSec * (playbackRate || 1))
@@ -122,8 +125,8 @@ function YTMusicPlayer() {
       el.style.setProperty('--progress-scale', '0')
       return
     }
-    // Use current progress when paused to avoid jumps, calculate when playing
-    const current = isPaused() ? progress() : getNowProgress()
+    // Use computed progress that respects actual play/pause state
+    const current = getNowProgress()
     const scale = Math.max(0, Math.min(current / duration, 1))
     // Always snap to current; rAF will advance smoothly every frame
     el.style.setProperty('--progress-duration', '0s')
@@ -243,6 +246,11 @@ function YTMusicPlayer() {
     if (failSafeInterval == null) {
       failSafeInterval = window.setInterval(() => {
         if (isSeeking()) return
+        // Only attempt to re-anchor when actually playing
+        const mediaEl = currentMediaElement()
+        const isActuallyPlaying = mediaEl ? !mediaEl.paused : !isPaused()
+        if (!isActuallyPlaying) return
+        if ((song().songDuration || 0) <= 0) return
         const now = performance.now()
         if (now - lastNativeProgressUpdateAt > 3000) {
           let currentTime = NaN
