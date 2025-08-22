@@ -122,7 +122,8 @@ function YTMusicPlayer() {
       el.style.setProperty('--progress-scale', '0')
       return
     }
-    const current = getNowProgress()
+    // Use current progress when paused to avoid jumps, calculate when playing
+    const current = isPaused() ? progress() : getNowProgress()
     const scale = Math.max(0, Math.min(current / duration, 1))
     // Always snap to current; rAF will advance smoothly every frame
     el.style.setProperty('--progress-duration', '0s')
@@ -354,11 +355,19 @@ function YTMusicPlayer() {
   const setupMediaListeners = (mediaElement: HTMLVideoElement) => {
     // Play/pause state sync
     const onPlayPause = () => {
-      setIsPaused(mediaElement.paused)
-      // Re-anchor on play/pause transitions
-      lastProgressAnchor = getNowProgress()
-      lastAnchorTime = performance.now()
-      recomputeProgressAnimation()
+      const wasPlaying = !isPaused()
+      const isNowPaused = mediaElement.paused
+      setIsPaused(isNowPaused)
+      
+      // Only re-anchor when transitioning from paused to playing
+      // This ensures smooth continuation without jumps when pausing
+      if (wasPlaying && isNowPaused) {
+        // Pausing: don't re-anchor, keep current visual position
+      } else if (!wasPlaying && !isNowPaused) {
+        // Resuming: re-anchor to current progress to start animation from correct position
+        lastProgressAnchor = progress()
+        lastAnchorTime = performance.now()
+      }
     }
     
     // Mute state sync (volume level handled by native tracking)
