@@ -27,6 +27,7 @@ function clamp(val: number, min: number, max: number) {
   return Math.max(min, Math.min(max, val))
 }
 
+// Helper function to debounce function calls
 function debounce<T extends (...args: any[]) => any>(func: T, wait: number): T {
   let timeout: number | null = null
   return ((...args: any[]) => {
@@ -35,46 +36,60 @@ function debounce<T extends (...args: any[]) => any>(func: T, wait: number): T {
   }) as T
 }
 
+// Global plugin configuration and API
 let pluginConfig: CustomBottomBarPluginConfig
 let api: YoutubePlayer
 
 function YTMusicPlayer() {
+  // Song info state
   const [song, setSong] = createSignal(getSongInfo())
+  // Artist links derived from native YTM player bar (multiple clickable artists)
   const [artistLinks, setArtistLinks] = createSignal<Array<{ name: string; href?: string; el?: HTMLAnchorElement }>>([])
   
+  // Progress tracking state - using native YTM progress bar
   const [progress, setProgress] = createSignal(0)
+  // Element ref for progress slider to control CSS-driven animation
   let progressInputEl: HTMLInputElement | null = null
   const [isSeeking, setIsSeeking] = createSignal(false)
   
+  // Media tracking - handles both audio-only and video content
   const [currentVideoId, setCurrentVideoId] = createSignal<string | null>(null)
   const [currentMediaElement, setCurrentMediaElement] = createSignal<HTMLVideoElement | null>(null)
   
+  // Fullscreen state tracking
   const [isFullscreen, setIsFullscreen] = createSignal(false)
   
+  // Native progress bar reference
   let nativeProgressBar: HTMLElement | null = null
   
-  const SYNC_DELAY = 300
+  // Sync delay for shuffle/repeat state updates
+  const SYNC_DELAY = 300 // ms
   
+  // Volume and mute state (internal 0-1 scale)
   const [volume, setVolume] = createSignal(1)
   const [isMuted, setIsMuted] = createSignal(false)
   const [isDraggingVolume, setIsDraggingVolume] = createSignal(false)
   const [isLiked, setIsLiked] = createSignal(false)
   const [isDisliked, setIsDisliked] = createSignal(false)
   const [isShuffle, setIsShuffle] = createSignal(false)
+  // CORRECTED STATE LOGIC: 0 = off, 1 = repeat all, 2 = repeat one. This matches YTM's internal logic.
   const [repeatMode, setRepeatMode] = createSignal(0)
   const [isPaused, setIsPaused] = createSignal(true)
   const [, setShowDropdown] = createSignal(false)
   const [isExpanded, setIsExpanded] = createSignal(false)
-  const [displaySeconds, setDisplaySeconds] = createSignal(0)
   
+  // Volume HUD state
   const [volumeHudVisible, setVolumeHudVisible] = createSignal(false)
   const [volumeHudText, setVolumeHudText] = createSignal("")
+  // Track whether we've already applied an initial volume to avoid double-setting
   let hasAppliedInitialVolume = false
-  
+  // === NATIVE ELEMENT SETUP ===
+  // Setup functions defined before onMount to avoid hoisting issues
   let nativeProgressObserver: MutationObserver | null = null
   let nativeProgressContainerObserver: MutationObserver | null = null
   let nativeVolumeObserver: MutationObserver | null = null
   let mediaListenerCleanup: (() => void)[] = []
+  // Animation state for smooth progress (CSS-driven)
   let lastProgressAnchor = 0
   let lastAnchorTime = 0
   let playbackRate = 1
@@ -109,6 +124,7 @@ function YTMusicPlayer() {
     }
     const current = getNowProgress()
     const scale = Math.max(0, Math.min(current / duration, 1))
+    // Always snap to current; rAF will advance smoothly every frame
     el.style.setProperty('--progress-duration', '0s')
     el.style.setProperty('--progress-scale', `${scale}`)
     el.value = String(current)
@@ -128,29 +144,33 @@ function YTMusicPlayer() {
   }
   
   const setupNativeProgressTracking = () => {
+    // Find the native progress bar element
     nativeProgressBar = document.querySelector('#progress-bar')
     if (!nativeProgressBar) {
+      // Retry after a delay if not found
       setTimeout(setupNativeProgressTracking, 1000)
       return
     }
     
+    // Monitor native progress bar value changes
     nativeProgressObserver = new MutationObserver((mutations) => {
-      if (isSeeking() || isPaused()) return
+      if (isSeeking()) return // Don't update while user is seeking
       
       for (const mutation of mutations) {
         const target = mutation.target as HTMLElement & { value: string }
         if (mutation.attributeName === 'value') {
           const newValue = Number(target.value) || 0
           if (newValue >= 0 && isFinite(newValue)) {
+            // Always keep the logical progress in sync (for accuracy)
             setProgress(newValue)
             lastNativeProgressUpdateAt = performance.now()
+            // Only re-anchor the visual animation if we drifted significantly
             const now = performance.now()
             const expected = lastProgressAnchor + ((now - lastAnchorTime) / 1000) * (playbackRate || 1)
             const drift = Math.abs(newValue - expected)
             if (drift > ANCHOR_DRIFT_EPSILON_SECONDS) {
               lastProgressAnchor = newValue
               lastAnchorTime = now
-              setDisplaySeconds(Math.floor(newValue))
               recomputeProgressAnimation()
             }
           }
@@ -162,14 +182,15 @@ function YTMusicPlayer() {
       attributeFilter: ['value'] 
     })
     
+    // Initial sync
     const initialValue = Number((nativeProgressBar as any).value) || 0
     setProgress(initialValue)
     lastProgressAnchor = initialValue
     lastAnchorTime = performance.now()
     lastNativeProgressUpdateAt = lastAnchorTime
-    setDisplaySeconds(Math.floor(initialValue))
     recomputeProgressAnimation()
 
+    // Observe for progress bar replacement by YTM (element often recreated)
     const container = document.querySelector('ytmusic-player-bar') || document.body
     if (nativeProgressContainerObserver) {
       nativeProgressContainerObserver.disconnect()
@@ -184,7 +205,7 @@ function YTMusicPlayer() {
         if (nativeProgressBar) {
           try {
             nativeProgressObserver = new MutationObserver((mutations) => {
-              if (isSeeking() || isPaused()) return
+              if (isSeeking()) return
               for (const mutation of mutations) {
                 const target = mutation.target as HTMLElement & { value: string }
                 if (mutation.attributeName === 'value') {
@@ -198,7 +219,6 @@ function YTMusicPlayer() {
                     if (drift > ANCHOR_DRIFT_EPSILON_SECONDS) {
                       lastProgressAnchor = newValue
                       lastAnchorTime = now
-                      setDisplaySeconds(Math.floor(newValue))
                       recomputeProgressAnimation()
                     }
                   }
@@ -218,11 +238,12 @@ function YTMusicPlayer() {
     })
     nativeProgressContainerObserver.observe(container, { childList: true, subtree: true })
 
+    // Fail-safe: periodically re-anchor from API/media if no native updates
     if (failSafeInterval == null) {
       failSafeInterval = window.setInterval(() => {
         if (isSeeking()) return
         const now = performance.now()
-        if (!isPaused() && (song().songDuration || 0) > 0 && now - lastNativeProgressUpdateAt > 3000) {
+        if (now - lastNativeProgressUpdateAt > 3000) {
           let currentTime = NaN
           try {
             if (api && typeof api.getCurrentTime === 'function') {
@@ -241,7 +262,6 @@ function YTMusicPlayer() {
             lastAnchorTime = performance.now()
             recomputeProgressAnimation()
             lastNativeProgressUpdateAt = performance.now()
-            setDisplaySeconds(Math.floor(clamped))
           }
         }
       }, 1000)
@@ -249,14 +269,17 @@ function YTMusicPlayer() {
   }
 
   const setupNativeVolumeTracking = () => {
+    // Find the native volume slider elements
     const nativeVolumeSlider = document.querySelector('#volume-slider') || document.querySelector('#expand-volume-slider')
     if (!nativeVolumeSlider) {
+      // Retry after a delay if not found
       setTimeout(setupNativeVolumeTracking, 1000)
       return
     }
     
+    // Monitor native volume slider value changes
     nativeVolumeObserver = new MutationObserver((mutations) => {
-      if (isDraggingVolume()) return
+      if (isDraggingVolume()) return // Don't update while user is dragging custom slider
       
       for (const mutation of mutations) {
         const target = mutation.target as HTMLInputElement
@@ -265,14 +288,17 @@ function YTMusicPlayer() {
           if (newValue >= 0 && newValue <= 100) {
             const newVolumeLevel = newValue / 100
             
-            if (Math.abs(newVolumeLevel - volume()) > 0.01) {
+            // Update volume state smoothly
+            if (Math.abs(newVolumeLevel - volume()) > 0.01) { // Only update if significant change
               setVolume(newVolumeLevel)
               
+              // Update mute state based on volume
               const shouldBeMuted = newValue === 0
               if (shouldBeMuted !== isMuted()) {
                 setIsMuted(shouldBeMuted)
               }
               
+              // Save to localStorage with debouncing
               debouncedVolumeSave(newVolumeLevel)
             }
           }
@@ -280,6 +306,7 @@ function YTMusicPlayer() {
       }
     })
     
+    // Observe multiple possible volume slider elements
     const volumeSelectors = ['#volume-slider', '#expand-volume-slider']
     for (const selector of volumeSelectors) {
       const element = document.querySelector(selector)
@@ -290,7 +317,8 @@ function YTMusicPlayer() {
       }
     }
     
-    let initialVolumeLevel = 1
+    // Initial sync: prefer stored volume, then API, then native slider
+    let initialVolumeLevel = 1 // Default to 100%
     try {
       const storedVolume = localStorage.getItem(VOLUME_KEY)
       if (storedVolume !== null) {
@@ -315,41 +343,45 @@ function YTMusicPlayer() {
       }
     }
 
+    // Apply to UI and YTM immediately for consistency
     const initialPct = volumeToPercentage(initialVolumeLevel)
     setPreciseVolume(initialPct, false)
     hasAppliedInitialVolume = true
+    // Ensure mute UI aligns with level
     setIsMuted(initialVolumeLevel === 0)
   }
   
   const setupMediaListeners = (mediaElement: HTMLVideoElement) => {
+    // Play/pause state sync
     const onPlayPause = () => {
-      const pausedNow = mediaElement.paused
-      setIsPaused(pausedNow)
-      const current = clampProgressToDuration(mediaElement.currentTime || 0)
-      setProgress(current)
-      lastProgressAnchor = current
+      setIsPaused(mediaElement.paused)
+      // Re-anchor on play/pause transitions
+      lastProgressAnchor = getNowProgress()
       lastAnchorTime = performance.now()
-      setDisplaySeconds(Math.floor(current))
       recomputeProgressAnimation()
     }
     
+    // Mute state sync (volume level handled by native tracking)
     const onVolumeChange = () => {
       if (!isDraggingVolume()) {
         setIsMuted(mediaElement.muted)
       }
     }
     
+    // Content type detection
     const onLoadStart = () => {
       
     }
     const onRateChange = () => {
       playbackRate = mediaElement.playbackRate || 1
+      // Re-anchor when rate changes to avoid jumps
       lastProgressAnchor = getNowProgress()
       lastAnchorTime = performance.now()
       recomputeProgressAnimation()
     }
     const onEnded = () => {
       setIsPaused(true)
+      // Snap to end to avoid visual stall and allow next/autoplay to re-anchor
       const end = clampProgressToDuration(mediaElement.duration || song().songDuration || 0)
       setProgress(end)
       lastProgressAnchor = end
@@ -357,6 +389,7 @@ function YTMusicPlayer() {
       recomputeProgressAnimation()
     }
     
+    // Attach minimal listeners - native elements handle progress and volume tracking
     mediaElement.addEventListener('play', onPlayPause)
     mediaElement.addEventListener('pause', onPlayPause)
     mediaElement.addEventListener('loadstart', onLoadStart)
@@ -364,6 +397,7 @@ function YTMusicPlayer() {
     mediaElement.addEventListener('ratechange', onRateChange)
     mediaElement.addEventListener('ended', onEnded)
     
+    // Store cleanup functions
     mediaListenerCleanup.push(
       () => mediaElement.removeEventListener('play', onPlayPause),
       () => mediaElement.removeEventListener('pause', onPlayPause),
@@ -373,18 +407,23 @@ function YTMusicPlayer() {
       () => mediaElement.removeEventListener('ended', onEnded)
     )
     
+    // Initial state sync
     onPlayPause()
     setIsMuted(mediaElement.muted)
     
   }
 
-
+  // === VOLUME CONTROLS ===
+  // Work identically for both audio and video content
   
+  // Persistent storage keys
   const VOLUME_KEY = "ytmusic_custombar_volume"
   const MUTE_KEY = "ytmusic_custombar_muted"
   
+  // Convert between internal scale (0-1) and display scale (0-100)
   const volumeToPercentage = (vol: number) => Math.round(vol * 100)
   
+  // Get current volume steps from plugin config
   const getVolumeSteps = () => {
     const steps = pluginConfig?.volumeSteps || 1
     return Math.max(1, Math.min(steps, 20))
@@ -393,34 +432,42 @@ function YTMusicPlayer() {
   
 
   
+  // Show volume HUD with percentage
   const showVolumeHud = (volumePct: number) => {
     setVolumeHudText(`${volumePct}%`)
     setVolumeHudVisible(true)
     hideVolumeHud()
   }
   
+  // Volume HUD debounced hide function
   const hideVolumeHud = debounce(() => {
     setVolumeHudVisible(false)
   }, 2000)
   
+  // Set volume using native YouTube Music systems
   const setPreciseVolume = (volumePct: number, showHud = true) => {
     const clampedPct = clamp(volumePct, 0, 100)
     
+    // Update UI state immediately for responsiveness
     setVolume(clampedPct / 100)
     
+    // Update mute state based on volume
     const shouldBeMuted = clampedPct === 0
     if (shouldBeMuted !== isMuted()) {
       setIsMuted(shouldBeMuted)
     }
     
+    // Use the YTM API first (more reliable)
     if (api && typeof api.setVolume === "function") {
       api.setVolume(clampedPct)
     }
     
+    // Update native volume slider as backup
     const nativeVolumeSlider = document.querySelector('#volume-slider') as HTMLInputElement || 
                                document.querySelector('#expand-volume-slider') as HTMLInputElement
     if (nativeVolumeSlider) {
       nativeVolumeSlider.value = String(clampedPct)
+      // Trigger change event to notify YouTube Music
       nativeVolumeSlider.dispatchEvent(new Event('input', { bubbles: true }))
     }
 
@@ -428,14 +475,18 @@ function YTMusicPlayer() {
       showVolumeHud(clampedPct)
     }
     
+    // Save to localStorage
     try {
       localStorage.setItem(VOLUME_KEY, String(clampedPct / 100))
     } catch {}
   }
   
+  // Change volume by steps (for scroll wheel and keyboard shortcuts)
   const changeVolumeBySteps = (increase: boolean) => {
+    // Get current volume from the most reliable source
     let currentPct = volumeToPercentage(volume())
     
+    // Try to get more accurate current volume from API if available
     if (api && typeof api.getVolume === "function") {
       const apiVolume = api.getVolume()
       if (typeof apiVolume === "number" && apiVolume >= 0) {
@@ -448,12 +499,13 @@ function YTMusicPlayer() {
       ? Math.min(currentPct + steps, 100)
       : Math.max(currentPct - steps, 0)
     
-    setPreciseVolume(newPct, true)
+    setPreciseVolume(newPct, true) // Show HUD for scroll wheel changes
   }
 
 
   
   const toggleMute = () => {
+    // Use YouTube Music API for muting
     if (api && typeof api.setVolume === "function") {
       const currentVol = api.getVolume()
       if (currentVol > 0) {
@@ -461,37 +513,44 @@ function YTMusicPlayer() {
         api.setVolume(0)
         showVolumeHud(0)
         
+        // Wait a bit for the API to apply, then confirm mute state
         setTimeout(() => {
           const newVol = api.getVolume()
           const shouldBeMuted = newVol === 0
           setIsMuted(shouldBeMuted)
           
+          // Save mute state after confirmation
           try {
             localStorage.setItem(MUTE_KEY, String(shouldBeMuted))
           } catch {}
         }, 100)
       } else {
+        // Unmute by restoring previous volume
         const restoredVolume = volumeToPercentage(volume())
-        const targetVolume = restoredVolume > 0 ? restoredVolume : 50
+        const targetVolume = restoredVolume > 0 ? restoredVolume : 50 // Ensure we have a reasonable volume
         api.setVolume(targetVolume)
         showVolumeHud(targetVolume)
         
+        // Wait for API to apply, then confirm unmute state
         setTimeout(() => {
           const newVol = api.getVolume()
           const shouldBeMuted = newVol === 0
           setIsMuted(shouldBeMuted)
           
+          // Save mute state after confirmation
           try {
             localStorage.setItem(MUTE_KEY, String(shouldBeMuted))
           } catch {}
         }, 100)
       }
     } else {
+      // Fallback to media element
       const mediaElement = currentMediaElement()
       if (mediaElement) {
         const newMuted = !mediaElement.muted
         mediaElement.muted = newMuted
         
+        // Wait for media element to apply the change
         setTimeout(() => {
           const actualMuted = mediaElement.muted
           setIsMuted(actualMuted)
@@ -502,6 +561,7 @@ function YTMusicPlayer() {
             showVolumeHud(volumeToPercentage(volume()))
           }
           
+          // Save mute state after confirmation
           try {
             localStorage.setItem(MUTE_KEY, String(actualMuted))
           } catch {}
@@ -510,6 +570,7 @@ function YTMusicPlayer() {
     }
   }
 
+  // rAF-scheduled updates for ultra-responsive volume handling while dragging
   let scheduledVolumeRaf: number | null = null
   let lastScheduledVolumePct = 100
   const scheduleVolumeUpdate = (volumePct: number) => {
@@ -517,9 +578,11 @@ function YTMusicPlayer() {
     if (scheduledVolumeRaf != null) return
     scheduledVolumeRaf = requestAnimationFrame(() => {
       scheduledVolumeRaf = null
+      // Apply via API if available
       if (api && typeof api.setVolume === 'function') {
         try { api.setVolume(lastScheduledVolumePct) } catch {}
       }
+      // Also nudge native slider so YTM UI stays consistent
       const nativeVolumeSlider = document.querySelector('#volume-slider') as HTMLInputElement || 
                                  document.querySelector('#expand-volume-slider') as HTMLInputElement
       if (nativeVolumeSlider) {
@@ -536,22 +599,27 @@ function YTMusicPlayer() {
   }, 100)
 
   const onVolumeInput = (e: Event) => {
+    // Handle volume slider input (while dragging) - update volume smoothly
     const val = clamp(Number((e.target as HTMLInputElement).value), 0, 1)
     const volumePct = volumeToPercentage(val)
     
+    // Update UI immediately for responsiveness
     setVolume(val)
     
+    // Only set muted state if volume is actually 0
     if (val === 0 && !isMuted()) {
       setIsMuted(true)
     } else if (val > 0 && isMuted()) {
       setIsMuted(false)
     }
     
+    // Apply quickly using rAF scheduler
     scheduleVolumeUpdate(volumePct)
     debouncedVolumeSave(val)
   }
 
   const onVolumeChange = (e: Event) => {
+    // Handle volume slider change (when dragging ends) - sync with native systems
     const val = clamp(Number((e.target as HTMLInputElement).value), 0, 1)
     const volumePct = volumeToPercentage(val)
     setPreciseVolume(volumePct, false)
@@ -572,6 +640,7 @@ function YTMusicPlayer() {
     }
   }
 
+  // Restore mute state from localStorage on startup
   const restoreMuteFromStorage = () => {
     try {
       const storedMuted = localStorage.getItem(MUTE_KEY)
@@ -582,8 +651,10 @@ function YTMusicPlayer() {
   }
 
   onMount(() => {
+    // Restore mute state from localStorage
     restoreMuteFromStorage()
 
+    // Initialize plugin config with defaults if not available
     if (!pluginConfig) {
       pluginConfig = {
         enabled: true,
@@ -592,11 +663,14 @@ function YTMusicPlayer() {
       }
     }
 
-
+    // === CORE MEDIA TRACKING SYSTEM ===
+    // Handles both audio-only tracks and video content seamlessly
     
+    // 1. Setup native element tracking (more reliable than media element tracking)
     setupNativeProgressTracking()
     setupNativeVolumeTracking()
     
+    // If initial volume wasn't applied (e.g., native slider not ready), try once shortly after
     setTimeout(() => {
       if (hasAppliedInitialVolume) return
       try {
@@ -610,6 +684,7 @@ function YTMusicPlayer() {
       } catch {}
     }, 300)
     
+    // 2. Media Element Manager - For play/pause state and content type detection
     const setupMediaElementTracking = () => {
       const findAndSetupMedia = () => {
         const mediaElement = document.querySelector("video") as HTMLVideoElement
@@ -632,8 +707,10 @@ function YTMusicPlayer() {
         return mediaElement
       }
       
+      // Initial setup
       findAndSetupMedia()
       
+      // Monitor for new media elements (happens on navigation, etc.)
       const mediaObserver = new MutationObserver(() => {
         findAndSetupMedia()
       })
@@ -644,16 +721,21 @@ function YTMusicPlayer() {
 
 
 
+    // 3. Simplified Song Info Handler - Native progress bar handles progress automatically
     const handleSongUpdate = (_: any, newSong: any) => {
       const oldVideoId = currentVideoId()
       const newVideoId = newSong.videoId
       
+      // Update song info
       setSong(newSong)
+      // Update artist anchors based on native UI
       refreshArtistLinks()
       
+      // Track video ID changes for content type detection
       if (oldVideoId !== newVideoId) {
         setCurrentVideoId(newVideoId)
         
+        // Sync all states for the new song
         setTimeout(() => {
           detectLikeState()
           detectShuffleState()
@@ -662,11 +744,13 @@ function YTMusicPlayer() {
         }, 200)
       }
       
+      // Sync play/pause state if provided
       if (typeof newSong.isPaused === 'boolean') {
         setIsPaused(newSong.isPaused)
       }
     }
 
+    // Direct IPC listener for play/pause state changes
     const playPauseHandler = (_: any, data: { isPaused: boolean }) => {
       if (typeof data.isPaused === 'boolean' && data.isPaused !== isPaused()) {
         setIsPaused(data.isPaused)
@@ -674,7 +758,9 @@ function YTMusicPlayer() {
     }
     window.ipcRenderer.on("ytmd:play-or-paused", playPauseHandler)
 
+    // --- Setup scroll wheel support ---
     const setupScrollWheelSupport = () => {
+      // Video player area scroll wheel
       const mainPanel = document.querySelector('#main-panel') as HTMLElement
       if (mainPanel) {
         mainPanel.addEventListener('wheel', (event) => {
@@ -683,19 +769,22 @@ function YTMusicPlayer() {
         })
       }
       
-              const playerBar = document.querySelector('ytmusic-player-bar') as HTMLElement
-        if (playerBar) {
-          playerBar.addEventListener('wheel', (event) => {
-            event.preventDefault()
-            changeVolumeBySteps(event.deltaY < 0)
-          })
-        }
+      // Player bar scroll wheel
+      const playerBar = document.querySelector('ytmusic-player-bar') as HTMLElement
+      if (playerBar) {
+        playerBar.addEventListener('wheel', (event) => {
+          event.preventDefault()
+          changeVolumeBySteps(event.deltaY < 0)
+        })
+      }
     }
 
+    // --- Setup keyboard shortcuts ---
     const setupKeyboardShortcuts = () => {
       window.addEventListener('keydown', (event) => {
         if (!getArrowsShortcut()) return
         
+        // Don't interfere when search box is open
         const searchBox = document.querySelector('ytmusic-search-box') as HTMLElement & { opened: boolean }
         if (searchBox?.opened) return
         
@@ -712,17 +801,23 @@ function YTMusicPlayer() {
       })
     }
 
+    // --- Ensure sidebar stays expanded ---
     ensureSidebarExpanded()
     
+    // Watch for DOM changes that might affect sidebar (throttled to avoid performance issues)
     let sidebarCheckTimeout: number | null = null;
     const sidebarObserver = new MutationObserver(() => {
       if (sidebarCheckTimeout) clearTimeout(sidebarCheckTimeout);
       sidebarCheckTimeout = window.setTimeout(() => {
         ensureSidebarExpanded()
-      }, 1000);
+      }, 1000); // Check every second at most
     })
-    sidebarObserver.observe(document.body, { childList: true, subtree: false })
+    sidebarObserver.observe(document.body, { childList: true, subtree: false }) // Only watch direct children
 
+    // Monitor for attribute changes on the repeat button for instant updates
+    // Removed: setupRepeatButtonWatcher - no longer needed with simplified repeat logic
+    
+    // NEW: Monitor for changes in like/dislike buttons
     const setupLikeButtonWatcher = () => {
       const likeButtonRenderer = document.querySelector('#like-button-renderer')
       
@@ -738,13 +833,16 @@ function YTMusicPlayer() {
         })
       }
       
+      // Also observe the document for when the like-button-renderer is created/recreated
       const documentObserver = new MutationObserver((mutations) => {
         for (const mutation of mutations) {
           if (mutation.type === 'childList') {
+            // Check if like-button-renderer was added
             const hasLikeButtonRenderer = document.querySelector('#like-button-renderer')
             
             if (hasLikeButtonRenderer) {
               detectLikeState()
+              // Re-setup observer for the new renderer
               setTimeout(() => {
                 const newLikeButtonRenderer = document.querySelector('#like-button-renderer')
                 if (newLikeButtonRenderer) {
@@ -771,6 +869,7 @@ function YTMusicPlayer() {
     
     const cleanupLikeWatcher = setupLikeButtonWatcher()
 
+    // Detect expanded mode
     const appLayout = document.querySelector('ytmusic-app-layout')
     let observer: MutationObserver | undefined
     if (appLayout) {
@@ -782,6 +881,7 @@ function YTMusicPlayer() {
       checkExpanded()
     }
 
+    // Close dropdown when clicking outside and reset volume dragging state
     const handleClickOutside = (e: MouseEvent) => {
       if (
         !(e.target as Element).closest(".ytmusic-dropdown") &&
@@ -792,10 +892,12 @@ function YTMusicPlayer() {
     }
     document.addEventListener("click", handleClickOutside)
 
+    // Reset volume dragging state on mouse up anywhere (safety mechanism)
     const handleGlobalMouseUp = () => {
       if (isDraggingVolume()) {
         setIsDraggingVolume(false)
       }
+      // Ensure we never get stuck in seeking mode if native events are lost
       if (isSeeking()) {
         setIsSeeking(false)
       }
@@ -803,13 +905,17 @@ function YTMusicPlayer() {
     document.addEventListener("mouseup", handleGlobalMouseUp)
     document.addEventListener("touchend", handleGlobalMouseUp)
 
+    // Listen for shuffle/repeat state updates
     window.ipcRenderer.on("ytmd:shuffle-changed", handleShuffleChanged)
     window.ipcRenderer.on("ytmd:repeat-changed", handleRepeatChanged)
 
+    // Setup the unified tracking system
     const cleanupMediaTracking = setupMediaElementTracking()
     
+    // Register song update handler
     window.ipcRenderer.on("ytmd:update-song-info", handleSongUpdate)
 
+    // --- Sync shuffle/repeat state on mount ---
     setTimeout(() => {
         requestShuffle()
         requestRepeat()
@@ -817,45 +923,53 @@ function YTMusicPlayer() {
         detectLikeState()
     }, 1000)
 
+    // --- Initial progress sync ---
+    // Immediately sync progress with current video state on mount
     const initialVideo = document.querySelector("video") as HTMLVideoElement
     if (initialVideo) {
       setProgress(initialVideo.currentTime || 0)
       lastProgressAnchor = initialVideo.currentTime || 0
       lastAnchorTime = performance.now()
       playbackRate = initialVideo.playbackRate || 1
-      setDisplaySeconds(Math.floor(initialVideo.currentTime || 0))
       recomputeProgressAnimation()
+      // Set current video ID from song info if not set
       if (!currentVideoId() && song().videoId) {
         setCurrentVideoId(song().videoId)
       }
+      // Apply stored volume to initial video
+      // Use the YTM API for volume
       if (api && typeof api.setVolume === "function") {
         api.setVolume(volume() * 100)
       }
     }
 
+    // Setup enhanced volume features
     setupScrollWheelSupport()
     setupKeyboardShortcuts()
 
+    // rAF drives steady updates of the CSS scale to ensure continuous motion
     const tick = () => {
       if (!isSeeking()) {
         recomputeProgressAnimation()
-        const sec = Math.floor(getNowProgress())
-        if (sec !== displaySeconds()) setDisplaySeconds(sec)
       }
       rafId = requestAnimationFrame(tick)
     }
     rafId = requestAnimationFrame(tick)
 
+    // General state check interval (reduced frequency since IPC is primary)
     const stateInterval = setInterval(() => {
+      // Periodically check state for resilience, but rely more on IPC
       detectShuffleState()
       detectLikeState()
-    }, 5000)
+    }, 5000) // Check states every 5 seconds (reduced frequency)
 
+    // Setup mutation observers for real-time state detection
     const setupControlObservers = () => {
+      // Observer for shuffle button changes
       const shuffleBtn = document.querySelector('yt-icon-button.shuffle')
       if (shuffleBtn) {
         const shuffleObserver = new MutationObserver(() => {
-          setTimeout(detectShuffleState, 100)
+          setTimeout(detectShuffleState, 100) // Small delay to ensure DOM is updated
         })
         shuffleObserver.observe(shuffleBtn, {
           attributes: true,
@@ -863,19 +977,23 @@ function YTMusicPlayer() {
           subtree: true
         })
         
+        // Cleanup on unmount
         onCleanup(() => shuffleObserver.disconnect())
       }
+
+      // Removed: repeat button observer - using manual state tracking now
     }
 
+    // Setup observers after a delay to ensure YouTube Music is fully loaded
     setTimeout(setupControlObservers, 2000)
 
+    // Cleanup function
     onCleanup(() => {
       window.ipcRenderer.off("ytmd:update-song-info", handleSongUpdate)
       window.ipcRenderer.off("ytmd:play-or-paused", playPauseHandler)
       cleanupMediaTracking()
-      cleanupMediaListeners()
+      cleanupMediaListeners() // Clean up media listeners and native observers
       clearInterval(stateInterval)
-      if (failSafeInterval != null) clearInterval(failSafeInterval)
       cleanupLikeWatcher()
       window.ipcRenderer.off("ytmd:shuffle-changed", handleShuffleChanged)
       window.ipcRenderer.off("ytmd:repeat-changed", handleRepeatChanged)
@@ -888,6 +1006,7 @@ function YTMusicPlayer() {
     })
   })
 
+  // Find the best subtitle/byline container from native YTM UI
   const findSubtitleContainer = (): HTMLElement | null => {
     return (
       (document.querySelector('ytmusic-player-bar .subtitle') as HTMLElement) ||
@@ -898,6 +1017,7 @@ function YTMusicPlayer() {
     )
   }
 
+  // Extract clickable artist anchors from native subtitle, stopping at the bullet (•) before album
   const extractArtistAnchors = (container: HTMLElement): Array<{ name: string; href?: string; el?: HTMLAnchorElement }> => {
     const results: Array<{ name: string; href?: string; el?: HTMLAnchorElement }> = []
     let seenBullet = false
@@ -905,6 +1025,7 @@ function YTMusicPlayer() {
       if (node.nodeType === Node.TEXT_NODE) {
         const text = (node.textContent || '').trim()
         if (text.includes('•')) {
+          // Artists appear before the bullet; everything after is album
           seenBullet = true
         }
         continue
@@ -919,9 +1040,12 @@ function YTMusicPlayer() {
         }
       }
     }
+    // Fallback: if no anchors resolved, use song().artist split
     if (results.length === 0) {
       const artist = song().artist || ''
       if (artist) {
+        // Split on common separators for multiple artists.
+        // IMPORTANT: require spaces around 'x' (or '×') to avoid splitting names like 'BOMBEI.exe'.
         const parts = artist.split(/\s*,\s*|\s*&\s*|\s+(?:x|×)\s+|\s*;\s*/i).filter(Boolean)
         for (const p of parts) results.push({ name: p, href: undefined, el: undefined })
       }
@@ -929,6 +1053,7 @@ function YTMusicPlayer() {
     return results
   }
 
+  // Refresh artist links and set up an observer for changes
   let artistObserver: MutationObserver | null = null
   const refreshArtistLinks = () => {
     const container = findSubtitleContainer()
@@ -937,6 +1062,7 @@ function YTMusicPlayer() {
       return
     }
     setArtistLinks(extractArtistAnchors(container))
+    // Observe for changes to keep in sync with native bar
     if (artistObserver) artistObserver.disconnect()
     artistObserver = new MutationObserver(() => {
       const c = findSubtitleContainer()
@@ -945,6 +1071,7 @@ function YTMusicPlayer() {
     artistObserver.observe(container, { childList: true, subtree: true, characterData: true })
   }
 
+  // Initialize artist links shortly after mount (after native UI is ready)
   setTimeout(() => refreshArtistLinks(), 500)
 
   onCleanup(() => {
@@ -952,14 +1079,18 @@ function YTMusicPlayer() {
     artistObserver = null
   })
 
+  // removed unused navigateAppToHref helper (we rely on native anchor clicks)
+
   const onArtistClick = (link: { name: string; href?: string }) => {
     const withEl = link as any as { name: string; href?: string; el?: HTMLAnchorElement }
 
+    // 1) Click stored native anchor if still connected
     if (withEl.el && document.contains(withEl.el)) {
       withEl.el.click()
       return
     }
 
+    // 2) Try to find the native anchor by matching text
     const containers = [
       document.querySelector('ytmusic-player-bar .subtitle'),
       document.querySelector('ytmusic-player-bar .byline'),
@@ -986,6 +1117,7 @@ function YTMusicPlayer() {
       }
     }
 
+    // 3) Create a temporary anchor inside native container and click it, so YTM's router handles navigation without reload
     if (link.href) {
       const normalizeYtmHref = (h: string) => {
         let target = (h || '').trim()
@@ -995,6 +1127,7 @@ function YTMusicPlayer() {
             target = u.pathname + (u.search || '')
           } catch {}
         }
+        // Make relative if needed, and ensure leading slash for known endpoints
         if (!target.startsWith('/')) {
           if (target.startsWith('channel/') || target.startsWith('browse/') || target.startsWith('watch')) {
             target = '/' + target
@@ -1019,6 +1152,7 @@ function YTMusicPlayer() {
       return
     }
 
+    // 4) Fallback: search by name
     const name = (link.name || '').trim()
     if (name) {
       const url = `/search?q=${encodeURIComponent(name)}`
@@ -1031,17 +1165,21 @@ function YTMusicPlayer() {
     }
   }
 
+  // --- Sidebar expansion logic ---
   const ensureSidebarExpanded = () => {
+    // Check if the sidebar is in compact mode (mini-guide visible)
     const miniGuide = document.querySelector('#mini-guide') as HTMLElement;
     const mainGuide = document.querySelector('ytmusic-guide-renderer') as HTMLElement;
     
     if (miniGuide && mainGuide) {
+      // If mini-guide is visible, that means we're in compact mode - expand it
       const miniGuideVisible = window.getComputedStyle(miniGuide).display !== 'none';
       const mainGuideVisible = window.getComputedStyle(mainGuide).display !== 'none';
       
       if (miniGuideVisible && !mainGuideVisible) {
+        // Find the sidebar toggle button - try multiple selectors
         const toggleSelectors = [
-          '#button',
+          '#button', // The main toggle button
           'ytmusic-guide-renderer #button',
           '[aria-label*="guide" i]',
           'button[aria-label*="menu" i]',
@@ -1050,7 +1188,7 @@ function YTMusicPlayer() {
         
         for (const selector of toggleSelectors) {
           const toggleButton = document.querySelector(selector) as HTMLElement;
-          if (toggleButton && toggleButton.offsetParent !== null) {
+          if (toggleButton && toggleButton.offsetParent !== null) { // Check if button is visible
             toggleButton.click();
             break;
           }
@@ -1059,6 +1197,9 @@ function YTMusicPlayer() {
     }
   }
 
+  // === STATE DETECTION HELPERS ===
+  
+  // Helper to request shuffle/repeat state
   const requestShuffle = () => {
     window.ipcRenderer.send("ytmd:get-shuffle")
   }
@@ -1066,18 +1207,22 @@ function YTMusicPlayer() {
     window.ipcRenderer.send("ytmd:get-repeat")
   }
 
+  // Enhanced shuffle state detection with multiple fallback methods
   const detectShuffleState = () => {
+    // Primary method: look for the shuffle button
     let shuffleBtn = document.querySelector('yt-icon-button.shuffle')
     
+    // Fallback: try different selectors
     if (!shuffleBtn) {
       shuffleBtn = document.querySelector('button[aria-label*="Shuffle" i], button[title*="Shuffle" i]')
     }
     
     if (shuffleBtn) {
+      // Check multiple indicators for active state
       const isActive = shuffleBtn.classList.contains('style-primary-text') || 
                       shuffleBtn.getAttribute('aria-pressed') === 'true' ||
                       shuffleBtn.querySelector('.yt-spec-icon-badge-shape__badge') !== null ||
-                      getComputedStyle(shuffleBtn).color === 'rgb(255, 255, 255)'
+                      getComputedStyle(shuffleBtn).color === 'rgb(255, 255, 255)' // White text indicates active
       
       if (isActive !== isShuffle()) {
         setIsShuffle(isActive)
@@ -1085,46 +1230,57 @@ function YTMusicPlayer() {
     }
   }
 
+  // Detect like/dislike state from YouTube Music
   const detectLikeState = () => {
     const likeButtonRenderer = document.querySelector('#like-button-renderer')
     
     if (likeButtonRenderer) {
+      // Try multiple selector approaches since YouTube Music structure can vary
       let likeButton = likeButtonRenderer.querySelector('button[aria-label="Like"]')
       let dislikeButton = likeButtonRenderer.querySelector('button[aria-label="Dislike"]')
       
+      // Fallback selectors if aria-label approach doesn't work
       if (!likeButton || !dislikeButton) {
         likeButton = likeButtonRenderer.querySelector('yt-icon-button[data-like-status] button')
         dislikeButton = likeButtonRenderer.querySelector('yt-icon-button[data-dislike-status] button')
       }
       
+      // Try even more generic approach
       if (!likeButton || !dislikeButton) {
         const buttons = likeButtonRenderer.querySelectorAll('button')
         if (buttons.length >= 2) {
-          likeButton = buttons[0]
-          dislikeButton = buttons[1]
+          likeButton = buttons[0] // First button is usually like
+          dislikeButton = buttons[1] // Second button is usually dislike
         }
       }
       
       if (likeButton && dislikeButton) {
+        // Get the parent renderer's like-status attribute (this is the master state)
         const likeStatus = likeButtonRenderer.getAttribute('like-status')
         
+        // Check button-specific pressed states
         const likePressed = likeButton.getAttribute('aria-pressed') === 'true'
         const dislikePressed = dislikeButton.getAttribute('aria-pressed') === 'true'
         
+        // Determine states - they should be mutually exclusive
         let isLikedState = false
         let isDislikedState = false
         
         if (likeStatus === 'LIKE' || likePressed) {
           isLikedState = true
-          isDislikedState = false
+          isDislikedState = false // Mutually exclusive
         } else if (likeStatus === 'DISLIKE' || dislikePressed) {
-          isLikedState = false
+          isLikedState = false // Mutually exclusive  
           isDislikedState = true
         } else {
+          // Neutral state - neither liked nor disliked
           isLikedState = false
           isDislikedState = false
         }
         
+
+        
+        // Update states only if they changed
         if (isLikedState !== isLiked()) {
           setIsLiked(isLikedState)
         }
@@ -1139,17 +1295,23 @@ function YTMusicPlayer() {
     }
   }
 
+  // Manual repeat state tracking - ignore YouTube Music's UI state
+  // We'll track our own state and just use YTM's button for the actual functionality
+
+  // Stable handlers for shuffle/repeat state
   const handleShuffleChanged = (_: any, shuffleOn: boolean) => {
     setIsShuffle(!!shuffleOn)
   }
 
   const handleRepeatChanged = (_: any, repeatModeValue: number) => {
     console.log('Repeat mode changed via IPC:', repeatModeValue)
+    // IPC should be the authoritative source for repeat state
     if (typeof repeatModeValue === 'number' && repeatModeValue !== repeatMode()) {
       setRepeatMode(repeatModeValue)
     }
   }
 
+  // Format time
   const fmt = (s: number) => {
     if (!isFinite(s)) return "0:00"
     const m = Math.floor(s / 60)
@@ -1159,9 +1321,12 @@ function YTMusicPlayer() {
     return `${m}:${sec}`
   }
 
+  // === SEEKING CONTROLS ===
+  // Works with native progress bar and YouTube Music API
+  
   const onSeekInput = (e: Event) => {
     const val = Number((e.target as HTMLInputElement).value)
-    setProgress(val)
+    setProgress(val) // Update anchor value
     lastProgressAnchor = val
     lastAnchorTime = performance.now()
     recomputeProgressAnimation()
@@ -1174,13 +1339,16 @@ function YTMusicPlayer() {
   const onSeekEnd = (e: Event) => {
     const val = Number((e.target as HTMLInputElement).value)
     
+    // Update both native progress bar and YouTube Music API
     if (nativeProgressBar) {
       (nativeProgressBar as any).value = val
     }
     
+    // Use YouTube Music API for seeking if available
     if (api && typeof api.seekTo === 'function') {
       api.seekTo(val)
     } else {
+      // Fallback to media element
       const mediaElement = currentMediaElement()
       if (mediaElement) {
         mediaElement.currentTime = val
@@ -1190,9 +1358,9 @@ function YTMusicPlayer() {
     setProgress(val)
     lastProgressAnchor = val
     lastAnchorTime = performance.now()
-      setDisplaySeconds(Math.floor(val))
     recomputeProgressAnimation()
     
+    // Re-enable progress sync after a brief delay
     setTimeout(() => {
       setIsSeeking(false)
     }, 100)
@@ -1213,13 +1381,16 @@ function YTMusicPlayer() {
         ? Math.max(0, progress() - step)
         : Math.min(song().songDuration || 0, progress() + step)
       
+      // Update native progress bar
       if (nativeProgressBar) {
         (nativeProgressBar as any).value = newTime
       }
       
+      // Use YouTube Music API for seeking
       if (api && typeof api.seekTo === 'function') {
         api.seekTo(newTime)
       } else {
+        // Fallback to media element
         const mediaElement = currentMediaElement()
         if (mediaElement) {
           mediaElement.currentTime = newTime
@@ -1229,7 +1400,6 @@ function YTMusicPlayer() {
       setProgress(newTime)
       lastProgressAnchor = newTime
       lastAnchorTime = performance.now()
-      setDisplaySeconds(Math.floor(newTime))
       recomputeProgressAnimation()
       
       setTimeout(() => {
@@ -1238,9 +1408,11 @@ function YTMusicPlayer() {
     }
   }
 
+  // Measure tooltip width for precise overflow detection
   const measureTooltipWidth = (buttonEl: HTMLElement, text: string): number => {
     const measure = document.createElement('span')
     measure.textContent = text
+    // Match ::after styles
     measure.style.position = 'fixed'
     measure.style.left = '0'
     measure.style.top = '0'
@@ -1249,6 +1421,7 @@ function YTMusicPlayer() {
     measure.style.fontSize = '12px'
     measure.style.lineHeight = '1'
     measure.style.padding = '6px 8px'
+    // Inherit font-family from button to closely match rendering
     const computed = getComputedStyle(buttonEl)
     measure.style.fontFamily = computed.fontFamily || 'inherit'
     document.body.appendChild(measure)
@@ -1257,17 +1430,21 @@ function YTMusicPlayer() {
     return width
   }
 
+  // Tooltip positioning helper - prevents cutoff at top or sides
   const adjustTooltipPosition = (buttonEl: HTMLElement) => {
     const rect = buttonEl.getBoundingClientRect()
     const viewportWidth = window.innerWidth
 
+    // Reset any previous overrides
     buttonEl.style.removeProperty('--tooltip-shift-x')
     buttonEl.removeAttribute('data-tooltip-pos')
 
+    // If not enough space above, show below
     if (rect.top < 42) {
       buttonEl.setAttribute('data-tooltip-pos', 'below')
     }
 
+    // Compute horizontal overflow and nudge tooltip only if it would be cut off
     const label = buttonEl.getAttribute('data-tooltip') || buttonEl.getAttribute('aria-label') || ''
     const tooltipWidth = measureTooltipWidth(buttonEl, label)
     const halfWidth = tooltipWidth / 2
@@ -1278,8 +1455,8 @@ function YTMusicPlayer() {
     const rightEdge = centerX + halfWidth
 
     let shiftX = 0
-    const leftOverflow = margin - leftEdge
-    const rightOverflow = (viewportWidth - margin) - rightEdge
+    const leftOverflow = margin - leftEdge // positive if overflowing left
+    const rightOverflow = (viewportWidth - margin) - rightEdge // negative if overflowing right
 
     if (leftOverflow > 0) {
       shiftX = leftOverflow
@@ -1299,6 +1476,9 @@ function YTMusicPlayer() {
     }, durationMs)
   }
 
+  // === PLAYBACK CONTROLS ===
+  // Enhanced to work properly with both audio and video content
+  
   const playPause = () => {
     const mediaElement = currentMediaElement()
     if (!mediaElement) return
@@ -1310,6 +1490,8 @@ function YTMusicPlayer() {
     }
   }
 
+  // === OTHER CONTROLS ===
+  
   const next = () => {
     (document.querySelector('.next-button') as HTMLElement)?.click()
   }
@@ -1319,26 +1501,35 @@ function YTMusicPlayer() {
   }
 
   const toggleLike = () => {
+
+    // Use the proper YouTube Music API method for the currently playing song
     const likeButtonRenderer = document.querySelector('#like-button-renderer') as HTMLElement & { updateLikeStatus: (status: string) => void }
     if (likeButtonRenderer && likeButtonRenderer.updateLikeStatus) {
       likeButtonRenderer.updateLikeStatus('LIKE')
+      // Re-detect state after a short delay to sync with YouTube Music
       setTimeout(detectLikeState, 100)
     } else {
+      // Fallback to IPC system
       window.ipcRenderer.send("ytmd:update-like", "LIKE")
       setTimeout(detectLikeState, 100)
     }
   }
 
+  // Removed unused toggleDislike to satisfy linter
+
   const toggleShuffle = () => {
+    // Click the original YouTube Music shuffle button
     const shuffleBtn = document.querySelector('yt-icon-button.shuffle button') as HTMLElement
     if (shuffleBtn) {
       shuffleBtn.click()
       
+      // Immediate state update with multiple checks for responsiveness
       setTimeout(() => {
         detectShuffleState()
         requestShuffle()
       }, 50)
       
+      // Additional check after standard delay
       setTimeout(() => {
         detectShuffleState()
         requestShuffle()
@@ -1347,14 +1538,17 @@ function YTMusicPlayer() {
   }
 
   const toggleRepeat = () => {
+    // Manual state cycling: 0 -> 1 -> 2 -> 0  
     const currentMode = repeatMode()
-    let nextMode = (currentMode + 1) % 3
+    let nextMode = (currentMode + 1) % 3 // Cycle through 0, 1, 2
     
     console.log(`Manual repeat toggle: ${currentMode} -> ${nextMode}`)
     
+    // Find the native YouTube Music repeat button
     let repeatBtn = document.querySelector('yt-icon-button.repeat button') as HTMLElement
     
     if (!repeatBtn) {
+      // Fallback selectors
       repeatBtn = document.querySelector('yt-icon-button.repeat') as HTMLElement
       if (!repeatBtn) {
         repeatBtn = document.querySelector('button[aria-label*="repeat" i], button[aria-label*="wiederhol" i]') as HTMLElement
@@ -1362,12 +1556,17 @@ function YTMusicPlayer() {
     }
     
     if (repeatBtn) {
+      // Click the native button to make YouTube Music do the actual repeat behavior
+      // The number of clicks needed depends on current state and target state
       let clicksNeeded = 1
       
+      // For now, just click once and let YouTube Music cycle
+      // (YouTube Music cycles: off -> repeat all -> repeat one -> off)
       for (let i = 0; i < clicksNeeded; i++) {
         repeatBtn.click()
       }
       
+      // Update our state immediately
       setRepeatMode(nextMode)
       
       console.log(`Updated repeat mode to ${nextMode}`)
@@ -1376,12 +1575,18 @@ function YTMusicPlayer() {
     }
   }
 
+  // === UTILITY FUNCTIONS ===
+  
+  // Toggle the YT Music miniplayer: open if closed, close if open
   const toggleMiniplayer = () => {
+    // Miniplayer bar is present if miniplayer is open
     const miniplayerBar = document.querySelector('ytmusic-player-bar[miniplayer]');
     if (miniplayerBar) {
+      // Try to find the close button by SVG path
       const closeBtn = Array.from(miniplayerBar.querySelectorAll('button')).find(btn => {
         const svg = btn.querySelector('svg');
         if (!svg) return false;
+        // Check for the unique path data from the provided SVG
         return Array.from(svg.querySelectorAll('path')).some(path =>
           path.getAttribute('d') === 'M18 5H4v14h7v1H3V4h16v8h-1V5ZM6 7h5v1H7.707L12 12.293l-.707.707L7 8.707V12H6V7Zm7 7h9v8h-9v-8Z'
         );
@@ -1390,6 +1595,7 @@ function YTMusicPlayer() {
         closeBtn.click();
       }
     } else {
+      // Miniplayer is closed, open it
       const miniplayerBtn = document.querySelector('.player-minimize-button') as HTMLElement | null;
       if (miniplayerBtn) {
         miniplayerBtn.click();
@@ -1402,6 +1608,7 @@ function YTMusicPlayer() {
   }
 
   const navigateToAlbumPage = () => {
+    // Robust approach: find the first album <a> after the bullet (•) in the subtitle/byline
     const containers = [
       document.querySelector('ytmusic-player-bar .subtitle'),
       document.querySelector('ytmusic-player-bar .byline'),
@@ -1445,22 +1652,26 @@ function YTMusicPlayer() {
       }
       const albumEl = candidateEls.find(a => (a.getAttribute('href') || '').includes('browse/'))
       if (albumEl) {
+        // Click the real native anchor so Polymer routing is used and playback is preserved
         albumEl.click()
         return
       }
     }
 
+    // Try a direct selector for album browse link as fallback
     const directAlbum = document.querySelector(
       'ytmusic-player-bar .subtitle a[href*="browse/"], ytmusic-player-bar .byline a[href*="browse/"], .content-info-wrapper .subtitle a[href*="browse/"], .content-info-wrapper .byline a[href*="browse/"]'
     ) as HTMLAnchorElement | null
     if (directAlbum) {
       const href = normalizeHref(directAlbum.getAttribute('href') || '')
       if (href.startsWith('/browse/')) {
+        // Click the native element directly
         directAlbum.click()
         return
       }
     }
 
+    // Last resort: open the context menu and choose the album item
     const menuBtn = document.querySelector<HTMLElement>(
       'ytmusic-player-bar button[aria-label*="more" i], ytmusic-player-bar yt-icon-button, ytmusic-player-bar tp-yt-paper-icon-button'
     )
@@ -1491,42 +1702,48 @@ function YTMusicPlayer() {
   }
 
   const triggerAddToPlaylist = async () => {
+    // Enhanced text matching function with better internationalization support
     const matchesPlaylistText = (text: string | null) => {
       if (!text) return false
       const t = text.toLowerCase().trim()
 
+      // Hard exclude any library-only actions
       const libraryWords = [
-        'library',
-        'mediathek',
-        'bibliothek',
-        'biblioteca',
+        'library',      // EN
+        'mediathek',    // DE
+        'bibliothek',   // DE alt
+        'biblioteca',   // ES/PT/IT
       ]
       if (libraryWords.some(w => t.includes(w))) return false
 
+      // Prefer explicit playlist phrasing across locales
       const playlistWords = [
-        'playlist',
-        'wiedergabeliste',
-        'lista de reproducción',
-        'lista de reproduccion',
-        'lista de reprodução',
-        'lista di riproduzione',
+        'playlist',               // EN/FR/ES
+        'wiedergabeliste',        // DE
+        'lista de reproducción',  // ES
+        'lista de reproduccion',  // ES no accent
+        'lista de reprodução',    // PT
+        'lista di riproduzione',  // IT
       ]
 
       const addWords = [
-        'add', 'save', 'create',
-        'hinzufügen', 'erstellen',
-        'ajouter', 'créer',
-        'agregar', 'añadir', 'crear',
-        'adicionar', 'criar',
-        'aggiungi', 'crea',
+        'add', 'save', 'create',          // EN
+        'hinzufügen', 'erstellen',        // DE
+        'ajouter', 'créer',               // FR
+        'agregar', 'añadir', 'crear',     // ES
+        'adicionar', 'criar',             // PT
+        'aggiungi', 'crea',               // IT
       ]
 
+      // If it mentions playlist words, accept; if verbs + playlist also accept
       if (playlistWords.some(w => t.includes(w))) return true
       if (addWords.some(v => t.includes(v)) && playlistWords.some(w => t.includes(w))) return true
       return false
     }
 
+    // Enhanced helper function to find add to playlist item with better detection
     const findAddToPlaylistItem = (container: HTMLElement) => {
+      // First, exclude like/dislike buttons by checking for common like patterns
       const excludeLikePatterns = [
         /\b(mag ich|like|gefällt mir|thumbs up)\b/i,
         /\b(mag ich nicht|dislike|gefällt mir nicht|thumbs down)\b/i,
@@ -1547,13 +1764,16 @@ function YTMusicPlayer() {
         )
       }
       
+      // Check toggle service items first (most reliable for playlist actions)
       const toggleItems = container.querySelectorAll<HTMLElement>('ytmusic-toggle-menu-service-item-renderer')
       for (let i = 0; i < toggleItems.length; i++) {
         const item = toggleItems[i]
+        // Prefer icon-based detection where available
         const hasPlaylistIcon = !!item.querySelector('yt-icon[icon*="playlist_add" i], yt-icon[icon*="playlist" i]')
         const textElement = item.querySelector<HTMLElement>('yt-formatted-string')
         const text = textElement?.textContent || ''
         
+        // Skip if this looks like a like/dislike button
         if (isLikeButton(text) || isLibraryAction(text)) continue
         
         if (hasPlaylistIcon || (textElement && matchesPlaylistText(textElement.textContent))) {
@@ -1561,6 +1781,7 @@ function YTMusicPlayer() {
         }
       }
       
+      // Fallback to navigation items
       const navItems = container.querySelectorAll<HTMLElement>('ytmusic-menu-navigation-item-renderer')
       for (let i = 0; i < navItems.length; i++) {
         const item = navItems[i]
@@ -1568,6 +1789,7 @@ function YTMusicPlayer() {
         const textElement = item.querySelector<HTMLElement>('yt-formatted-string')
         const text = textElement?.textContent || ''
         
+        // Skip if this looks like a like/dislike button
         if (isLikeButton(text) || isLibraryAction(text)) continue
         
         if (hasPlaylistIcon || (textElement && matchesPlaylistText(textElement.textContent))) {
@@ -1575,6 +1797,7 @@ function YTMusicPlayer() {
         }
       }
       
+      // Check all menu items regardless of type
       const allMenuItems = container.querySelectorAll<HTMLElement>('*[role="menuitem"], ytmusic-toggle-menu-service-item-renderer, ytmusic-menu-navigation-item-renderer, ytmusic-menu-service-item-renderer')
       for (let i = 0; i < allMenuItems.length; i++) {
         const item = allMenuItems[i]
@@ -1583,6 +1806,7 @@ function YTMusicPlayer() {
         const text = textElement?.textContent?.trim() || item.textContent?.trim() || ''
         const ariaLabel = item.getAttribute('aria-label') || ''
         
+        // Skip if this looks like a like/dislike button
         if (isLikeButton(text) || isLikeButton(ariaLabel) || isLibraryAction(text) || isLibraryAction(ariaLabel)) continue
         
         if (hasPlaylistIcon || matchesPlaylistText(text) || matchesPlaylistText(ariaLabel)) {
@@ -1590,12 +1814,14 @@ function YTMusicPlayer() {
         }
       }
       
+      // Last resort: check any clickable elements with matching text or aria-label
       const allClickables = container.querySelectorAll<HTMLElement>('a, button, [role="menuitem"]')
       for (let i = 0; i < allClickables.length; i++) {
         const item = allClickables[i]
         const text = item.textContent?.trim() || ''
         const ariaLabel = item.getAttribute('aria-label') || ''
         
+        // Skip if this looks like a like/dislike button
         if (isLikeButton(text) || isLikeButton(ariaLabel) || isLibraryAction(text) || isLibraryAction(ariaLabel)) continue
         
         if (matchesPlaylistText(text) || matchesPlaylistText(ariaLabel)) {
@@ -1606,6 +1832,7 @@ function YTMusicPlayer() {
       return null
     }
 
+    // Enhanced expand button detection
     const findAndClickExpandButton = (container: HTMLElement) => {
       const menuItems = container.querySelectorAll<HTMLElement>('ytmusic-menu-navigation-item-renderer')
       
@@ -1618,10 +1845,11 @@ function YTMusicPlayer() {
       return null
     }
 
+    // Helper function to wait for menu to appear
     const waitForMenu = (timeout: number = 300): Promise<boolean> => {
       return new Promise((resolve) => {
         let attempts = 0
-        const maxAttempts = timeout / 50
+        const maxAttempts = timeout / 50 // Check every 50ms
         
         const checkMenu = () => {
           const menu = document.querySelector('ytmusic-menu-popup-renderer tp-yt-paper-listbox')
@@ -1639,19 +1867,27 @@ function YTMusicPlayer() {
       })
     }
 
+    // Enhanced menu opening with correct selectors based on working examples
     const openContextMenu = async (): Promise<boolean> => {
+      // Try the selectors that actually work in YT Music, based on other successful plugins
       const selectors = [
+        // Direct selector for the German "Aktionsmenü" button we found
         'ytmusic-player-bar button[aria-label="Aktionsmenü"]',
+        // Generic multilingual selectors
         'ytmusic-player-bar button[aria-label*="aktion" i]',
         'ytmusic-player-bar button[aria-label*="actions" i]',
         'ytmusic-player-bar button[aria-label*="more" i]',
         'ytmusic-player-bar button[aria-label*="menu" i]',
         'ytmusic-player-bar button[aria-label*="acciones" i]',
+        // The #icon selector is used successfully in picture-in-picture plugin
         'ytmusic-player-bar #icon',
+        // Try variations of the more button that might exist
         'ytmusic-player-bar tp-yt-paper-icon-button',
         'ytmusic-player-bar yt-icon-button',
+        // More specific icon-based selectors
         'ytmusic-player-bar yt-icon[icon="yt-icons:more_vert"]',
         'ytmusic-player-bar yt-icon[icon="yt-icons:more_horiz"]',
+        // Fallback generic selectors
         'ytmusic-player-bar [role="button"]',
         'ytmusic-player-bar .more-button'
       ]
@@ -1670,12 +1906,18 @@ function YTMusicPlayer() {
       return false
     }
 
+    // Enhanced click handling with comprehensive event simulation
     const simulateClick = (element: HTMLElement) => {
+      // Try multiple click approaches for maximum compatibility
+      
+      // 1. Standard click
       element.click()
       
+      // 2. Focus first, then click (some elements need focus)
       if (element.focus) element.focus()
       element.click()
       
+      // 3. Comprehensive mouse event simulation
       const mouseEvents = ['mouseenter', 'mouseover', 'mousedown', 'mouseup', 'click']
       for (const eventType of mouseEvents) {
         element.dispatchEvent(new MouseEvent(eventType, { 
@@ -1686,16 +1928,19 @@ function YTMusicPlayer() {
         }))
       }
       
+      // 4. Try triggering on child elements if they exist
       const clickableChild = element.querySelector('button, a, [role="button"], [role="menuitem"]')
       if (clickableChild && clickableChild !== element) {
         ;(clickableChild as HTMLElement).click()
       }
       
+      // 5. Try pointer events (newer standard)
       element.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true }))
       element.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true }))
     }
 
     try {
+      // First, try to find and click in any existing open menu
       const allMenus = document.querySelectorAll<HTMLElement>('ytmusic-menu-popup-renderer tp-yt-paper-listbox')
       
       for (const menu of allMenus) {
@@ -1706,11 +1951,13 @@ function YTMusicPlayer() {
         }
       }
       
+      // If no direct item found in existing menus, try expand button approach
       for (const menu of allMenus) {
         const expandButton = findAndClickExpandButton(menu)
         if (expandButton) {
           simulateClick(expandButton)
           
+          // Wait for expanded menu to appear
           await new Promise(resolve => setTimeout(resolve, 200))
           
           const allMenusAfterExpand = document.querySelectorAll<HTMLElement>('ytmusic-menu-popup-renderer tp-yt-paper-listbox')
@@ -1724,8 +1971,10 @@ function YTMusicPlayer() {
         }
       }
       
+      // If no menu is open, try to open the context menu first
       const menuOpened = await openContextMenu()
       if (!menuOpened) {
+        // Fallback: Try alternative approach with direct button search
         const allButtons = document.querySelectorAll<HTMLElement>('ytmusic-player-bar button, ytmusic-player-bar tp-yt-paper-icon-button, ytmusic-player-bar yt-icon-button, ytmusic-player-bar [role="button"], ytmusic-player-bar *[id="icon"]')
         
         for (let i = 0; i < allButtons.length; i++) {
@@ -1736,18 +1985,22 @@ function YTMusicPlayer() {
           const id = button.getAttribute('id') || ''
           const className = button.getAttribute('class') || ''
           
+          // Try more liberal matching for menu buttons (with multilingual support)
           if (ariaLabel.toLowerCase().includes('more') || 
               title.toLowerCase().includes('more') || 
               ariaLabel.toLowerCase().includes('menu') ||
               title.toLowerCase().includes('menu') ||
               ariaLabel.toLowerCase().includes('option') ||
               title.toLowerCase().includes('option') ||
+              // German language support
               ariaLabel.toLowerCase().includes('aktionsmenü') ||
               ariaLabel.toLowerCase().includes('aktion') ||
               title.toLowerCase().includes('aktionsmenü') ||
               title.toLowerCase().includes('aktion') ||
+              // French language support
               ariaLabel.toLowerCase().includes('actions') ||
               ariaLabel.toLowerCase().includes('plus') ||
+              // Spanish language support
               ariaLabel.toLowerCase().includes('acciones') ||
               ariaLabel.toLowerCase().includes('más') ||
               id === 'icon' ||
@@ -1763,20 +2016,23 @@ function YTMusicPlayer() {
                 break
               }
             } catch (err) {
+              // Continue to next button
             }
           }
         }
         
+        // If still no menu found, try searching the entire document for menu buttons
         if (document.querySelectorAll('ytmusic-menu-popup-renderer tp-yt-paper-listbox').length === 0) {
           const allDocButtons = document.querySelectorAll<HTMLElement>('button, tp-yt-paper-icon-button, yt-icon-button, [role="button"], *[id="icon"]')
           
-          for (let i = 0; i < Math.min(allDocButtons.length, 50); i++) {
+          for (let i = 0; i < Math.min(allDocButtons.length, 50); i++) { // Limit to first 50 to avoid spam
             const button = allDocButtons[i]
             const ariaLabel = button.getAttribute('aria-label') || ''
             const id = button.getAttribute('id') || ''
             const className = button.getAttribute('class') || ''
             const textContent = button.textContent?.trim() || ''
             
+            // Look for buttons that might open the song menu
             if ((ariaLabel.toLowerCase().includes('more') && 
                  (button.closest('ytmusic-player-bar') || button.closest('ytmusic-player'))) ||
                 (id === 'icon' && button.closest('ytmusic-player-bar')) ||
@@ -1790,16 +2046,19 @@ function YTMusicPlayer() {
                   break
                 }
               } catch (err) {
+                // Continue to next button
               }
             }
           }
         }
       }
       
+      // Wait a bit more for menu to fully load
       await new Promise(resolve => setTimeout(resolve, 200))
       
       const newMenus = document.querySelectorAll<HTMLElement>('ytmusic-menu-popup-renderer tp-yt-paper-listbox')
       
+      // First try to find direct add to playlist item
       for (const menu of newMenus) {
         const addToPlaylistItem = findAddToPlaylistItem(menu)
         if (addToPlaylistItem) {
@@ -1808,11 +2067,13 @@ function YTMusicPlayer() {
         }
       }
       
+      // If not found, try expand button approach
       for (const menu of newMenus) {
         const expandButton = findAndClickExpandButton(menu)
         if (expandButton) {
           simulateClick(expandButton)
           
+          // Wait for expanded menu
           await new Promise(resolve => setTimeout(resolve, 200))
           
           const allMenusAfterExpand = document.querySelectorAll<HTMLElement>('ytmusic-menu-popup-renderer tp-yt-paper-listbox')
@@ -1833,6 +2094,7 @@ function YTMusicPlayer() {
     }
   }
 
+  // Setup fullscreen change listener
   onMount(() => {
     const handleFullscreenChange = () => {
       setIsFullscreen(!!document.fullscreenElement)
@@ -1840,8 +2102,10 @@ function YTMusicPlayer() {
 
     document.addEventListener('fullscreenchange', handleFullscreenChange)
     
+    // Initialize the state
     setIsFullscreen(!!document.fullscreenElement)
 
+    // Cleanup
     onCleanup(() => {
       document.removeEventListener('fullscreenchange', handleFullscreenChange)
     })
@@ -1875,6 +2139,7 @@ function YTMusicPlayer() {
         {volumeHudText()}
       </div>
 
+      {/* Left Section - Song Info */}
       <div class="ytmusic-left">
         <div class="ytmusic-album-cover">
           {song().imageSrc ? (
@@ -1912,6 +2177,7 @@ function YTMusicPlayer() {
             </span>
           </div>
           <div class="ytmusic-artist-album">
+            {/* Render multiple clickable artist names like native YTM bar */}
             {artistLinks().length > 0 ? (
               <>
                 {artistLinks().map((link, idx) => (
@@ -1954,6 +2220,7 @@ function YTMusicPlayer() {
                 {song().artist || 'Artist Name'}
               </div>
             )}
+            {/* Album removed from bottom bar per request */}
           </div>
           </div>
 
@@ -1965,6 +2232,7 @@ function YTMusicPlayer() {
         </div>
       </div>
 
+      {/* Center Section - Controls & Progress */}
       <div class="ytmusic-center">
         <div class="ytmusic-controls">
           <button class={`ytmusic-control-btn ${isShuffle() ? "active" : ""}`} onClick={(ev) => { toggleShuffle(); suppressTooltip(ev.currentTarget as HTMLElement) }} aria-label="Shuffle" data-tooltip="Shuffle" onMouseEnter={(e) => adjustTooltipPosition(e.currentTarget as HTMLElement)}>
@@ -1987,6 +2255,7 @@ function YTMusicPlayer() {
             <img src={skipNext} alt="Next" class="icon" />
           </button>
 
+          {/* CORRECTED: Visual logic for repeat button with distinct states */}
           <button
             class={`ytmusic-control-btn ${repeatMode() > 0 ? "active" : ""}`}
             onClick={(ev) => { toggleRepeat(); suppressTooltip(ev.currentTarget as HTMLElement) }}
@@ -2004,7 +2273,7 @@ function YTMusicPlayer() {
         </div>
 
         <div class="ytmusic-progress">
-          <span class="ytmusic-time">{fmt(displaySeconds())}</span>
+          <span class="ytmusic-time">{fmt(progress())}</span>
           <div class="ytmusic-progress-bar">
             <input
               type="range"
@@ -2026,6 +2295,7 @@ function YTMusicPlayer() {
         </div>
       </div>
 
+      {/* Right Section - Volume & Additional Controls */}
       <div class="ytmusic-right">
         <div class="ytmusic-volume">
           <button 
@@ -2076,6 +2346,7 @@ function YTMusicPlayer() {
   )
 }
 
+// Plugin lifecycle functions
 export const onPlayerApiReady = async (
   playerApi: YoutubePlayer,
   context: RendererContext<CustomBottomBarPluginConfig>,
