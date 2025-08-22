@@ -97,8 +97,6 @@ function YTMusicPlayer() {
   let rafId: number | null = null
   let lastNativeProgressUpdateAt = 0
   let failSafeInterval: number | null = null
-  let isUiProgressFrozen = false
-  let frozenProgressAt = 0
 
   const clampProgressToDuration = (value: number) => {
     const duration = song().songDuration || 0
@@ -109,7 +107,6 @@ function YTMusicPlayer() {
   const getNowProgress = () => {
     const duration = song().songDuration || 0
     if (duration <= 0) return 0
-    if (isUiProgressFrozen) return clampProgressToDuration(frozenProgressAt)
     // Trust the actual media element paused state if available
     const mediaElement = currentMediaElement()
     const isActuallyPlaying = mediaElement ? !mediaElement.paused : !isPaused()
@@ -161,7 +158,7 @@ function YTMusicPlayer() {
     
     // Monitor native progress bar value changes
     nativeProgressObserver = new MutationObserver((mutations) => {
-      if (isSeeking() || isPaused() || isUiProgressFrozen) return // Don't update while user is seeking/paused/frozen
+      if (isSeeking()) return // Don't update while user is seeking
       
       for (const mutation of mutations) {
         const target = mutation.target as HTMLElement & { value: string }
@@ -212,7 +209,7 @@ function YTMusicPlayer() {
         if (nativeProgressBar) {
           try {
             nativeProgressObserver = new MutationObserver((mutations) => {
-              if (isSeeking() || isPaused() || isUiProgressFrozen) return
+              if (isSeeking()) return
               for (const mutation of mutations) {
                 const target = mutation.target as HTMLElement & { value: string }
                 if (mutation.attributeName === 'value') {
@@ -249,7 +246,6 @@ function YTMusicPlayer() {
     if (failSafeInterval == null) {
       failSafeInterval = window.setInterval(() => {
         if (isSeeking()) return
-        if (isUiProgressFrozen) return
         // Only attempt to re-anchor when actually playing
         const mediaEl = currentMediaElement()
         const isActuallyPlaying = mediaEl ? !mediaEl.paused : !isPaused()
@@ -374,21 +370,11 @@ function YTMusicPlayer() {
       // Only re-anchor when transitioning from paused to playing
       // This ensures smooth continuation without jumps when pausing
       if (wasPlaying && isNowPaused) {
-        // Pausing: hard-freeze UI at exact current position
-        const snap = getNowProgress()
-        frozenProgressAt = snap
-        setProgress(snap)
-        lastProgressAnchor = snap
-        lastAnchorTime = performance.now()
-        isUiProgressFrozen = true
-        recomputeProgressAnimation()
+        // Pausing: don't re-anchor, keep current visual position
       } else if (!wasPlaying && !isNowPaused) {
-        // Resuming: re-anchor to current progress and unfreeze
-        const anchor = progress()
-        lastProgressAnchor = anchor
+        // Resuming: re-anchor to current progress to start animation from correct position
+        lastProgressAnchor = progress()
         lastAnchorTime = performance.now()
-        isUiProgressFrozen = false
-        recomputeProgressAnimation()
       }
     }
     
@@ -1513,15 +1499,6 @@ function YTMusicPlayer() {
   const playPause = () => {
     const mediaElement = currentMediaElement()
     if (!mediaElement) return
-    
-    // Freeze immediately on user click to avoid any motion/flicker
-    const now = getNowProgress()
-    frozenProgressAt = now
-    setProgress(now)
-    lastProgressAnchor = now
-    lastAnchorTime = performance.now()
-    isUiProgressFrozen = true
-    recomputeProgressAnimation()
     
     if (mediaElement.paused) {
       mediaElement.play()
