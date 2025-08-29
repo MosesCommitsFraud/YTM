@@ -294,23 +294,52 @@ async function onApiLoaded() {
     },
   );
 
+  // Track recent user gestures to distinguish autoplay from intentional user play
+  let lastUserGestureAt = 0;
+  const recordUserGesture = () => {
+    lastUserGestureAt = Date.now();
+  };
+  document.addEventListener('pointerdown', recordUserGesture, {
+    passive: true,
+  });
+  document.addEventListener('keydown', recordUserGesture, {
+    passive: true,
+  });
+  document.addEventListener('touchstart', recordUserGesture, {
+    passive: true,
+  });
+  document.addEventListener('mousedown', recordUserGesture, {
+    passive: true,
+  });
+
   // Guard: if resumeOnStart is disabled, pause playback once when initial data loads
   const ensurePausedOnFirstLoad = (evt: Event) => {
     try {
       const e = evt as CustomEvent<{ name?: string }>;
+      if (e?.detail?.name !== 'dataloaded') return;
+
+      // Remove this guard after the first relevant event
+      document.removeEventListener(
+        'videodatachange',
+        ensurePausedOnFirstLoad as EventListener,
+      );
+
       const shouldResume = window.mainConfig.get('options.resumeOnStart');
-      if (!shouldResume && e?.detail?.name === 'dataloaded') {
-        api?.pauseVideo?.();
-        const vid = document.querySelector<HTMLVideoElement>('video');
-        vid?.addEventListener(
-          'timeupdate',
-          () => {
-            vid.pause();
-          },
-          { once: true },
-        );
-        document.removeEventListener('videodatachange', ensurePausedOnFirstLoad as EventListener);
-      }
+      if (shouldResume) return;
+
+      // If a recent user gesture happened, don't block playback
+      const recentGesture = Date.now() - lastUserGestureAt < 3000;
+      if (recentGesture) return;
+
+      api?.pauseVideo?.();
+      const vid = document.querySelector<HTMLVideoElement>('video');
+      vid?.addEventListener(
+        'timeupdate',
+        () => {
+          vid.pause();
+        },
+        { once: true },
+      );
     } catch {
       // no-op
     }
