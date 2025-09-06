@@ -8,6 +8,7 @@ import {
   MenuItem,
   shell,
 } from 'electron';
+import { autoUpdater } from 'electron-updater';
 import prompt from 'custom-electron-prompt';
 import { satisfies } from 'semver';
 
@@ -547,7 +548,46 @@ export const mainMenuTemplate = async (
     },
     {
       label: 'About',
-      submenu: [{ role: 'about' }],
+      submenu: [
+        { role: 'about' },
+        { type: 'separator' },
+        {
+          label: 'Check for Updates',
+          click: () => {
+            // Show checking dialog
+            const checkingDialog = dialog.showMessageBox({
+              type: 'info',
+              buttons: ['OK'],
+              title: 'Checking for Updates',
+              message: 'Checking for updates...',
+              detail: 'Please wait while we check for available updates.',
+            });
+
+            // Perform update check
+            autoUpdater.checkForUpdatesAndNotify().then((result) => {
+              if (!result) {
+                // No update available
+                dialog.showMessageBox({
+                  type: 'info',
+                  buttons: ['OK'],
+                  title: 'No Updates Available',
+                  message: 'You are running the latest version.',
+                  detail: `Current version: ${packageJson.version}`,
+                });
+              }
+            }).catch((error) => {
+              console.error('Manual update check failed:', error);
+              dialog.showMessageBox({
+                type: 'error',
+                buttons: ['OK'],
+                title: 'Update Check Failed',
+                message: 'Failed to check for updates.',
+                detail: error.message || 'An unknown error occurred.',
+              });
+            });
+          },
+        },
+      ],
     },
   ];
 };

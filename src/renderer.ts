@@ -29,6 +29,36 @@ let firstDataLoaded = false;
 
 registerWindowDefaultTrustedTypePolicy();
 
+// Setup update progress notifications
+let updateNotification: Notification | null = null;
+
+window.ipcRenderer.on('download-progress', (_, progressObj: { percent: number, bytesPerSecond: number, transferred: number, total: number }) => {
+  const { percent, bytesPerSecond, transferred, total } = progressObj;
+  
+  // Show or update notification
+  if (updateNotification) {
+    updateNotification.close();
+  }
+  
+  const speedMB = (bytesPerSecond / (1024 * 1024)).toFixed(1);
+  const transferredMB = (transferred / (1024 * 1024)).toFixed(1);
+  const totalMB = (total / (1024 * 1024)).toFixed(1);
+  
+  updateNotification = new Notification('Downloading Update', {
+    body: `Progress: ${percent.toFixed(1)}% (${transferredMB}/${totalMB} MB)\nSpeed: ${speedMB} MB/s`,
+    icon: 'assets/youtube-music.png',
+    silent: true,
+  });
+  
+  // Auto-close notification after 3 seconds
+  setTimeout(() => {
+    if (updateNotification) {
+      updateNotification.close();
+      updateNotification = null;
+    }
+  }, 3000);
+});
+
 async function listenForApiLoad() {
   if (!isApiLoaded) {
     api = document.querySelector('#movie_player');

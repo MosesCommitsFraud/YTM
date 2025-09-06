@@ -964,34 +964,117 @@ app.whenReady().then(async () => {
 });
 
 function setupAutoUpdater() {
-  // Set up the update-available event handler
-  autoUpdater.on('update-available', () => {
-    const downloadLink =
-      'https://github.com/MosesCommitsFraud/YTM/releases/latest';
+  // Set up event handlers for automatic updates
+  autoUpdater.on('checking-for-update', () => {
+    console.log('Checking for update...');
+  });
+
+  autoUpdater.on('update-available', (info) => {
+    console.log('Update available:', info.version);
+    
     const dialogOptions = {
       type: 'info' as const,
       buttons: [
-        'OK',
-        'Download',
-        'Disable',
+        'Download Now',
+        'Download Later',
+        'Disable Auto-Updates',
       ],
       title: 'Update Available',
-      message: 'A new update is available.',
+      message: `A new version (${info.version}) is available. Would you like to download and install it now?`,
+      detail: 'The app will automatically restart after the update is installed.',
     };
     
     const handleDialogResult = (result: Electron.MessageBoxReturnValue) => {
-      if (result.response === 1) {
-        shell.openExternal(downloadLink);
+      if (result.response === 0) {
+        // Download now
+        autoUpdater.downloadUpdate();
+        
+        // Show download progress notification
+        const progressOptions = {
+          type: 'info' as const,
+          buttons: ['OK'],
+          title: 'Downloading Update',
+          message: 'Update is being downloaded in the background...',
+          detail: 'You will be notified when the download is complete.',
+        };
+        
+        if (mainWindow) {
+          dialog.showMessageBox(mainWindow, progressOptions);
+        } else {
+          dialog.showMessageBox(progressOptions);
+        }
       } else if (result.response === 2) {
+        // Disable auto-updates
         config.set('options.autoUpdates', false);
-        // The config watcher will handle stopping the interval
       }
+      // If response === 1 (Download Later), do nothing - user can manually check later
     };
 
     if (mainWindow) {
       dialog.showMessageBox(mainWindow, dialogOptions).then(handleDialogResult);
     } else {
       dialog.showMessageBox(dialogOptions).then(handleDialogResult);
+    }
+  });
+
+  autoUpdater.on('update-not-available', (info) => {
+    console.log('Update not available:', info.version);
+  });
+
+  autoUpdater.on('error', (err) => {
+    console.error('Update error:', err);
+    
+    const errorOptions = {
+      type: 'error' as const,
+      buttons: ['OK'],
+      title: 'Update Error',
+      message: 'An error occurred while checking for updates.',
+      detail: err.message || 'Unknown error occurred.',
+    };
+    
+    if (mainWindow) {
+      dialog.showMessageBox(mainWindow, errorOptions);
+    } else {
+      dialog.showMessageBox(errorOptions);
+    }
+  });
+
+  autoUpdater.on('download-progress', (progressObj) => {
+    const logMessage = `Download speed: ${progressObj.bytesPerSecond} - Downloaded ${progressObj.percent}% (${progressObj.transferred}/${progressObj.total})`;
+    console.log(logMessage);
+    
+    // Send progress to renderer if needed
+    if (mainWindow) {
+      mainWindow.webContents.send('download-progress', progressObj);
+    }
+  });
+
+  autoUpdater.on('update-downloaded', (info) => {
+    console.log('Update downloaded:', info.version);
+    
+    const installOptions = {
+      type: 'info' as const,
+      buttons: [
+        'Restart Now',
+        'Restart Later',
+      ],
+      title: 'Update Ready',
+      message: `Update to version ${info.version} has been downloaded and is ready to install.`,
+      detail: 'The application will restart to apply the update.',
+    };
+    
+    const handleInstallResult = (result: Electron.MessageBoxReturnValue) => {
+      if (result.response === 0) {
+        // Restart and install immediately
+        setImmediate(() => autoUpdater.quitAndInstall());
+      }
+      // If response === 1 (Restart Later), the update will be installed on next app launch
+    };
+
+    if (mainWindow) {
+      dialog.showMessageBox(mainWindow, installOptions).then(handleInstallResult);
+    } else {
+      dialog.showMessageBox(installOptions).then(handleInstallResult);
     }
   });
 
