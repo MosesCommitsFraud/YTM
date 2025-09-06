@@ -171,7 +171,6 @@ export interface YoutubePlayer {
   channelUnsubscribed: <Parameters extends unknown[], Return>(
     ...params: Parameters
   ) => Return;
-  togglePictureInPicture: () => void;
   supportsGaplessAudio: () => boolean;
   supportsGaplessShorts: () => boolean;
   enqueueVideoByPlayerVars: <Parameters extends unknown[], Return>(

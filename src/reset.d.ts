@@ -30,7 +30,6 @@ declare global {
     _lact: number;
     navigation: Navigation;
     download: () => void;
-    togglePictureInPicture: () => void;
     reload: () => void;
   }
 }

@@ -1896,7 +1896,7 @@ function YTMusicPlayer() {
         'ytmusic-player-bar button[aria-label*="more" i]',
         'ytmusic-player-bar button[aria-label*="menu" i]',
         'ytmusic-player-bar button[aria-label*="acciones" i]',
-        // The #icon selector is used successfully in picture-in-picture plugin
+        // Generic icon selector for player bar buttons
         'ytmusic-player-bar #icon',
         // Try variations of the more button that might exist
         'ytmusic-player-bar tp-yt-paper-icon-button',
