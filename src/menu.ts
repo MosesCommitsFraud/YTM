@@ -553,37 +553,23 @@ export const mainMenuTemplate = async (
         { type: 'separator' },
         {
           label: 'Check for Updates',
-          click: () => {
-            // Show checking dialog
-            const checkingDialog = dialog.showMessageBox({
-              type: 'info',
-              buttons: ['OK'],
-              title: 'Checking for Updates',
-              message: 'Checking for updates...',
-              detail: 'Please wait while we check for available updates.',
-            });
+          click: (_, browserWindow) => {
+            // Send checking message to renderer
+            if (browserWindow) {
+              browserWindow.webContents.send('checking-for-update-dialog');
+            }
 
             // Perform update check
             autoUpdater.checkForUpdatesAndNotify().then((result) => {
-              if (!result) {
+              if (!result && browserWindow) {
                 // No update available
-                dialog.showMessageBox({
-                  type: 'info',
-                  buttons: ['OK'],
-                  title: 'No Updates Available',
-                  message: 'You are running the latest version.',
-                  detail: `Current version: ${packageJson.version}`,
-                });
+                browserWindow.webContents.send('no-update-available-dialog', { version: packageJson.version });
               }
             }).catch((error) => {
               console.error('Manual update check failed:', error);
-              dialog.showMessageBox({
-                type: 'error',
-                buttons: ['OK'],
-                title: 'Update Check Failed',
-                message: 'Failed to check for updates.',
-                detail: error.message || 'An unknown error occurred.',
-              });
+              if (browserWindow) {
+                browserWindow.webContents.send('update-error-dialog', { message: error.message || 'An unknown error occurred.' });
+              }
             });
           },
         },

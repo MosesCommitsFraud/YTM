@@ -845,6 +845,25 @@ app.whenReady().then(async () => {
       }
     }
   }
+  // IPC handlers for update dialogs
+  ipcMain.on('update-download-start', () => {
+    autoUpdater.downloadUpdate();
+  });
+
+  ipcMain.on('update-disable', () => {
+    config.set('options.autoUpdates', false);
+  });
+
+  ipcMain.on('update-install-now', () => {
+    setImmediate(() => autoUpdater.quitAndInstall());
+  });
+
+  ipcMain.on('update-download-cancel', () => {
+    // Note: electron-updater doesn't have a built-in cancel method
+    // This would require more complex implementation with custom download logic
+    console.log('Update download cancel requested (not implemented)');
+  });
+
   ipcMain.on('get-renderer-script', (event) => {
     // Inject index.html file as string using insertAdjacentHTML
     // In dev mode, get string from process.env.VITE_DEV_SERVER_URL, else use fs.readFileSync
@@ -972,48 +991,9 @@ function setupAutoUpdater() {
   autoUpdater.on('update-available', (info) => {
     console.log('Update available:', info.version);
     
-    const dialogOptions = {
-      type: 'info' as const,
-      buttons: [
-        'Download Now',
-        'Download Later',
-        'Disable Auto-Updates',
-      ],
-      title: 'Update Available',
-      message: `A new version (${info.version}) is available. Would you like to download and install it now?`,
-      detail: 'The app will automatically restart after the update is installed.',
-    };
-    
-    const handleDialogResult = (result: Electron.MessageBoxReturnValue) => {
-      if (result.response === 0) {
-        // Download now
-        autoUpdater.downloadUpdate();
-        
-        // Show download progress notification
-        const progressOptions = {
-          type: 'info' as const,
-          buttons: ['OK'],
-          title: 'Downloading Update',
-          message: 'Update is being downloaded in the background...',
-          detail: 'You will be notified when the download is complete.',
-        };
-        
-        if (mainWindow) {
-          dialog.showMessageBox(mainWindow, progressOptions);
-        } else {
-          dialog.showMessageBox(progressOptions);
-        }
-      } else if (result.response === 2) {
-        // Disable auto-updates
-        config.set('options.autoUpdates', false);
-      }
-      // If response === 1 (Download Later), do nothing - user can manually check later
-    };
-
+    // Send to renderer for custom dialog
     if (mainWindow) {
-      dialog.showMessageBox(mainWindow, dialogOptions).then(handleDialogResult);
-    } else {
-      dialog.showMessageBox(dialogOptions).then(handleDialogResult);
+      mainWindow.webContents.send('update-available-dialog', info);
     }
   });
 
@@ -1024,18 +1004,9 @@ function setupAutoUpdater() {
   autoUpdater.on('error', (err) => {
     console.error('Update error:', err);
     
-    const errorOptions = {
-      type: 'error' as const,
-      buttons: ['OK'],
-      title: 'Update Error',
-      message: 'An error occurred while checking for updates.',
-      detail: err.message || 'Unknown error occurred.',
-    };
-    
+    // Send to renderer for custom dialog
     if (mainWindow) {
-      dialog.showMessageBox(mainWindow, errorOptions);
-    } else {
-      dialog.showMessageBox(errorOptions);
+      mainWindow.webContents.send('update-error-dialog', { message: err.message || 'Unknown error occurred.' });
     }
   });
 
@@ -1043,38 +1014,18 @@ function setupAutoUpdater() {
     const logMessage = `Download speed: ${progressObj.bytesPerSecond} - Downloaded ${progressObj.percent}% (${progressObj.transferred}/${progressObj.total})`;
     console.log(logMessage);
     
-    // Send progress to renderer if needed
+    // Send progress to renderer for custom dialog
     if (mainWindow) {
-      mainWindow.webContents.send('download-progress', progressObj);
+      mainWindow.webContents.send('download-progress-dialog', progressObj);
     }
   });
 
   autoUpdater.on('update-downloaded', (info) => {
     console.log('Update downloaded:', info.version);
     
-    const installOptions = {
-      type: 'info' as const,
-      buttons: [
-        'Restart Now',
-        'Restart Later',
-      ],
-      title: 'Update Ready',
-      message: `Update to version ${info.version} has been downloaded and is ready to install.`,
-      detail: 'The application will restart to apply the update.',
-    };
-    
-    const handleInstallResult = (result: Electron.MessageBoxReturnValue) => {
-      if (result.response === 0) {
-        // Restart and install immediately
-        setImmediate(() => autoUpdater.quitAndInstall());
-      }
-      // If response === 1 (Restart Later), the update will be installed on next app launch
-    };
-
+    // Send to renderer for custom dialog
     if (mainWindow) {
-      dialog.showMessageBox(mainWindow, installOptions).then(handleInstallResult);
-    } else {
-      dialog.showMessageBox(installOptions).then(handleInstallResult);
+      mainWindow.webContents.send('update-downloaded-dialog', info);
     }
   });
 

@@ -1,3 +1,4 @@
+import { render } from 'solid-js/web';
 import { startingPages } from './providers/extracted-data';
 import setupSongInfo from './providers/song-info-front';
 import {
@@ -21,6 +22,7 @@ import type { QueueResponse } from '@/types/youtube-music-desktop-internal';
 import type { YouTubeMusicAppElement } from '@/types/youtube-music-app-element';
 import type { SearchBoxElement } from '@/types/search-box-element';
 import { showOverlaySearch } from './overlay-search';
+import { UpdateDialogManager } from './components/UpdateDialogManager';
 
 let api: (Element & YoutubePlayer) | null = null;
 let isPluginLoaded = false;
@@ -29,35 +31,6 @@ let firstDataLoaded = false;
 
 registerWindowDefaultTrustedTypePolicy();
 
-// Setup update progress notifications
-let updateNotification: Notification | null = null;
-
-window.ipcRenderer.on('download-progress', (_, progressObj: { percent: number, bytesPerSecond: number, transferred: number, total: number }) => {
-  const { percent, bytesPerSecond, transferred, total } = progressObj;
-  
-  // Show or update notification
-  if (updateNotification) {
-    updateNotification.close();
-  }
-  
-  const speedMB = (bytesPerSecond / (1024 * 1024)).toFixed(1);
-  const transferredMB = (transferred / (1024 * 1024)).toFixed(1);
-  const totalMB = (total / (1024 * 1024)).toFixed(1);
-  
-  updateNotification = new Notification('Downloading Update', {
-    body: `Progress: ${percent.toFixed(1)}% (${transferredMB}/${totalMB} MB)\nSpeed: ${speedMB} MB/s`,
-    icon: 'assets/youtube-music.png',
-    silent: true,
-  });
-  
-  // Auto-close notification after 3 seconds
-  setTimeout(() => {
-    if (updateNotification) {
-      updateNotification.close();
-      updateNotification = null;
-    }
-  }, 3000);
-});
 
 async function listenForApiLoad() {
   if (!isApiLoaded) {
@@ -741,6 +714,13 @@ const main = async () => {
       JSON.parse(log);
     });
   }
+
+  // Initialize update dialog manager
+  const updateDialogContainer = document.createElement('div');
+  updateDialogContainer.id = 'update-dialog-container';
+  document.body.appendChild(updateDialogContainer);
+  
+  render(() => UpdateDialogManager(), updateDialogContainer);
 };
 
 const initObserver = async () => {
