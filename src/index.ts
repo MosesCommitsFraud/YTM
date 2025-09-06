@@ -78,6 +78,7 @@ process.env.NODE_OPTIONS = '';
 let mainWindow: Electron.BrowserWindow | null;
 let splashWindow: Electron.BrowserWindow | null = null;
 let updateCheckInterval: NodeJS.Timeout | null = null;
+let appControlsSetup = false; // Track if app controls have been setup
 autoUpdater.autoDownload = false;
 
 const gotTheLock = app.requestSingleInstanceLock();
@@ -141,7 +142,9 @@ if (is.linux()) {
   app.setName('com.github.th_ch.youtube_music');
 
   // Stops chromium from launching its own MPRIS service
-  // Note: Previously disabled MediaSessionService for shortcuts plugin
+  if (config.plugins.isEnabled('shortcuts')) {
+    app.commandLine.appendSwitch('disable-features', 'MediaSessionService');
+  }
 }
 
 if (config.get('options.proxy')) {
@@ -683,7 +686,12 @@ async function createMainWindow() {
   return win;
 }
 
-app.once('browser-window-created', (_event, win) => {
+app.on('browser-window-created', (_event, win) => {
+  // Skip setup for splash window - only run for main window
+  if (win === splashWindow) {
+    return;
+  }
+
   if (config.get('options.overrideUserAgent')) {
     // User agents are from https://developers.whatismybrowser.com/useragents/explore/
     const originalUserAgent = win.webContents.userAgent;
@@ -718,7 +726,12 @@ app.once('browser-window-created', (_event, win) => {
   }
 
   setupSongInfo(win);
-  setupAppControls();
+  
+  // Only setup app controls once, not for every window
+  if (!appControlsSetup) {
+    setupAppControls();
+    appControlsSetup = true;
+  }
 
   win.webContents.on(
     'did-fail-load',
