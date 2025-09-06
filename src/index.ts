@@ -141,9 +141,7 @@ if (is.linux()) {
   app.setName('com.github.th_ch.youtube_music');
 
   // Stops chromium from launching its own MPRIS service
-  if (config.plugins.isEnabled('shortcuts')) {
-    app.commandLine.appendSwitch('disable-features', 'MediaSessionService');
-  }
+  // Note: Previously disabled MediaSessionService for shortcuts plugin
 }
 
 if (config.get('options.proxy')) {
