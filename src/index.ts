@@ -76,6 +76,7 @@ process.env.NODE_OPTIONS = '';
 
 // Prevent window being garbage collected
 let mainWindow: Electron.BrowserWindow | null;
+let updateCheckInterval: NodeJS.Timeout | null = null;
 autoUpdater.autoDownload = false;
 
 const gotTheLock = app.requestSingleInstanceLock();
@@ -757,44 +758,100 @@ app.whenReady().then(async () => {
     openAtLogin: config.get('options.startAtLogin'),
   });
   // Auto-update check using GitHub releases for MosesCommitsFraud/YTM
-  if (!is.dev() && config.get('options.autoUpdates')) {
-    const updateTimeout = setTimeout(() => {
-      autoUpdater.checkForUpdatesAndNotify();
-      clearTimeout(updateTimeout);
-    }, 2000);
-    autoUpdater.on('update-available', () => {
-      const downloadLink =
-        'https://github.com/MosesCommitsFraud/YTM/releases/latest';
-      const dialogOptions = {
-        type: 'info' as const,
-        buttons: [
-          'OK',
-          'Download',
-          'Disable',
-        ],
-        title: 'Update Available',
-        message: 'A new update is available.',
-      };
-      if (mainWindow) {
-        dialog.showMessageBox(mainWindow, dialogOptions).then((result) => {
-          if (result.response === 1) {
-            shell.openExternal(downloadLink);
-          } else if (result.response === 2) {
-            config.set('options.autoUpdates', false);
-          }
-        });
-      } else {
-        dialog.showMessageBox(dialogOptions).then((result) => {
-          if (result.response === 1) {
-            shell.openExternal(downloadLink);
-          } else if (result.response === 2) {
-            config.set('options.autoUpdates', false);
-          }
-        });
-      }
-    });
+  if (!is.dev()) {
+    setupAutoUpdater();
   }
 });
+
+function setupAutoUpdater() {
+  // Set up the update-available event handler
+  autoUpdater.on('update-available', () => {
+    const downloadLink =
+      'https://github.com/MosesCommitsFraud/YTM/releases/latest';
+    const dialogOptions = {
+      type: 'info' as const,
+      buttons: [
+        'OK',
+        'Download',
+        'Disable',
+      ],
+      title: 'Update Available',
+      message: 'A new update is available.',
+    };
+    
+    const handleDialogResult = (result: Electron.MessageBoxReturnValue) => {
+      if (result.response === 1) {
+        shell.openExternal(downloadLink);
+      } else if (result.response === 2) {
+        config.set('options.autoUpdates', false);
+        // The config watcher will handle stopping the interval
+      }
+    };
+
+    if (mainWindow) {
+      dialog.showMessageBox(mainWindow, dialogOptions).then(handleDialogResult);
+    } else {
+      dialog.showMessageBox(dialogOptions).then(handleDialogResult);
+    }
+  });
+
+  // Function to perform update check
+  const checkForUpdates = () => {
+    // Only check if auto-updates are still enabled
+    if (config.get('options.autoUpdates')) {
+      autoUpdater.checkForUpdatesAndNotify();
+    }
+  };
+
+  // Function to start the update interval
+  const startUpdateInterval = () => {
+    if (updateCheckInterval) {
+      clearInterval(updateCheckInterval);
+    }
+    updateCheckInterval = setInterval(checkForUpdates, 30 * 60 * 1000);
+  };
+
+  // Function to stop the update interval
+  const stopUpdateInterval = () => {
+    if (updateCheckInterval) {
+      clearInterval(updateCheckInterval);
+      updateCheckInterval = null;
+    }
+  };
+
+  // Only perform initial check and start interval if auto-updates are enabled
+  if (config.get('options.autoUpdates')) {
+    // Initial check after 2 seconds (same as before)
+    setTimeout(checkForUpdates, 2000);
+
+    // Set up recurring checks every 30 minutes (30 * 60 * 1000 ms)
+    startUpdateInterval();
+  }
+
+  // Watch for changes to the autoUpdates setting
+  config.watch((newValue, oldValue) => {
+    const newOptions = (newValue?.options ?? {}) as { autoUpdates?: boolean };
+    const oldOptions = (oldValue?.options ?? {}) as { autoUpdates?: boolean };
+    
+    const newAutoUpdates = newOptions.autoUpdates ?? false;
+    const oldAutoUpdates = oldOptions.autoUpdates ?? false;
+
+    if (newAutoUpdates !== oldAutoUpdates) {
+      if (newAutoUpdates) {
+        // Auto-updates were enabled, start the interval
+        startUpdateInterval();
+      } else {
+        // Auto-updates were disabled, stop the interval
+        stopUpdateInterval();
+      }
+    }
+  });
+
+  // Clean up interval when app is about to quit
+  app.on('before-quit', () => {
+    stopUpdateInterval();
+  });
+}
 
 function showUnresponsiveDialog(
   win: BrowserWindow,
