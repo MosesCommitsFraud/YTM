@@ -202,7 +202,31 @@ function createSplashWindow() {
   });
 
   // Create splash screen HTML content
-  const logoPath = path.join(__dirname, '..', '..', 'assets', 'logo-white.svg');
+  // Try to use PNG icon as base64 data URL to avoid path resolution issues
+  let logoContent = '';
+  try {
+    // Try SVG first
+    const svgPath = path.join(__dirname, '..', '..', 'assets', 'logo-white.svg');
+    if (fs.existsSync(svgPath)) {
+      const svgContent = fs.readFileSync(svgPath, 'utf-8');
+      logoContent = `<div class="logo-container">${svgContent}</div>`;
+    } else {
+      // Fallback to PNG icon
+      const pngPath = path.join(__dirname, '..', '..', 'assets', 'generated', 'icons', 'png', '256x256.png');
+      if (fs.existsSync(pngPath)) {
+        const pngBuffer = fs.readFileSync(pngPath);
+        const base64PNG = pngBuffer.toString('base64');
+        logoContent = `<img class="logo-png" src="data:image/png;base64,${base64PNG}" alt="YouTube Music" />`;
+      } else {
+        // Final fallback: use a simple YouTube Music icon
+        logoContent = `<div class="logo-fallback">🎵</div>`;
+      }
+    }
+  } catch (error) {
+    // Fallback in case of any error
+    logoContent = `<div class="logo-fallback">🎵</div>`;
+  }
+
   const splashHTML = `
     <!DOCTYPE html>
     <html>
@@ -236,11 +260,37 @@ function createSplashWindow() {
           box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
         }
         
-        .logo {
+        .logo-container {
           width: 120px;
           height: 120px;
           filter: drop-shadow(0 4px 8px rgba(255, 255, 255, 0.2));
           margin-bottom: 20px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        
+        .logo-container svg {
+          width: 100%;
+          height: 100%;
+        }
+        
+        .logo-png {
+          width: 120px;
+          height: 120px;
+          filter: drop-shadow(0 4px 8px rgba(255, 255, 255, 0.2));
+          margin-bottom: 20px;
+        }
+        
+        .logo-fallback {
+          width: 120px;
+          height: 120px;
+          filter: drop-shadow(0 4px 8px rgba(255, 255, 255, 0.2));
+          margin-bottom: 20px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 60px;
         }
         
         .app-name {
@@ -283,7 +333,7 @@ function createSplashWindow() {
     </head>
     <body>
       <div class="splash-container">
-        <img class="logo" src="file://${logoPath}" alt="YouTube Music" />
+        ${logoContent}
         <div class="app-name">YouTube Music</div>
         <div class="loading-dots">
           <div class="dot"></div>
