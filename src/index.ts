@@ -76,6 +76,7 @@ process.env.NODE_OPTIONS = '';
 
 // Prevent window being garbage collected
 let mainWindow: Electron.BrowserWindow | null;
+let splashWindow: Electron.BrowserWindow | null = null;
 let updateCheckInterval: NodeJS.Timeout | null = null;
 autoUpdater.autoDownload = false;
 
@@ -171,6 +172,149 @@ function onClosed() {
   // Dereference the window
   // For multiple Windows store them in an array
   mainWindow = null;
+}
+
+function createSplashWindow() {
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
+  
+  const splashWidth = 400;
+  const splashHeight = 300;
+  
+  splashWindow = new BrowserWindow({
+    width: splashWidth,
+    height: splashHeight,
+    x: Math.round((screenWidth - splashWidth) / 2),
+    y: Math.round((screenHeight - splashHeight) / 2),
+    frame: false,
+    alwaysOnTop: true,
+    transparent: true,
+    resizable: false,
+    movable: false,
+    minimizable: false,
+    maximizable: false,
+    skipTaskbar: true,
+    show: false,
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+    },
+  });
+
+  // Create splash screen HTML content
+  const logoPath = path.join(__dirname, '..', '..', 'assets', 'logo-white.svg');
+  const splashHTML = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        * {
+          margin: 0;
+          padding: 0;
+          box-sizing: border-box;
+        }
+        
+        body {
+          width: 100vw;
+          height: 100vh;
+          background: transparent;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        
+        .splash-container {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          background: rgba(0, 0, 0, 0.8);
+          border-radius: 12px;
+          padding: 40px;
+          backdrop-filter: blur(10px);
+          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+        
+        .logo {
+          width: 120px;
+          height: 120px;
+          filter: drop-shadow(0 4px 8px rgba(255, 255, 255, 0.2));
+          margin-bottom: 20px;
+        }
+        
+        .app-name {
+          color: #ffffff;
+          font-size: 18px;
+          font-weight: 500;
+          opacity: 0.9;
+        }
+        
+        .loading-dots {
+          margin-top: 20px;
+          display: flex;
+          gap: 4px;
+        }
+        
+        .dot {
+          width: 6px;
+          height: 6px;
+          border-radius: 50%;
+          background: #ffffff;
+          opacity: 0.3;
+          animation: pulse 1.4s infinite ease-in-out both;
+        }
+        
+        .dot:nth-child(1) { animation-delay: -0.32s; }
+        .dot:nth-child(2) { animation-delay: -0.16s; }
+        .dot:nth-child(3) { animation-delay: 0s; }
+        
+        @keyframes pulse {
+          0%, 80%, 100% {
+            opacity: 0.3;
+            transform: scale(1);
+          }
+          40% {
+            opacity: 1;
+            transform: scale(1.2);
+          }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="splash-container">
+        <img class="logo" src="file://${logoPath}" alt="YouTube Music" />
+        <div class="app-name">YouTube Music</div>
+        <div class="loading-dots">
+          <div class="dot"></div>
+          <div class="dot"></div>
+          <div class="dot"></div>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  splashWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(splashHTML)}`);
+  
+  splashWindow.once('ready-to-show', () => {
+    if (splashWindow) {
+      splashWindow.show();
+    }
+  });
+
+  splashWindow.on('closed', () => {
+    splashWindow = null;
+  });
+
+  return splashWindow;
+}
+
+function hideSplashWindow() {
+  if (splashWindow) {
+    splashWindow.close();
+    splashWindow = null;
+  }
 }
 
 ipcMain.handle('ytmd:get-main-plugin-names', () => Object.keys(mainPlugins));
@@ -459,6 +603,9 @@ async function createMainWindow() {
   });
 
   win.once('ready-to-show', () => {
+    // Hide splash screen when main window is ready
+    hideSplashWindow();
+    
     if (config.get('options.appVisible')) {
       win.show();
     }
@@ -583,6 +730,8 @@ app.on('activate', async () => {
   // On OS X it's common to re-create a window in the app when the
   // dock icon is clicked and there are no other windows open.
   if (mainWindow === null) {
+    // Show splash screen when creating new window
+    createSplashWindow();
     mainWindow = await createMainWindow();
   } else if (!mainWindow.isVisible()) {
     mainWindow.show();
@@ -590,6 +739,9 @@ app.on('activate', async () => {
 });
 
 app.whenReady().then(async () => {
+  // Show splash screen immediately
+  createSplashWindow();
+  
   // Language/i18n support removed; no language initialization needed
   if (config.get('options.autoResetAppCache')) {
     // Clear cache after 20s
