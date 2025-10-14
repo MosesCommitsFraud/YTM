@@ -479,6 +479,16 @@ function renderSuggestions() {
 // Only trigger navigation (and thus saving to recent searches) on Enter or suggestion click.
 // Do NOT trigger navigation or search on input events.
 function onKeyDown(e: KeyboardEvent) {
+  // Handle ESC to deselect/blur
+  if (e.key === 'Escape') {
+    if (input) {
+      input.blur();
+      suggestionBox!.style.display = 'none';
+      selectedIndex = -1;
+    }
+    return;
+  }
+  
   // Handle Ctrl+A - let browser handle it naturally
   if (e.key === 'a' && e.ctrlKey) {
     // Don't interfere with browser's native select all behavior

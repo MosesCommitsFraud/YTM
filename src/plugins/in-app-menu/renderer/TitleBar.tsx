@@ -809,6 +809,16 @@ function SearchBar() {
   }
 
   function onKeyDown(e: KeyboardEvent) {
+    // Handle ESC to deselect/blur
+    if (e.key === 'Escape') {
+      if (inputRef) {
+        inputRef.blur();
+        setSelectedIndex(-1);
+        setSuggestions([]);
+      }
+      return;
+    }
+    
     // Handle Ctrl+A - let browser handle it naturally
     if (e.key === 'a' && e.ctrlKey) {
       // Don't interfere with browser's native select all behavior
