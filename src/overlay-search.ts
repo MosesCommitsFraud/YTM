@@ -246,7 +246,10 @@ function showOverlaySearch() {
   input.addEventListener('focus', () => updateFocusState(true));
   input.addEventListener('blur', () => updateFocusState(false));
   overlay.addEventListener('click', (e) => {
-    if (e.target === overlay) closeOverlay();
+    if (e.target === overlay) {
+      input?.blur();
+      closeOverlay();
+    }
   });
   document.addEventListener('keydown', onGlobalKeyDown, true);
 }
@@ -281,41 +284,64 @@ async function onInput() {
   renderSuggestions();
 }
 
-// Replace dummy fetchSuggestions with real YTM API call and parsing
+// Use proper YTM suggestions API
 async function fetchSuggestions(query: string): Promise<Array<{text: string, url?: string, icon?: string, subtitle?: string, type?: string}>> {
-  // Use the app's networkManager to fetch suggestions
   const app = document.querySelector('ytmusic-app');
   if (!app || !(app as any).networkManager) return [];
+  
   let result: any;
   try {
-    result = await (app as any).networkManager.fetch('/search', { query });
+    // Try to use the searchbox suggestions endpoint first
+    result = await (app as any).networkManager.fetch('/searchbox', { query });
   } catch (e) {
-    return [];
+    // Fallback to search endpoint but limit results
+    try {
+      result = await (app as any).networkManager.fetch('/search', { 
+        query,
+        params: 'Eg-KAQwIABAAGAEgACgAMABqChAEEAUQAxAKEAk%3D' // Limit to top results
+      });
+    } catch (e2) {
+      return [];
+    }
   }
-  // Parse the response for suggestions
+  
   const suggestions: Array<{text: string, url?: string, icon?: string, subtitle?: string, type?: string}> = [];
+  
   try {
-    const tabs = result?.contents?.tabbedSearchResultsRenderer?.tabs || [];
-    for (const tab of tabs) {
-      const sectionList = tab.tabRenderer?.content?.sectionListRenderer;
-      if (!sectionList) continue;
-      for (const section of sectionList.contents || []) {
-        // Songs, albums, artists, playlists, etc.
-        if (section.musicShelfRenderer) {
-          const type = section.musicShelfRenderer.title?.runs?.[0]?.text || '';
-          for (const item of section.musicShelfRenderer.contents || []) {
-            const renderer = item.musicResponsiveListItemRenderer;
-            if (!renderer) continue;
-            const text = renderer.flexColumns?.[0]?.musicResponsiveListItemFlexColumnRenderer?.text?.runs?.[0]?.text || '';
-            const subtitle = renderer.flexColumns?.[1]?.musicResponsiveListItemFlexColumnRenderer?.text?.runs?.map((r: any) => r.text).join(', ');
-            const icon = renderer.thumbnail?.musicThumbnailRenderer?.thumbnail?.thumbnails?.[0]?.url;
-            let url = '';
-            if (renderer.navigationEndpoint?.watchEndpoint?.videoId) {
-              url = `https://music.youtube.com/watch?v=${renderer.navigationEndpoint.watchEndpoint.videoId}`;
-            } else if (renderer.navigationEndpoint?.browseEndpoint?.browseId) {
-              url = `https://music.youtube.com/browse/${renderer.navigationEndpoint.browseEndpoint.browseId}`;
+    // Handle searchbox suggestions response
+    if (result?.contents?.searchboxRenderer?.suggestions) {
+      for (const suggestion of result.contents.searchboxRenderer.suggestions) {
+        const text = suggestion.suggestion?.runs?.[0]?.text || '';
+        if (text) {
+          suggestions.push({ text, type: 'Search' });
+        }
+      }
+    }
+    // Handle search results as fallback
+    else if (result?.contents?.tabbedSearchResultsRenderer?.tabs) {
+      const tabs = result.contents.tabbedSearchResultsRenderer.tabs;
+      for (const tab of tabs.slice(0, 1)) { // Only first tab to limit results
+        const sectionList = tab.tabRenderer?.content?.sectionListRenderer;
+        if (!sectionList) continue;
+        for (const section of sectionList.contents?.slice(0, 2) || []) { // Limit sections
+          if (section.musicShelfRenderer) {
+            const type = section.musicShelfRenderer.title?.runs?.[0]?.text || '';
+            for (const item of section.musicShelfRenderer.contents?.slice(0, 3) || []) { // Limit items
+              const renderer = item.musicResponsiveListItemRenderer;
+              if (!renderer) continue;
+              const text = renderer.flexColumns?.[0]?.musicResponsiveListItemFlexColumnRenderer?.text?.runs?.[0]?.text || '';
+              const subtitle = renderer.flexColumns?.[1]?.musicResponsiveListItemFlexColumnRenderer?.text?.runs?.map((r: any) => r.text).join(', ');
+              const icon = renderer.thumbnail?.musicThumbnailRenderer?.thumbnail?.thumbnails?.[0]?.url;
+              let url = '';
+              if (renderer.navigationEndpoint?.watchEndpoint?.videoId) {
+                url = `https://music.youtube.com/watch?v=${renderer.navigationEndpoint.watchEndpoint.videoId}`;
+              } else if (renderer.navigationEndpoint?.browseEndpoint?.browseId) {
+                url = `https://music.youtube.com/browse/${renderer.navigationEndpoint.browseEndpoint.browseId}`;
+              }
+              if (text) {
+                suggestions.push({ text, url, icon, subtitle, type });
+              }
             }
-            suggestions.push({ text, url, icon, subtitle, type });
           }
         }
       }
@@ -323,7 +349,8 @@ async function fetchSuggestions(query: string): Promise<Array<{text: string, url
   } catch (e) {
     // fallback: no suggestions
   }
-  // Sort: artists first, then others
+  
+  // Sort: artists first, then others, limit to 5 suggestions
   suggestions.sort((a, b) => {
     const aIsArtist = a.type && a.type.toLowerCase().includes('artist');
     const bIsArtist = b.type && b.type.toLowerCase().includes('artist');
@@ -331,7 +358,8 @@ async function fetchSuggestions(query: string): Promise<Array<{text: string, url
     if (!aIsArtist && bIsArtist) return 1;
     return 0;
   });
-  return suggestions;
+  
+  return suggestions.slice(0, 5); // Limit to 5 suggestions
 }
 
 // Update renderSuggestions to use round icon for artists
@@ -438,6 +466,23 @@ function renderSuggestions() {
 // Only trigger navigation (and thus saving to recent searches) on Enter or suggestion click.
 // Do NOT trigger navigation or search on input events.
 function onKeyDown(e: KeyboardEvent) {
+  // Handle Ctrl+A and Delete
+  if (e.key === 'a' && e.ctrlKey) {
+    e.preventDefault();
+    if (input) {
+      input.select();
+    }
+    return;
+  }
+  
+  if (e.key === 'Delete' && input && input.selectionStart === 0 && input.selectionEnd === input.value.length) {
+    e.preventDefault();
+    input.value = '';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    suggestionBox!.style.display = 'none';
+    return;
+  }
+  
   if (!suggestions.length) return;
   if (e.key === 'ArrowDown') {
     selectedIndex = (selectedIndex + 1) % suggestions.length;
@@ -481,9 +526,10 @@ function onKeyDown(e: KeyboardEvent) {
 function chooseSuggestion(i: number) {
   const s = suggestions[i];
   if (s && s.url) {
+    // If suggestion has a URL, navigate directly
     window.location.href = s.url;
   } else if (s && s.text) {
-    // fallback: submit search
+    // If no URL, perform a search with the suggestion text
     window.location.href = `https://music.youtube.com/search?q=${encodeURIComponent(s.text)}`;
   }
   closeOverlay();

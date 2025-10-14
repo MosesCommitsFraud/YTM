@@ -710,39 +710,67 @@ function SearchBar() {
   async function fetchSuggestions(query: string): Promise<Suggestion[]> {
     const app = document.querySelector('ytmusic-app') as any;
     if (!app || !app.networkManager) return [];
+    
     let result: any;
     try {
-      result = await app.networkManager.fetch('/search', { query });
+      // Try to use the searchbox suggestions endpoint first
+      result = await app.networkManager.fetch('/searchbox', { query });
     } catch (e) {
-      return [];
+      // Fallback to search endpoint but limit results
+      try {
+        result = await app.networkManager.fetch('/search', { 
+          query,
+          params: 'Eg-KAQwIABAAGAEgACgAMABqChAEEAUQAxAKEAk%3D' // Limit to top results
+        });
+      } catch (e2) {
+        return [];
+      }
     }
+    
     const suggestions: Suggestion[] = [];
+    
     try {
-      const tabs = result?.contents?.tabbedSearchResultsRenderer?.tabs || [];
-      for (const tab of tabs) {
-        const sectionList = tab.tabRenderer?.content?.sectionListRenderer;
-        if (!sectionList) continue;
-        for (const section of sectionList.contents || []) {
-          if (section.musicShelfRenderer) {
-            const type = section.musicShelfRenderer.title?.runs?.[0]?.text || '';
-            for (const item of section.musicShelfRenderer.contents || []) {
-              const renderer = item.musicResponsiveListItemRenderer;
-              if (!renderer) continue;
-              const text = renderer.flexColumns?.[0]?.musicResponsiveListItemFlexColumnRenderer?.text?.runs?.[0]?.text || '';
-              const subtitle = renderer.flexColumns?.[1]?.musicResponsiveListItemFlexColumnRenderer?.text?.runs?.map((r: any) => r.text).join(', ');
-              const icon = renderer.thumbnail?.musicThumbnailRenderer?.thumbnail?.thumbnails?.[0]?.url;
-              let url = '';
-              if (renderer.navigationEndpoint?.watchEndpoint?.videoId) {
-                url = `https://music.youtube.com/watch?v=${renderer.navigationEndpoint.watchEndpoint.videoId}`;
-              } else if (renderer.navigationEndpoint?.browseEndpoint?.browseId) {
-                url = `https://music.youtube.com/browse/${renderer.navigationEndpoint.browseEndpoint.browseId}`;
+      // Handle searchbox suggestions response
+      if (result?.contents?.searchboxRenderer?.suggestions) {
+        for (const suggestion of result.contents.searchboxRenderer.suggestions) {
+          const text = suggestion.suggestion?.runs?.[0]?.text || '';
+          if (text) {
+            suggestions.push({ text, type: 'Search' });
+          }
+        }
+      }
+      // Handle search results as fallback
+      else if (result?.contents?.tabbedSearchResultsRenderer?.tabs) {
+        const tabs = result.contents.tabbedSearchResultsRenderer.tabs;
+        for (const tab of tabs.slice(0, 1)) { // Only first tab to limit results
+          const sectionList = tab.tabRenderer?.content?.sectionListRenderer;
+          if (!sectionList) continue;
+          for (const section of sectionList.contents?.slice(0, 2) || []) { // Limit sections
+            if (section.musicShelfRenderer) {
+              const type = section.musicShelfRenderer.title?.runs?.[0]?.text || '';
+              for (const item of section.musicShelfRenderer.contents?.slice(0, 3) || []) { // Limit items
+                const renderer = item.musicResponsiveListItemRenderer;
+                if (!renderer) continue;
+                const text = renderer.flexColumns?.[0]?.musicResponsiveListItemFlexColumnRenderer?.text?.runs?.[0]?.text || '';
+                const subtitle = renderer.flexColumns?.[1]?.musicResponsiveListItemFlexColumnRenderer?.text?.runs?.map((r: any) => r.text).join(', ');
+                const icon = renderer.thumbnail?.musicThumbnailRenderer?.thumbnail?.thumbnails?.[0]?.url;
+                let url = '';
+                if (renderer.navigationEndpoint?.watchEndpoint?.videoId) {
+                  url = `https://music.youtube.com/watch?v=${renderer.navigationEndpoint.watchEndpoint.videoId}`;
+                } else if (renderer.navigationEndpoint?.browseEndpoint?.browseId) {
+                  url = `https://music.youtube.com/browse/${renderer.navigationEndpoint.browseEndpoint.browseId}`;
+                }
+                if (text) {
+                  suggestions.push({ text, url, icon, subtitle, type });
+                }
               }
-              suggestions.push({ text, url, icon, subtitle, type });
             }
           }
         }
       }
     } catch (e) {}
+    
+    // Sort: artists first, then others, limit to 5 suggestions
     suggestions.sort((a, b) => {
       const aIsArtist = a.type && a.type.toLowerCase().includes('artist');
       const bIsArtist = b.type && b.type.toLowerCase().includes('artist');
@@ -750,7 +778,8 @@ function SearchBar() {
       if (!aIsArtist && bIsArtist) return 1;
       return 0;
     });
-    return suggestions;
+    
+    return suggestions.slice(0, 5); // Limit to 5 suggestions
   }
 
   async function onInput(e: InputEvent) {
@@ -770,14 +799,33 @@ function SearchBar() {
   function chooseSuggestion(i: number) {
     const s = suggestions()[i];
     if (s && s.url) {
+      // If suggestion has a URL, navigate directly
       window.location.href = s.url;
     } else if (s && s.text) {
-      setValue(s.text);
-      inputRef?.focus();
+      // If no URL, perform a search with the suggestion text
+      window.location.href = `https://music.youtube.com/search?q=${encodeURIComponent(s.text)}`;
     }
   }
 
   function onKeyDown(e: KeyboardEvent) {
+    // Handle Ctrl+A and Delete
+    if (e.key === 'a' && e.ctrlKey) {
+      e.preventDefault();
+      if (inputRef) {
+        inputRef.select();
+      }
+      return;
+    }
+    
+    if (e.key === 'Delete' && inputRef && inputRef.selectionStart === 0 && inputRef.selectionEnd === inputRef.value.length) {
+      e.preventDefault();
+      setValue('');
+      inputRef.value = '';
+      inputRef.dispatchEvent(new Event('input', { bubbles: true }));
+      setSuggestions([]);
+      return;
+    }
+    
     if (e.key === 'ArrowDown') {
       if (suggestions().length) {
         setSelectedIndex((selectedIndex() + 1) % suggestions().length);
