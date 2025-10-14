@@ -44,6 +44,16 @@ img {
   user-select: none;
 }
 
+/* Ensure text selection is visible in search inputs */
+input[type="text"]::selection {
+  background: #0078d4 !important;
+  color: white !important;
+}
+input[type="text"]::-moz-selection {
+  background: #0078d4 !important;
+  color: white !important;
+}
+
 /* Hide cast button which doesn't work */
 ytmusic-cast-button {
   display: none !important;

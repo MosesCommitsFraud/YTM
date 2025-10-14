@@ -54,6 +54,16 @@ function injectScrollbarStyle() {
     .ytm-overlay-suggestion-scroll::-webkit-scrollbar-corner {
       background: transparent;
     }
+    
+    /* Ensure text selection is visible in search inputs */
+    input[type="text"]::selection {
+      background: #0078d4 !important;
+      color: white !important;
+    }
+    input[type="text"]::-moz-selection {
+      background: #0078d4 !important;
+      color: white !important;
+    }
   `;
   document.head.appendChild(style);
 }
@@ -115,6 +125,9 @@ function showOverlaySearch() {
   input.style.height = '40px';
   input.style.flex = '1';
   input.style.minWidth = '0';
+  // Ensure text selection is visible
+  input.style.webkitUserSelect = 'text';
+  input.style.userSelect = 'text';
 
   // Add focus state handling
   const updateFocusState = (focused: boolean) => {

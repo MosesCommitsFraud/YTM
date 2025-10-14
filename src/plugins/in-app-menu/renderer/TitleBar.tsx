@@ -904,6 +904,8 @@ function SearchBar() {
           padding: '0 8px',
           height: '40px',
           flex: '1',
+          'user-select': 'text',
+          '-webkit-user-select': 'text',
         } as JSX.CSSProperties}
       />
       <div style={{ display: 'flex', 'align-items': 'center', gap: '0', 'margin-right': '8px' }}>
