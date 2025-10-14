@@ -466,12 +466,9 @@ function renderSuggestions() {
 // Only trigger navigation (and thus saving to recent searches) on Enter or suggestion click.
 // Do NOT trigger navigation or search on input events.
 function onKeyDown(e: KeyboardEvent) {
-  // Handle Ctrl+A and Delete
+  // Handle Ctrl+A - let browser handle it naturally
   if (e.key === 'a' && e.ctrlKey) {
-    e.preventDefault();
-    if (input) {
-      input.select();
-    }
+    // Don't interfere with browser's native select all behavior
     return;
   }
   

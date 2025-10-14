@@ -693,8 +693,9 @@ function SearchBar() {
     const handleClick = (e: PointerEvent) => {
       if (barRef && inputRef) {
         if (!barRef.contains(e.target as Node)) {
-
           inputRef.blur();
+          setSelectedIndex(-1);
+          setSuggestions([]);
         }
       }
     };
@@ -808,12 +809,9 @@ function SearchBar() {
   }
 
   function onKeyDown(e: KeyboardEvent) {
-    // Handle Ctrl+A and Delete
+    // Handle Ctrl+A - let browser handle it naturally
     if (e.key === 'a' && e.ctrlKey) {
-      e.preventDefault();
-      if (inputRef) {
-        inputRef.select();
-      }
+      // Don't interfere with browser's native select all behavior
       return;
     }
     
@@ -890,7 +888,11 @@ function SearchBar() {
         onInput={onInput}
         onKeyDown={onKeyDown}
         onFocus={() => setIsFocused(true)} // <-- Set focus
-        onBlur={() => setIsFocused(false)} // <-- Unset focus
+        onBlur={() => {
+          setIsFocused(false); // <-- Unset focus
+          setSelectedIndex(-1);
+          setSuggestions([]);
+        }} // <-- Clear suggestions on blur
         style={{
           background: 'transparent',
           color: '#eee',
