@@ -549,7 +549,33 @@ export const mainMenuTemplate = async (
     {
       label: 'About',
       submenu: [
-        { role: 'about' },
+        {
+          label: 'About YTM',
+          click: async () => {
+            const versions = process.versions;
+            const aboutMessage = [
+              `${packageJson.productName} v${packageJson.version}`,
+              '',
+              `Electron: ${versions.electron}`,
+              `Chrome: ${versions.chrome}`,
+              `Node.js: ${versions.node}`,
+              `V8: ${versions.v8}`,
+              '',
+              `Platform: ${process.platform} ${process.arch}`,
+              '',
+              `Repository: ${packageJson.repository}`,
+            ].join('\n');
+
+            await dialog.showMessageBox(win, {
+              type: 'info',
+              title: `About ${packageJson.productName}`,
+              message: packageJson.productName,
+              detail: aboutMessage,
+              buttons: ['OK'],
+              noLink: false,
+            });
+          },
+        },
         { type: 'separator' },
         {
           label: 'Check for Updates',
