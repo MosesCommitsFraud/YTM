@@ -553,27 +553,36 @@ export const mainMenuTemplate = async (
           label: 'About YTM',
           click: async () => {
             const versions = process.versions;
-            const aboutMessage = [
-              `${packageJson.productName} v${packageJson.version}`,
-              '',
-              `Electron: ${versions.electron}`,
-              `Chrome: ${versions.chrome}`,
-              `Node.js: ${versions.node}`,
-              `V8: ${versions.v8}`,
-              '',
-              `Platform: ${process.platform} ${process.arch}`,
-              '',
-              `Repository: ${packageJson.repository}`,
-            ].join('\n');
+            const aboutHtml = `
+              <div style="text-align: center; padding: 10px;">
+                <h2 style="margin: 0 0 10px 0; color: #ff0000;">${packageJson.productName}</h2>
+                <p style="margin: 5px 0; color: #aaa;">Version ${packageJson.version}</p>
+              </div>
+              <div style="padding: 10px; line-height: 1.6;">
+                <p style="margin: 8px 0;"><strong>Electron:</strong> ${versions.electron}</p>
+                <p style="margin: 8px 0;"><strong>Chrome:</strong> ${versions.chrome}</p>
+                <p style="margin: 8px 0;"><strong>Node.js:</strong> ${versions.node}</p>
+                <p style="margin: 8px 0;"><strong>V8:</strong> ${versions.v8}</p>
+                <p style="margin: 8px 0;"><strong>Platform:</strong> ${process.platform} (${process.arch})</p>
+                <p style="margin: 15px 0 8px 0;"><strong>Repository:</strong><br/>
+                <a href="https://github.com/${packageJson.repository}" style="color: #4a9eff; text-decoration: none;">github.com/${packageJson.repository}</a></p>
+              </div>
+            `;
 
-            await dialog.showMessageBox(win, {
-              type: 'info',
-              title: `About ${packageJson.productName}`,
-              message: packageJson.productName,
-              detail: aboutMessage,
-              buttons: ['OK'],
-              noLink: false,
-            });
+            await prompt(
+              {
+                title: `About ${packageJson.productName}`,
+                label: aboutHtml,
+                useHtmlLabel: true,
+                type: 'input',
+                height: 400,
+                width: 450,
+                buttonLabels: { ok: 'Close', cancel: undefined },
+                inputAttrs: { type: 'hidden' } as Partial<HTMLInputElement>,
+                ...promptOptions(),
+              },
+              win,
+            );
           },
         },
         { type: 'separator' },
