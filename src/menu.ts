@@ -567,6 +567,12 @@ export const mainMenuTemplate = async (
             }
 
             const aboutHtml = `
+              <style>
+                /* Hide the buttons */
+                .button-div, button {
+                  display: none !important;
+                }
+              </style>
               <div style="text-align: center; padding: 20px 10px 10px 10px;">
                 ${logoDataUrl ? `<img src="${logoDataUrl}" alt="YTM Logo" style="width: 80px; height: 80px; margin-bottom: 16px;" />` : ''}
                 <h2 style="margin: 0 0 8px 0; color: #f1f1f1; font-size: 24px; font-weight: 500;">${packageJson.productName}</h2>
@@ -608,7 +614,7 @@ export const mainMenuTemplate = async (
                 type: 'input',
                 height: 480,
                 width: 480,
-                buttonLabels: { ok: 'Close', cancel: undefined },
+                buttonLabels: { ok: undefined, cancel: undefined },
                 inputAttrs: { type: 'hidden' } as Partial<HTMLInputElement>,
                 ...promptOptions(),
               },
