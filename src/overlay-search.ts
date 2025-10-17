@@ -346,15 +346,28 @@ async function fetchSuggestions(query: string): Promise<Array<{text: string, url
               const subtitle = renderer.flexColumns?.[1]?.musicResponsiveListItemFlexColumnRenderer?.text?.runs?.map((r: any) => r.text).join(', ');
               const icon = renderer.thumbnail?.musicThumbnailRenderer?.thumbnail?.thumbnails?.[0]?.url;
 
-              // Determine type from section title or navigation endpoint
-              let type = sectionTitle;
-              if (renderer.navigationEndpoint?.browseEndpoint?.browseEndpointContextSupportedConfigs?.browseEndpointContextMusicConfig?.pageType) {
+              // Determine type from navigation endpoint or section title
+              let type: string | undefined = undefined;
+
+              // First try to detect from navigation endpoint
+              if (renderer.navigationEndpoint?.watchEndpoint?.videoId) {
+                type = 'Song';
+              } else if (renderer.navigationEndpoint?.browseEndpoint?.browseEndpointContextSupportedConfigs?.browseEndpointContextMusicConfig?.pageType) {
                 const pageType = renderer.navigationEndpoint.browseEndpoint.browseEndpointContextSupportedConfigs.browseEndpointContextMusicConfig.pageType;
                 if (pageType === 'MUSIC_PAGE_TYPE_ARTIST') type = 'Artist';
                 else if (pageType === 'MUSIC_PAGE_TYPE_ALBUM') type = 'Album';
                 else if (pageType === 'MUSIC_PAGE_TYPE_PLAYLIST') type = 'Playlist';
-              } else if (renderer.navigationEndpoint?.watchEndpoint?.videoId) {
-                type = 'Song';
+              }
+
+              // Fallback: use section title only if it's a recognized type
+              if (!type && sectionTitle) {
+                const lower = sectionTitle.toLowerCase();
+                if (lower.includes('song')) type = 'Songs';
+                else if (lower.includes('artist')) type = 'Artists';
+                else if (lower.includes('album')) type = 'Albums';
+                else if (lower.includes('playlist')) type = 'Playlists';
+                else if (lower.includes('video')) type = 'Videos';
+                // Otherwise leave type as undefined to hide the badge
               }
 
               let url = '';
