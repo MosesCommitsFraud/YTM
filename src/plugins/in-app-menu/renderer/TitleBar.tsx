@@ -711,25 +711,22 @@ function SearchBar() {
   async function fetchSuggestions(query: string): Promise<Suggestion[]> {
     const app = document.querySelector('ytmusic-app') as any;
     if (!app || !app.networkManager) return [];
-    
+
     let result: any;
     try {
       // Try to use the searchbox suggestions endpoint first
       result = await app.networkManager.fetch('/searchbox', { query });
     } catch (e) {
-      // Fallback to search endpoint but limit results
+      // Fallback to search endpoint without params to get all result types
       try {
-        result = await app.networkManager.fetch('/search', { 
-          query,
-          params: 'Eg-KAQwIABAAGAEgACgAMABqChAEEAUQAxAKEAk%3D' // Limit to top results
-        });
+        result = await app.networkManager.fetch('/search', { query });
       } catch (e2) {
         return [];
       }
     }
-    
+
     const suggestions: Suggestion[] = [];
-    
+
     try {
       // Handle searchbox suggestions response
       if (result?.contents?.searchboxRenderer?.suggestions) {
@@ -743,13 +740,16 @@ function SearchBar() {
       // Handle search results as fallback
       else if (result?.contents?.tabbedSearchResultsRenderer?.tabs) {
         const tabs = result.contents.tabbedSearchResultsRenderer.tabs;
-        for (const tab of tabs.slice(0, 1)) { // Only first tab to limit results
+        // Process all tabs to get diverse results
+        for (const tab of tabs) {
           const sectionList = tab.tabRenderer?.content?.sectionListRenderer;
           if (!sectionList) continue;
-          for (const section of sectionList.contents?.slice(0, 2) || []) { // Limit sections
+          // Get results from multiple sections
+          for (const section of sectionList.contents || []) {
             if (section.musicShelfRenderer) {
-              const type = section.musicShelfRenderer.title?.runs?.[0]?.text || '';
-              for (const item of section.musicShelfRenderer.contents?.slice(0, 3) || []) { // Limit items
+              const type = section.musicShelfRenderer.title?.runs?.[0]?.text || 'Result';
+              // Get more items per section for variety
+              for (const item of section.musicShelfRenderer.contents?.slice(0, 5) || []) {
                 const renderer = item.musicResponsiveListItemRenderer;
                 if (!renderer) continue;
                 const text = renderer.flexColumns?.[0]?.musicResponsiveListItemFlexColumnRenderer?.text?.runs?.[0]?.text || '';
@@ -761,26 +761,32 @@ function SearchBar() {
                 } else if (renderer.navigationEndpoint?.browseEndpoint?.browseId) {
                   url = `https://music.youtube.com/browse/${renderer.navigationEndpoint.browseEndpoint.browseId}`;
                 }
-                if (text) {
+                if (text && suggestions.length < 8) {
                   suggestions.push({ text, url, icon, subtitle, type });
                 }
               }
             }
+            if (suggestions.length >= 8) break;
           }
+          if (suggestions.length >= 8) break;
         }
       }
     } catch (e) {}
-    
-    // Sort: artists first, then others, limit to 5 suggestions
-    suggestions.sort((a, b) => {
-      const aIsArtist = a.type && a.type.toLowerCase().includes('artist');
-      const bIsArtist = b.type && b.type.toLowerCase().includes('artist');
-      if (aIsArtist && !bIsArtist) return -1;
-      if (!aIsArtist && bIsArtist) return 1;
-      return 0;
-    });
-    
-    return suggestions.slice(0, 5); // Limit to 5 suggestions
+
+    // Don't sort, keep the order YTM provides (usually most relevant first)
+    // But try to show variety if we have it
+    const seen = new Set<string>();
+    const diverse: Suggestion[] = [];
+
+    for (const s of suggestions) {
+      const key = s.text.toLowerCase();
+      if (!seen.has(key)) {
+        seen.add(key);
+        diverse.push(s);
+      }
+    }
+
+    return diverse.slice(0, 8); // Show up to 8 suggestions for more variety
   }
 
   async function onInput(e: InputEvent) {
