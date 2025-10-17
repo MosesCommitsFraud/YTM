@@ -747,7 +747,7 @@ function SearchBar() {
           // Get results from multiple sections
           for (const section of sectionList.contents || []) {
             if (section.musicShelfRenderer) {
-              const type = section.musicShelfRenderer.title?.runs?.[0]?.text || 'Result';
+              const sectionTitle = section.musicShelfRenderer.title?.runs?.[0]?.text || 'Results';
               // Get more items per section for variety
               for (const item of section.musicShelfRenderer.contents?.slice(0, 5) || []) {
                 const renderer = item.musicResponsiveListItemRenderer;
@@ -755,6 +755,18 @@ function SearchBar() {
                 const text = renderer.flexColumns?.[0]?.musicResponsiveListItemFlexColumnRenderer?.text?.runs?.[0]?.text || '';
                 const subtitle = renderer.flexColumns?.[1]?.musicResponsiveListItemFlexColumnRenderer?.text?.runs?.map((r: any) => r.text).join(', ');
                 const icon = renderer.thumbnail?.musicThumbnailRenderer?.thumbnail?.thumbnails?.[0]?.url;
+
+                // Determine type from section title or navigation endpoint
+                let type = sectionTitle;
+                if (renderer.navigationEndpoint?.browseEndpoint?.browseEndpointContextSupportedConfigs?.browseEndpointContextMusicConfig?.pageType) {
+                  const pageType = renderer.navigationEndpoint.browseEndpoint.browseEndpointContextSupportedConfigs.browseEndpointContextMusicConfig.pageType;
+                  if (pageType === 'MUSIC_PAGE_TYPE_ARTIST') type = 'Artist';
+                  else if (pageType === 'MUSIC_PAGE_TYPE_ALBUM') type = 'Album';
+                  else if (pageType === 'MUSIC_PAGE_TYPE_PLAYLIST') type = 'Playlist';
+                } else if (renderer.navigationEndpoint?.watchEndpoint?.videoId) {
+                  type = 'Song';
+                }
+
                 let url = '';
                 if (renderer.navigationEndpoint?.watchEndpoint?.videoId) {
                   url = `https://music.youtube.com/watch?v=${renderer.navigationEndpoint.watchEndpoint.videoId}`;
