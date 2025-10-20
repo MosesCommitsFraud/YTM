@@ -9,13 +9,16 @@ export default createPlugin({
     enabled: true,
   },
   backend({ ipc }) {
-    let hasPerformedInitialReload = false;
+    const webContentsReloadStatus = new WeakMap<Electron.WebContents, boolean>();
 
     ipc.on('always-expanded-sidebar-force-reload', (event: Electron.IpcMainEvent) => {
       const win = BrowserWindow.fromWebContents(event.sender);
-      if (win && !hasPerformedInitialReload) {
-        hasPerformedInitialReload = true;
-        win.webContents.reloadIgnoringCache();
+      if (win) {
+        const hasReloaded = webContentsReloadStatus.get(event.sender);
+        if (!hasReloaded) {
+          webContentsReloadStatus.set(event.sender, true);
+          win.webContents.reloadIgnoringCache();
+        }
       }
     });
   },
@@ -92,13 +95,12 @@ export default createPlugin({
     },
   },
   renderer({ ipc }) {
-    // Check if this is the first load after app start (not a manual reload)
-    const hasReloaded = sessionStorage.getItem('always-expanded-sidebar-reloaded');
+    // Use a more reliable flag that works across app restarts
+    // Check if the page is actually ready - if not, we need to reload
+    const isPageReady = document.querySelector('ytmusic-app-layout') !== null;
 
-    if (!hasReloaded) {
-      // Mark that we're about to reload
-      sessionStorage.setItem('always-expanded-sidebar-reloaded', 'true');
-      // Trigger a force reload via IPC (same as in-app menu)
+    if (!isPageReady) {
+      // Trigger a force reload via IPC to ensure proper initialization
       ipc.send('always-expanded-sidebar-force-reload');
       return () => {}; // Return early, don't set up anything else
     }
@@ -188,9 +190,6 @@ export default createPlugin({
 
     return () => {
       observer.disconnect();
-
-      // Clear the session storage flag so it can reload properly next time
-      sessionStorage.removeItem('always-expanded-sidebar-reloaded');
 
       // Remove the style element
       const styleElement = document.getElementById('always-expanded-sidebar-style');
