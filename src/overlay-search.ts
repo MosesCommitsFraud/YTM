@@ -297,113 +297,112 @@ async function onInput() {
   renderSuggestions();
 }
 
-// Use proper YTM suggestions API
+// Mirror the native search box suggestions by observing its DOM directly
 async function fetchSuggestions(query: string): Promise<Array<{text: string, url?: string, icon?: string, subtitle?: string, type?: string}>> {
-  const app = document.querySelector('ytmusic-app');
-  if (!app || !(app as any).networkManager) return [];
-
-  let result: any;
-  try {
-    // Try to use the searchbox suggestions endpoint first
-    result = await (app as any).networkManager.fetch('/searchbox', { query });
-  } catch (e) {
-    // Fallback to search endpoint without params to get all result types
-    try {
-      result = await (app as any).networkManager.fetch('/search', { query });
-    } catch (e2) {
-      return [];
-    }
-  }
-
   const suggestions: Array<{text: string, url?: string, icon?: string, subtitle?: string, type?: string}> = [];
 
   try {
-    // Handle searchbox suggestions response
-    if (result?.contents?.searchboxRenderer?.suggestions) {
-      for (const suggestion of result.contents.searchboxRenderer.suggestions) {
-        const text = suggestion.suggestion?.runs?.[0]?.text || '';
-        if (text) {
-          suggestions.push({ text, type: 'Search' });
-        }
-      }
+    // Get the native search box
+    const searchBox = document.querySelector('ytmusic-search-box');
+    if (!searchBox) {
+      console.error('Native search box not found');
+      return [];
     }
-    // Handle search results as fallback
-    else if (result?.contents?.tabbedSearchResultsRenderer?.tabs) {
-      const tabs = result.contents.tabbedSearchResultsRenderer.tabs;
-      // Process all tabs to get diverse results
-      for (const tab of tabs) {
-        const sectionList = tab.tabRenderer?.content?.sectionListRenderer;
-        if (!sectionList) continue;
-        // Get results from multiple sections
-        for (const section of sectionList.contents || []) {
-          if (section.musicShelfRenderer) {
-            const sectionTitle = section.musicShelfRenderer.title?.runs?.[0]?.text || 'Results';
-            // Get more items per section for variety
-            for (const item of section.musicShelfRenderer.contents?.slice(0, 5) || []) {
-              const renderer = item.musicResponsiveListItemRenderer;
-              if (!renderer) continue;
-              const text = renderer.flexColumns?.[0]?.musicResponsiveListItemFlexColumnRenderer?.text?.runs?.[0]?.text || '';
-              const subtitle = renderer.flexColumns?.[1]?.musicResponsiveListItemFlexColumnRenderer?.text?.runs?.map((r: any) => r.text).join(', ');
-              const icon = renderer.thumbnail?.musicThumbnailRenderer?.thumbnail?.thumbnails?.[0]?.url;
-
-              // Determine type from navigation endpoint or section title
-              let type: string | undefined = undefined;
-
-              // First try to detect from navigation endpoint
-              if (renderer.navigationEndpoint?.watchEndpoint?.videoId) {
-                type = 'Song';
-              } else if (renderer.navigationEndpoint?.browseEndpoint?.browseEndpointContextSupportedConfigs?.browseEndpointContextMusicConfig?.pageType) {
-                const pageType = renderer.navigationEndpoint.browseEndpoint.browseEndpointContextSupportedConfigs.browseEndpointContextMusicConfig.pageType;
-                if (pageType === 'MUSIC_PAGE_TYPE_ARTIST') type = 'Artist';
-                else if (pageType === 'MUSIC_PAGE_TYPE_ALBUM') type = 'Album';
-                else if (pageType === 'MUSIC_PAGE_TYPE_PLAYLIST') type = 'Playlist';
-              }
-
-              // Fallback: use section title only if it's a recognized type
-              if (!type && sectionTitle) {
-                const lower = sectionTitle.toLowerCase();
-                if (lower.includes('song')) type = 'Songs';
-                else if (lower.includes('artist')) type = 'Artists';
-                else if (lower.includes('album')) type = 'Albums';
-                else if (lower.includes('playlist')) type = 'Playlists';
-                else if (lower.includes('video')) type = 'Videos';
-                // Otherwise leave type as undefined to hide the badge
-              }
-
-              let url = '';
-              if (renderer.navigationEndpoint?.watchEndpoint?.videoId) {
-                url = `https://music.youtube.com/watch?v=${renderer.navigationEndpoint.watchEndpoint.videoId}`;
-              } else if (renderer.navigationEndpoint?.browseEndpoint?.browseId) {
-                url = `https://music.youtube.com/browse/${renderer.navigationEndpoint.browseEndpoint.browseId}`;
-              }
-              if (text && suggestions.length < 8) {
-                suggestions.push({ text, url, icon, subtitle, type });
-              }
-            }
+    
+    console.log('Found native search box, triggering it to show suggestions...');
+    
+    let searchInput: HTMLInputElement | null = null;
+    if (searchBox.shadowRoot) {
+      searchInput = searchBox.shadowRoot.querySelector('input');
+    } else {
+      searchInput = searchBox.querySelector('input');
+    }
+    
+    if (!searchInput) {
+      console.error('Could not find native search input');
+      return [];
+    }
+    
+    // Save original state
+    const originalValue = searchInput.value;
+    const wasFocused = document.activeElement === searchInput;
+    
+    // Trigger native search to populate suggestions
+    searchInput.value = query;
+    searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+    searchInput.focus();
+    
+    // Wait for suggestions to render
+    await new Promise(resolve => setTimeout(resolve, 300));
+    
+    // Try to read rendered suggestions from shadow DOM
+    if (searchBox.shadowRoot) {
+      const dropdown = searchBox.shadowRoot.querySelector('tp-yt-iron-dropdown');
+      console.log('Dropdown element:', dropdown);
+      
+      if (dropdown) {
+        // Look for any child elements that look like suggestions
+        const allElements = dropdown.querySelectorAll('*');
+        console.log('Total elements in dropdown:', allElements.length);
+        
+        // Try multiple possible selectors for suggestion items
+        let items = dropdown.querySelectorAll('ytmusic-search-suggestion-renderer');
+        if (!items.length) items = dropdown.querySelectorAll('[role="option"]');
+        if (!items.length) items = dropdown.querySelectorAll('.suggestion-item, .search-suggestion');
+        if (!items.length) {
+          // Try to find any clickable items
+          items = dropdown.querySelectorAll('a, [tabindex]');
+        }
+        
+        console.log('Found suggestion items:', items.length);
+        
+        items.forEach((item, index) => {
+          if (index >= 10) return;
+          
+          console.log('Processing item:', item);
+          
+          // Extract all text content
+          const text = item.textContent?.trim() || '';
+          
+          // Try to find thumbnail/icon
+          const imgEl = item.querySelector('img') || item.shadowRoot?.querySelector('img');
+          const icon = imgEl?.src || '';
+          
+          // Try to extract URL from navigation
+          let url = '';
+          if (item instanceof HTMLAnchorElement) {
+            url = item.href;
+          } else {
+            const link = item.querySelector('a');
+            if (link) url = link.href;
           }
-          if (suggestions.length >= 8) break;
-        }
-        if (suggestions.length >= 8) break;
+          
+          if (text) {
+            console.log('Extracted suggestion:', { text, icon, url });
+            suggestions.push({ 
+              text, 
+              icon: icon || undefined,
+              url: url || undefined
+            });
+          }
+        });
       }
     }
-  } catch (e) {
-    // fallback: no suggestions
-  }
-
-  // Don't sort, keep the order YTM provides (usually most relevant first)
-  // But try to show variety if we have it
-  const seen = new Set<string>();
-  const diverse: Array<{text: string, url?: string, icon?: string, subtitle?: string, type?: string}> = [];
-
-  for (const s of suggestions) {
-    const key = s.text.toLowerCase();
-    if (!seen.has(key)) {
-      seen.add(key);
-      diverse.push(s);
+    
+    // Restore original state
+    searchInput.value = originalValue;
+    if (!wasFocused) {
+      searchInput.blur();
+    } else {
+      searchInput.dispatchEvent(new Event('input', { bubbles: true }));
     }
+    
+    console.log('Final extracted suggestions:', suggestions);
+  } catch (e) {
+    console.error('Failed to extract suggestions from native search:', e);
   }
 
-  return diverse.slice(0, 8); // Show up to 8 suggestions for more variety
+  return suggestions;
 }
 
 // Update renderSuggestions to use round icon for artists
