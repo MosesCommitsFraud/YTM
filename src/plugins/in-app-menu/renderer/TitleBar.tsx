@@ -924,6 +924,11 @@ function SearchBar() {
   }
 
   function onKeyDown(e: KeyboardEvent) {
+    // Prevent arrow keys from affecting volume slider when search is focused
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+      e.stopPropagation();
+    }
+    
     // Handle ESC to deselect/blur
     if (e.key === 'Escape') {
       if (inputRef) {

@@ -626,6 +626,11 @@ function onKeyDown(e: KeyboardEvent) {
     return;
   }
   
+  // Prevent arrow keys from affecting volume slider when search is focused
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+    e.stopPropagation();
+  }
+  
   if (!suggestions.length) return;
   if (e.key === 'ArrowDown') {
     selectedIndex = (selectedIndex + 1) % suggestions.length;
