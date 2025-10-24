@@ -342,16 +342,19 @@ async function fetchSuggestions(query: string): Promise<Array<{text: string, url
             // Now process the actual suggestions
             if (item.searchSuggestionRenderer) {
               const suggestion = item.searchSuggestionRenderer.suggestion;
-              const text = suggestion.runs?.[0]?.text || '';
+              const text = suggestion.runs?.map((r: any) => r.text).join('') || '';
               console.log('Found searchSuggestionRenderer (autocomplete):', text);
               if (text) {
-                suggestions.push({ text, type: undefined });
+                // Mark as text-only suggestion
+                suggestions.push({ text, type: 'text-suggestion' });
               }
             } else if (item.historySuggestionRenderer) {
-              const text = item.historySuggestionRenderer.suggestion.runs?.[0]?.text || '';
+              const suggestion = item.historySuggestionRenderer.suggestion;
+              const text = suggestion.runs?.map((r: any) => r.text).join('') || '';
               console.log('Found historySuggestionRenderer:', text);
               if (text) {
-                suggestions.push({ text, type: undefined });
+                // Mark as text-only suggestion
+                suggestions.push({ text, type: 'text-suggestion' });
               }
             } else if (item.musicResponsiveListItemRenderer) {
               console.log('Found musicResponsiveListItemRenderer');
@@ -491,32 +494,34 @@ function renderSuggestions() {
     const item = document.createElement('div');
     item.style.display = 'flex';
     item.style.alignItems = 'center';
-    item.style.padding = '10px 12px';
+    item.style.padding = s.type === 'text-suggestion' ? '6px 12px' : '10px 12px';
     item.style.cursor = 'pointer';
     item.style.background = i === selectedIndex ? 'rgba(255,255,255,0.08)' : 'transparent';
     item.style.borderRadius = '4px';
-    item.style.margin = '2px 0';
+    item.style.margin = '1px 0';
     item.style.transition = 'background 0.15s';
     item.style.width = '100%';
     item.style.boxSizing = 'border-box';
-    // Icon/thumbnail
-    if (s.icon) {
-      const img = document.createElement('img');
-      img.src = s.icon;
-      img.style.width = '40px';
-      img.style.height = '40px';
-      img.style.objectFit = 'cover';
-      img.style.borderRadius = (s.type && s.type.toLowerCase().includes('artist')) ? '50%' : '4px';
-      img.style.marginRight = '16px';
-      item.appendChild(img);
-    } else {
-      const placeholder = document.createElement('div');
-      placeholder.style.width = '40px';
-      placeholder.style.height = '40px';
-      placeholder.style.marginRight = '16px';
-      placeholder.style.borderRadius = (s.type && s.type.toLowerCase().includes('artist')) ? '50%' : '4px';
-      placeholder.style.background = '#333';
-      item.appendChild(placeholder);
+    // Icon/thumbnail - skip for text-only suggestions
+    if (s.type !== 'text-suggestion') {
+      if (s.icon) {
+        const img = document.createElement('img');
+        img.src = s.icon;
+        img.style.width = '40px';
+        img.style.height = '40px';
+        img.style.objectFit = 'cover';
+        img.style.borderRadius = (s.type && s.type.toLowerCase().includes('artist')) ? '50%' : '4px';
+        img.style.marginRight = '16px';
+        item.appendChild(img);
+      } else {
+        const placeholder = document.createElement('div');
+        placeholder.style.width = '40px';
+        placeholder.style.height = '40px';
+        placeholder.style.marginRight = '16px';
+        placeholder.style.borderRadius = (s.type && s.type.toLowerCase().includes('artist')) ? '50%' : '4px';
+        placeholder.style.background = '#333';
+        item.appendChild(placeholder);
+      }
     }
     // Texts
     const textCol = document.createElement('div');
@@ -526,8 +531,8 @@ function renderSuggestions() {
     // Title
     const title = document.createElement('div');
     title.textContent = s.text;
-    title.style.fontWeight = '500';
-    title.style.fontSize = '1.25em'; // Match titlebar
+    title.style.fontWeight = s.type === 'text-suggestion' ? '400' : '500';
+    title.style.fontSize = s.type === 'text-suggestion' ? '1.15em' : '1.25em';
     title.style.color = '#fff';
     textCol.appendChild(title);
     // Subtitle
@@ -540,8 +545,8 @@ function renderSuggestions() {
       textCol.appendChild(subtitle);
     }
     item.appendChild(textCol);
-    // Type badge
-    if (s.type) {
+    // Type badge - skip for text-only suggestions
+    if (s.type && s.type !== 'text-suggestion') {
       const badge = document.createElement('span');
       badge.textContent = s.type;
       badge.style.background = 'rgba(255,255,255,0.12)';

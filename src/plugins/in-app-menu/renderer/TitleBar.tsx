@@ -757,28 +757,20 @@ function SearchBar() {
               
               // Now process the actual suggestions
               if (item.searchSuggestionRenderer) {
-                console.log('TitleBar: Full searchSuggestionRenderer:', item.searchSuggestionRenderer);
                 const suggestion = item.searchSuggestionRenderer.suggestion;
-                console.log('TitleBar: suggestion object:', suggestion);
-                console.log('TitleBar: suggestion.runs:', suggestion.runs);
-                
-                // Try to get the full suggestion text
                 const text = suggestion.runs?.map((r: any) => r.text).join('') || '';
                 console.log('TitleBar: Found searchSuggestionRenderer (autocomplete):', text);
                 if (text) {
-                  suggestions.push({ text, type: undefined });
+                  // Mark as text-only suggestion
+                  suggestions.push({ text, type: 'text-suggestion' });
                 }
               } else if (item.historySuggestionRenderer) {
-                console.log('TitleBar: Full historySuggestionRenderer:', item.historySuggestionRenderer);
                 const suggestion = item.historySuggestionRenderer.suggestion;
-                console.log('TitleBar: history suggestion object:', suggestion);
-                console.log('TitleBar: history suggestion.runs:', suggestion.runs);
-                
-                // Try to get the full suggestion text
                 const text = suggestion.runs?.map((r: any) => r.text).join('') || '';
                 console.log('TitleBar: Found historySuggestionRenderer:', text);
                 if (text) {
-                  suggestions.push({ text, type: undefined });
+                  // Mark as text-only suggestion
+                  suggestions.push({ text, type: 'text-suggestion' });
                 }
               } else if (item.musicResponsiveListItemRenderer) {
                 console.log('TitleBar: Found musicResponsiveListItemRenderer');
@@ -1072,27 +1064,31 @@ function SearchBar() {
                   'box-sizing': 'border-box',
                   display: 'flex',
                   'align-items': 'center',
-                  padding: '10px 12px',
+                  padding: suggestion.type === 'text-suggestion' ? '6px 12px' : '10px 12px',
                   cursor: 'pointer',
                   background: i === selectedIndex() ? 'rgba(255,255,255,0.08)' : 'transparent',
                   'border-radius': '4px',
-                  margin: '2px 0',
+                  margin: '1px 0',
                   transition: 'background 0.15s',
                 } as JSX.CSSProperties}
                 onMouseEnter={() => setSelectedIndex(i)}
                 onMouseLeave={() => setSelectedIndex(-1)}
                 onMouseDown={e => { e.preventDefault(); chooseSuggestion(i); }}
               >
-                {suggestion.icon ? (
-                  <img src={suggestion.icon} style={{ width: '40px', height: '40px', 'object-fit': 'cover', 'border-radius': suggestion.type && suggestion.type.toLowerCase().includes('artist') ? '50%' : '4px', 'margin-right': '16px' }} />
-                ) : (
-                  <div style={{ width: '40px', height: '40px', 'margin-right': '16px', 'border-radius': suggestion.type && suggestion.type.toLowerCase().includes('artist') ? '50%' : '4px', background: '#333' }} />
+                {suggestion.type !== 'text-suggestion' && (
+                  <>
+                    {suggestion.icon ? (
+                      <img src={suggestion.icon} style={{ width: '40px', height: '40px', 'object-fit': 'cover', 'border-radius': suggestion.type && suggestion.type.toLowerCase().includes('artist') ? '50%' : '4px', 'margin-right': '16px' }} />
+                    ) : (
+                      <div style={{ width: '40px', height: '40px', 'margin-right': '16px', 'border-radius': suggestion.type && suggestion.type.toLowerCase().includes('artist') ? '50%' : '4px', background: '#333' }} />
+                    )}
+                  </>
                 )}
                 <div style={{ flex: '1', display: 'flex', 'flex-direction': 'column' }}>
-                  <div style={{ 'font-weight': 500, 'font-size': '1.25em', color: '#fff' }}>{suggestion.text}</div>
+                  <div style={{ 'font-weight': suggestion.type === 'text-suggestion' ? 400 : 500, 'font-size': suggestion.type === 'text-suggestion' ? '1.15em' : '1.25em', color: '#fff' }}>{suggestion.text}</div>
                   {suggestion.subtitle && <div style={{ 'font-size': '1.1em', color: '#aaa', 'margin-top': '2px' }}>{suggestion.subtitle}</div>}
                 </div>
-                {suggestion.type && <span style={{ background: 'rgba(255,255,255,0.12)', color: '#fff', 'font-size': '0.92em', padding: '2px 10px', 'border-radius': '6px', 'margin-left': '8px', 'font-weight': 400, 'letter-spacing': '0.03em', 'white-space': 'nowrap', 'max-width': '40%', 'overflow': 'hidden', 'text-overflow': 'ellipsis' }}>{suggestion.type}</span>}
+                {suggestion.type && suggestion.type !== 'text-suggestion' && <span style={{ background: 'rgba(255,255,255,0.12)', color: '#fff', 'font-size': '0.92em', padding: '2px 10px', 'border-radius': '6px', 'margin-left': '8px', 'font-weight': 400, 'letter-spacing': '0.03em', 'white-space': 'nowrap', 'max-width': '40%', 'overflow': 'hidden', 'text-overflow': 'ellipsis' }}>{suggestion.type}</span>}
               </div>
             );
           }}</Index>
