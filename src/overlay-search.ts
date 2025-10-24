@@ -340,18 +340,18 @@ async function fetchSuggestions(query: string): Promise<Array<{text: string, url
           
           for (const item of section.contents) {
             // Now process the actual suggestions
-            if (item.searchSuggestion) {
-              const suggestion = item.searchSuggestion.suggestion;
+            if (item.searchSuggestionRenderer) {
+              const suggestion = item.searchSuggestionRenderer.suggestion;
               const text = suggestion.runs?.[0]?.text || '';
-              console.log('Found searchSuggestion:', text);
+              console.log('Found searchSuggestionRenderer (autocomplete):', text);
               if (text) {
-                suggestions.push({ text });
+                suggestions.push({ text, type: undefined });
               }
-            } else if (item.historySuggestion) {
-              const text = item.historySuggestion.suggestion.runs?.[0]?.text || '';
-              console.log('Found historySuggestion:', text);
+            } else if (item.historySuggestionRenderer) {
+              const text = item.historySuggestionRenderer.suggestion.runs?.[0]?.text || '';
+              console.log('Found historySuggestionRenderer:', text);
               if (text) {
-                suggestions.push({ text });
+                suggestions.push({ text, type: undefined });
               }
             } else if (item.musicResponsiveListItemRenderer) {
               console.log('Found musicResponsiveListItemRenderer');
@@ -467,8 +467,8 @@ async function fetchSuggestions(query: string): Promise<Array<{text: string, url
         }
       }
       
-      // Limit to 10 suggestions
-      if (suggestions.length >= 10) break;
+      // Don't limit here - let all suggestions through
+      // We'll limit when rendering
     }
     
     console.log('Parsed suggestions:', suggestions);

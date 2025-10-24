@@ -756,18 +756,29 @@ function SearchBar() {
               console.log('TitleBar: Section item keys:', Object.keys(item));
               
               // Now process the actual suggestions
-              if (item.searchSuggestion) {
-                const suggestion = item.searchSuggestion.suggestion;
-                const text = suggestion.runs?.[0]?.text || '';
-                console.log('TitleBar: Found searchSuggestion:', text);
+              if (item.searchSuggestionRenderer) {
+                console.log('TitleBar: Full searchSuggestionRenderer:', item.searchSuggestionRenderer);
+                const suggestion = item.searchSuggestionRenderer.suggestion;
+                console.log('TitleBar: suggestion object:', suggestion);
+                console.log('TitleBar: suggestion.runs:', suggestion.runs);
+                
+                // Try to get the full suggestion text
+                const text = suggestion.runs?.map((r: any) => r.text).join('') || '';
+                console.log('TitleBar: Found searchSuggestionRenderer (autocomplete):', text);
                 if (text) {
-                  suggestions.push({ text });
+                  suggestions.push({ text, type: undefined });
                 }
-              } else if (item.historySuggestion) {
-                const text = item.historySuggestion.suggestion.runs?.[0]?.text || '';
-                console.log('TitleBar: Found historySuggestion:', text);
+              } else if (item.historySuggestionRenderer) {
+                console.log('TitleBar: Full historySuggestionRenderer:', item.historySuggestionRenderer);
+                const suggestion = item.historySuggestionRenderer.suggestion;
+                console.log('TitleBar: history suggestion object:', suggestion);
+                console.log('TitleBar: history suggestion.runs:', suggestion.runs);
+                
+                // Try to get the full suggestion text
+                const text = suggestion.runs?.map((r: any) => r.text).join('') || '';
+                console.log('TitleBar: Found historySuggestionRenderer:', text);
                 if (text) {
-                  suggestions.push({ text });
+                  suggestions.push({ text, type: undefined });
                 }
               } else if (item.musicResponsiveListItemRenderer) {
                 console.log('TitleBar: Found musicResponsiveListItemRenderer');
@@ -883,8 +894,8 @@ function SearchBar() {
           }
         }
         
-        // Limit to 10 suggestions
-        if (suggestions.length >= 10) break;
+        // Don't limit here - let all suggestions through
+        // We'll limit when rendering
       }
       
       console.log('TitleBar: Parsed suggestions:', suggestions);
