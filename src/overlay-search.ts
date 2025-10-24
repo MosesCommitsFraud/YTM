@@ -353,8 +353,8 @@ async function fetchSuggestions(query: string): Promise<Array<{text: string, url
               const text = suggestion.runs?.map((r: any) => r.text).join('') || '';
               console.log('Found historySuggestionRenderer:', text);
               if (text) {
-                // Mark as text-only suggestion
-                suggestions.push({ text, type: 'text-suggestion' });
+                // Mark as history suggestion
+                suggestions.push({ text, type: 'history' });
               }
             } else if (item.musicResponsiveListItemRenderer) {
               console.log('Found musicResponsiveListItemRenderer');
@@ -494,7 +494,7 @@ function renderSuggestions() {
     const item = document.createElement('div');
     item.style.display = 'flex';
     item.style.alignItems = 'center';
-    item.style.padding = s.type === 'text-suggestion' ? '8px 12px' : '10px 12px';
+    item.style.padding = (s.type === 'text-suggestion' || s.type === 'history') ? '8px 12px' : '10px 12px';
     item.style.cursor = 'pointer';
     item.style.background = i === selectedIndex ? 'rgba(255,255,255,0.08)' : 'transparent';
     item.style.borderRadius = '4px';
@@ -502,8 +502,22 @@ function renderSuggestions() {
     item.style.transition = 'background 0.15s';
     item.style.width = '100%';
     item.style.boxSizing = 'border-box';
-    // Icon/thumbnail - skip for text-only suggestions
-    if (s.type !== 'text-suggestion') {
+    // History icon
+    if (s.type === 'history') {
+      const historyIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      historyIcon.setAttribute('viewBox', '0 0 24 24');
+      historyIcon.setAttribute('fill', 'currentColor');
+      historyIcon.style.width = '18px';
+      historyIcon.style.height = '18px';
+      historyIcon.style.marginRight = '12px';
+      historyIcon.style.opacity = '0.6';
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('d', 'M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z');
+      historyIcon.appendChild(path);
+      item.appendChild(historyIcon);
+    }
+    // Icon/thumbnail - skip for text-only suggestions and history
+    if (s.type !== 'text-suggestion' && s.type !== 'history') {
       if (s.icon) {
         const img = document.createElement('img');
         img.src = s.icon;
@@ -531,7 +545,7 @@ function renderSuggestions() {
     // Title
     const title = document.createElement('div');
     title.textContent = s.text;
-    title.style.fontWeight = s.type === 'text-suggestion' ? '400' : '500';
+    title.style.fontWeight = (s.type === 'text-suggestion' || s.type === 'history') ? '400' : '500';
     title.style.fontSize = '1.25em';
     title.style.color = '#fff';
     textCol.appendChild(title);
@@ -545,8 +559,8 @@ function renderSuggestions() {
       textCol.appendChild(subtitle);
     }
     item.appendChild(textCol);
-    // Type badge - skip for text-only suggestions
-    if (s.type && s.type !== 'text-suggestion') {
+    // Type badge - skip for text-only suggestions and history
+    if (s.type && s.type !== 'text-suggestion' && s.type !== 'history') {
       const badge = document.createElement('span');
       badge.textContent = s.type;
       badge.style.background = 'rgba(255,255,255,0.12)';

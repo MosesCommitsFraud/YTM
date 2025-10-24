@@ -769,8 +769,8 @@ function SearchBar() {
                 const text = suggestion.runs?.map((r: any) => r.text).join('') || '';
                 console.log('TitleBar: Found historySuggestionRenderer:', text);
                 if (text) {
-                  // Mark as text-only suggestion
-                  suggestions.push({ text, type: 'text-suggestion' });
+                  // Mark as history suggestion
+                  suggestions.push({ text, type: 'history' });
                 }
               } else if (item.musicResponsiveListItemRenderer) {
                 console.log('TitleBar: Found musicResponsiveListItemRenderer');
@@ -1064,7 +1064,7 @@ function SearchBar() {
                   'box-sizing': 'border-box',
                   display: 'flex',
                   'align-items': 'center',
-                  padding: suggestion.type === 'text-suggestion' ? '8px 12px' : '10px 12px',
+                  padding: (suggestion.type === 'text-suggestion' || suggestion.type === 'history') ? '8px 12px' : '10px 12px',
                   cursor: 'pointer',
                   background: i === selectedIndex() ? 'rgba(255,255,255,0.08)' : 'transparent',
                   'border-radius': '4px',
@@ -1075,7 +1075,12 @@ function SearchBar() {
                 onMouseLeave={() => setSelectedIndex(-1)}
                 onMouseDown={e => { e.preventDefault(); chooseSuggestion(i); }}
               >
-                {suggestion.type !== 'text-suggestion' && (
+                {suggestion.type === 'history' && (
+                  <svg style={{ width: '18px', height: '18px', 'margin-right': '12px', opacity: 0.6 }} viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/>
+                  </svg>
+                )}
+                {suggestion.type !== 'text-suggestion' && suggestion.type !== 'history' && (
                   <>
                     {suggestion.icon ? (
                       <img src={suggestion.icon} style={{ width: '40px', height: '40px', 'object-fit': 'cover', 'border-radius': suggestion.type && suggestion.type.toLowerCase().includes('artist') ? '50%' : '4px', 'margin-right': '16px' }} />
@@ -1085,10 +1090,10 @@ function SearchBar() {
                   </>
                 )}
                 <div style={{ flex: '1', display: 'flex', 'flex-direction': 'column' }}>
-                  <div style={{ 'font-weight': suggestion.type === 'text-suggestion' ? 400 : 500, 'font-size': '1.25em', color: '#fff' }}>{suggestion.text}</div>
+                  <div style={{ 'font-weight': (suggestion.type === 'text-suggestion' || suggestion.type === 'history') ? 400 : 500, 'font-size': '1.25em', color: '#fff' }}>{suggestion.text}</div>
                   {suggestion.subtitle && <div style={{ 'font-size': '1.1em', color: '#aaa', 'margin-top': '2px' }}>{suggestion.subtitle}</div>}
                 </div>
-                {suggestion.type && suggestion.type !== 'text-suggestion' && <span style={{ background: 'rgba(255,255,255,0.12)', color: '#fff', 'font-size': '0.92em', padding: '2px 10px', 'border-radius': '6px', 'margin-left': '8px', 'font-weight': 400, 'letter-spacing': '0.03em', 'white-space': 'nowrap', 'max-width': '40%', 'overflow': 'hidden', 'text-overflow': 'ellipsis' }}>{suggestion.type}</span>}
+                {suggestion.type && suggestion.type !== 'text-suggestion' && suggestion.type !== 'history' && <span style={{ background: 'rgba(255,255,255,0.12)', color: '#fff', 'font-size': '0.92em', padding: '2px 10px', 'border-radius': '6px', 'margin-left': '8px', 'font-weight': 400, 'letter-spacing': '0.03em', 'white-space': 'nowrap', 'max-width': '40%', 'overflow': 'hidden', 'text-overflow': 'ellipsis' }}>{suggestion.type}</span>}
               </div>
             );
           }}</Index>
