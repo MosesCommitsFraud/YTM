@@ -297,109 +297,183 @@ async function onInput() {
   renderSuggestions();
 }
 
-// Mirror the native search box suggestions by observing its DOM directly
+// Use the proper YouTube Music API endpoint to get suggestions
 async function fetchSuggestions(query: string): Promise<Array<{text: string, url?: string, icon?: string, subtitle?: string, type?: string}>> {
   const suggestions: Array<{text: string, url?: string, icon?: string, subtitle?: string, type?: string}> = [];
 
   try {
-    // Get the native search box
-    const searchBox = document.querySelector('ytmusic-search-box');
-    if (!searchBox) {
-      console.error('Native search box not found');
+    const app = document.querySelector('ytmusic-app');
+    if (!app || !(app as any).networkManager) {
+      console.error('No ytmusic-app or networkManager found');
+      return [];
+    }
+
+    console.log('Fetching suggestions via API for query:', query);
+    
+    // Use the correct endpoint: music/get_search_suggestions
+    const result = await (app as any).networkManager.fetch('/music/get_search_suggestions', { input: query });
+    
+    console.log('API response:', result);
+    
+    // Parse the API response
+    if (!result || !result.contents) {
+      console.warn('No contents in API response');
       return [];
     }
     
-    console.log('Found native search box, triggering it to show suggestions...');
+    console.log('Contents array:', result.contents);
+    console.log('Contents length:', result.contents.length);
     
-    let searchInput: HTMLInputElement | null = null;
-    if (searchBox.shadowRoot) {
-      searchInput = searchBox.shadowRoot.querySelector('input');
-    } else {
-      searchInput = searchBox.querySelector('input');
-    }
-    
-    if (!searchInput) {
-      console.error('Could not find native search input');
-      return [];
-    }
-    
-    // Save original state
-    const originalValue = searchInput.value;
-    const wasFocused = document.activeElement === searchInput;
-    
-    // Trigger native search to populate suggestions
-    searchInput.value = query;
-    searchInput.dispatchEvent(new Event('input', { bubbles: true }));
-    searchInput.focus();
-    
-    // Wait for suggestions to render
-    await new Promise(resolve => setTimeout(resolve, 300));
-    
-    // Try to read rendered suggestions from shadow DOM
-    if (searchBox.shadowRoot) {
-      const dropdown = searchBox.shadowRoot.querySelector('tp-yt-iron-dropdown');
-      console.log('Dropdown element:', dropdown);
+    // Process search suggestions from API
+    for (const content of result.contents) {
+      console.log('Processing content item:', content);
+      console.log('Content keys:', Object.keys(content));
       
-      if (dropdown) {
-        // Look for any child elements that look like suggestions
-        const allElements = dropdown.querySelectorAll('*');
-        console.log('Total elements in dropdown:', allElements.length);
+      // Handle searchSuggestionsSectionRenderer wrapper
+      if (content.searchSuggestionsSectionRenderer) {
+        const section = content.searchSuggestionsSectionRenderer;
+        console.log('Section renderer:', section);
         
-        // Try multiple possible selectors for suggestion items
-        let items = dropdown.querySelectorAll('ytmusic-search-suggestion-renderer');
-        if (!items.length) items = dropdown.querySelectorAll('[role="option"]');
-        if (!items.length) items = dropdown.querySelectorAll('.suggestion-item, .search-suggestion');
-        if (!items.length) {
-          // Try to find any clickable items
-          items = dropdown.querySelectorAll('a, [tabindex]');
+        // Look for contents inside the section
+        if (section.contents) {
+          console.log('Section contents length:', section.contents.length);
+          
+          for (const item of section.contents) {
+            // Now process the actual suggestions
+            if (item.searchSuggestion) {
+              const suggestion = item.searchSuggestion.suggestion;
+              const text = suggestion.runs?.[0]?.text || '';
+              console.log('Found searchSuggestion:', text);
+              if (text) {
+                suggestions.push({ text });
+              }
+            } else if (item.historySuggestion) {
+              const text = item.historySuggestion.suggestion.runs?.[0]?.text || '';
+              console.log('Found historySuggestion:', text);
+              if (text) {
+                suggestions.push({ text });
+              }
+            } else if (item.musicResponsiveListItemRenderer) {
+              console.log('Found musicResponsiveListItemRenderer');
+              const renderer = item.musicResponsiveListItemRenderer;
+              
+              // Extract title
+              const text = renderer.flexColumns?.[0]?.musicResponsiveListItemFlexColumnRenderer?.text?.runs?.[0]?.text || '';
+              
+              // Extract subtitle (artist, album info)
+              const subtitleRuns = renderer.flexColumns?.[1]?.musicResponsiveListItemFlexColumnRenderer?.text?.runs || [];
+              const subtitle = subtitleRuns.map((r: any) => r.text).join('').trim();
+              
+              // Extract thumbnail
+              const thumbnails = renderer.thumbnail?.musicThumbnailRenderer?.thumbnail?.thumbnails || [];
+              const icon = thumbnails.length > 0 ? thumbnails[thumbnails.length - 1].url : undefined;
+              
+              // Determine type and URL from navigation endpoint
+              let type: string | undefined = undefined;
+              let url = '';
+              
+              if (renderer.navigationEndpoint?.watchEndpoint) {
+                type = 'Song';
+                const videoId = renderer.navigationEndpoint.watchEndpoint.videoId;
+                url = `https://music.youtube.com/watch?v=${videoId}`;
+                if (renderer.navigationEndpoint.watchEndpoint.playlistId) {
+                  url += `&list=${renderer.navigationEndpoint.watchEndpoint.playlistId}`;
+                }
+              } else if (renderer.navigationEndpoint?.browseEndpoint) {
+                const browseId = renderer.navigationEndpoint.browseEndpoint.browseId;
+                url = `https://music.youtube.com/browse/${browseId}`;
+                
+                const pageType = renderer.navigationEndpoint.browseEndpoint.browseEndpointContextSupportedConfigs?.browseEndpointContextMusicConfig?.pageType;
+                if (pageType === 'MUSIC_PAGE_TYPE_ARTIST') type = 'Artist';
+                else if (pageType === 'MUSIC_PAGE_TYPE_ALBUM') type = 'Album';
+                else if (pageType === 'MUSIC_PAGE_TYPE_PLAYLIST') type = 'Playlist';
+                else if (pageType === 'MUSIC_PAGE_TYPE_USER_CHANNEL') type = 'Channel';
+              }
+              
+              console.log('Extracted rich suggestion:', { text, subtitle, icon: !!icon, type, url: !!url });
+              
+              if (text) {
+                suggestions.push({
+                  text,
+                  url: url || undefined,
+                  icon,
+                  subtitle: subtitle || undefined,
+                  type
+                });
+              }
+            }
+          }
+        }
+      }
+      // Old handling (keep as fallback)
+      else if (content.searchSuggestion) {
+        // Simple text suggestion
+        const suggestion = content.searchSuggestion.suggestion;
+        const text = suggestion.runs?.[0]?.text || '';
+        if (text) {
+          suggestions.push({ text });
+        }
+      } else if (content.historyItem) {
+        // History suggestion
+        const text = content.historyItem.suggestion.runs?.[0]?.text || '';
+        if (text) {
+          suggestions.push({ text });
+        }
+      } else if (content.musicResponsiveListItemRenderer) {
+        // Rich suggestion with thumbnail, artist info, etc.
+        const renderer = content.musicResponsiveListItemRenderer;
+        
+        // Extract title
+        const text = renderer.flexColumns?.[0]?.musicResponsiveListItemFlexColumnRenderer?.text?.runs?.[0]?.text || '';
+        
+        // Extract subtitle (artist, album info)
+        const subtitleRuns = renderer.flexColumns?.[1]?.musicResponsiveListItemFlexColumnRenderer?.text?.runs || [];
+        const subtitle = subtitleRuns.map((r: any) => r.text).join('').trim();
+        
+        // Extract thumbnail
+        const thumbnails = renderer.thumbnail?.musicThumbnailRenderer?.thumbnail?.thumbnails || [];
+        const icon = thumbnails.length > 0 ? thumbnails[thumbnails.length - 1].url : undefined;
+        
+        // Determine type and URL from navigation endpoint
+        let type: string | undefined = undefined;
+        let url = '';
+        
+        if (renderer.navigationEndpoint?.watchEndpoint) {
+          type = 'Song';
+          const videoId = renderer.navigationEndpoint.watchEndpoint.videoId;
+          url = `https://music.youtube.com/watch?v=${videoId}`;
+          if (renderer.navigationEndpoint.watchEndpoint.playlistId) {
+            url += `&list=${renderer.navigationEndpoint.watchEndpoint.playlistId}`;
+          }
+        } else if (renderer.navigationEndpoint?.browseEndpoint) {
+          const browseId = renderer.navigationEndpoint.browseEndpoint.browseId;
+          url = `https://music.youtube.com/browse/${browseId}`;
+          
+          const pageType = renderer.navigationEndpoint.browseEndpoint.browseEndpointContextSupportedConfigs?.browseEndpointContextMusicConfig?.pageType;
+          if (pageType === 'MUSIC_PAGE_TYPE_ARTIST') type = 'Artist';
+          else if (pageType === 'MUSIC_PAGE_TYPE_ALBUM') type = 'Album';
+          else if (pageType === 'MUSIC_PAGE_TYPE_PLAYLIST') type = 'Playlist';
+          else if (pageType === 'MUSIC_PAGE_TYPE_USER_CHANNEL') type = 'Channel';
         }
         
-        console.log('Found suggestion items:', items.length);
-        
-        items.forEach((item, index) => {
-          if (index >= 10) return;
-          
-          console.log('Processing item:', item);
-          
-          // Extract all text content
-          const text = item.textContent?.trim() || '';
-          
-          // Try to find thumbnail/icon
-          const imgEl = item.querySelector('img') || item.shadowRoot?.querySelector('img');
-          const icon = imgEl?.src || '';
-          
-          // Try to extract URL from navigation
-          let url = '';
-          if (item instanceof HTMLAnchorElement) {
-            url = item.href;
-          } else {
-            const link = item.querySelector('a');
-            if (link) url = link.href;
-          }
-          
-          if (text) {
-            console.log('Extracted suggestion:', { text, icon, url });
-            suggestions.push({ 
-              text, 
-              icon: icon || undefined,
-              url: url || undefined
-            });
-          }
-        });
+        if (text) {
+          suggestions.push({
+            text,
+            url: url || undefined,
+            icon,
+            subtitle: subtitle || undefined,
+            type
+          });
+        }
       }
+      
+      // Limit to 10 suggestions
+      if (suggestions.length >= 10) break;
     }
     
-    // Restore original state
-    searchInput.value = originalValue;
-    if (!wasFocused) {
-      searchInput.blur();
-    } else {
-      searchInput.dispatchEvent(new Event('input', { bubbles: true }));
-    }
-    
-    console.log('Final extracted suggestions:', suggestions);
+    console.log('Parsed suggestions:', suggestions);
   } catch (e) {
-    console.error('Failed to extract suggestions from native search:', e);
+    console.error('Failed to fetch suggestions:', e);
   }
 
   return suggestions;

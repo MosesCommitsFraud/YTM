@@ -712,152 +712,182 @@ function SearchBar() {
     const suggestions: Suggestion[] = [];
 
     try {
-      // Get the native search box
-      const searchBox = document.querySelector('ytmusic-search-box');
-      if (!searchBox) {
-        console.error('TitleBar: Native search box not found');
+      // Use the proper YouTube Music API endpoint
+      const app = document.querySelector('ytmusic-app') as any;
+      if (!app || !app.networkManager) {
+        console.error('TitleBar: No ytmusic-app or networkManager found');
+        return [];
+      }
+
+      console.log('TitleBar: Fetching suggestions via API for query:', query);
+      
+      // Use the correct endpoint: music/get_search_suggestions
+      const result = await app.networkManager.fetch('/music/get_search_suggestions', { input: query });
+      
+      console.log('TitleBar: API response:', result);
+      
+      // Parse the API response
+      if (!result || !result.contents) {
+        console.warn('TitleBar: No contents in API response');
         return [];
       }
       
-      console.log('TitleBar: Found native search box, triggering it to show suggestions...');
+      console.log('TitleBar: Contents array:', result.contents);
+      console.log('TitleBar: Contents length:', result.contents.length);
       
-      let searchInput: HTMLInputElement | null = null;
-      if (searchBox.shadowRoot) {
-        searchInput = searchBox.shadowRoot.querySelector('input');
-      } else {
-        searchInput = searchBox.querySelector('input');
-      }
-      
-      if (!searchInput) {
-        console.error('TitleBar: Could not find native search input');
-        return [];
-      }
-      
-      // Save original state
-      const originalValue = searchInput.value;
-      const wasFocused = document.activeElement === searchInput;
-      
-      // Trigger native search to populate suggestions
-      searchInput.value = query;
-      searchInput.dispatchEvent(new Event('input', { bubbles: true }));
-      searchInput.focus();
-      
-      // Wait for suggestions to render
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
-      // Search box might not have shadow root - check regular DOM
-      console.log('TitleBar: Search box element:', searchBox);
-      console.log('TitleBar: Search box children:', Array.from(searchBox.children).map(el => el.tagName));
-      
-      // Look for dropdown in regular DOM (sibling or child of search box)
-      let dropdown = searchBox.querySelector('tp-yt-iron-dropdown, .dropdown, [role="listbox"]');
-      
-      // Also check for dropdown as a sibling or in the document
-      if (!dropdown) {
-        const parent = searchBox.parentElement;
-        if (parent) {
-          dropdown = parent.querySelector('tp-yt-iron-dropdown, .dropdown, [role="listbox"]');
-          console.log('TitleBar: Dropdown in parent?', !!dropdown);
-        }
-      }
-      
-      // Check document root for popup suggestions
-      if (!dropdown) {
-        dropdown = document.querySelector('ytmusic-search-suggestions-section');
-        console.log('TitleBar: ytmusic-search-suggestions-section?', !!dropdown);
-      }
-      
-      if (!dropdown) {
-        // Look for any recently added elements that might be the suggestions popup
-        const popups = document.querySelectorAll('[role="listbox"], .search-suggestions, #search-suggestions');
-        console.log('TitleBar: Found potential popup elements:', popups.length);
-        if (popups.length > 0) {
-          dropdown = popups[popups.length - 1] as Element; // Use the most recent one
-        }
-      }
-      
-      console.log('TitleBar: Dropdown element:', dropdown);
-      
-      if (dropdown) {
-        console.log('TitleBar: Dropdown tag:', dropdown.tagName);
-        console.log('TitleBar: Dropdown classes:', dropdown.className);
+      // Process search suggestions from API
+      for (const content of result.contents) {
+        console.log('TitleBar: Processing content item:', content);
+        console.log('TitleBar: Content keys:', Object.keys(content));
         
-        // Try multiple possible selectors for suggestion items
-        let items = dropdown.querySelectorAll('ytmusic-search-suggestion-renderer');
-        console.log('TitleBar: ytmusic-search-suggestion-renderer items:', items.length);
-        
-        if (!items.length) {
-          items = dropdown.querySelectorAll('[role="option"]');
-          console.log('TitleBar: role="option" items:', items.length);
-        }
-        if (!items.length) {
-          items = dropdown.querySelectorAll('.sbqs_c, .sbse, .suggestion');
-          console.log('TitleBar: Google-style suggestion items:', items.length);
-        }
-        if (!items.length) {
-          items = dropdown.querySelectorAll('a[href*="search"]');
-          console.log('TitleBar: Search link items:', items.length);
-        }
-        if (!items.length) {
-          // Get all direct children
-          items = dropdown.querySelectorAll(':scope > *');
-          console.log('TitleBar: Direct children:', items.length);
-        }
-        
-        console.log('TitleBar: Final item count to process:', items.length);
-        
-        items.forEach((item, index) => {
-          if (index >= 10) return;
+        // Handle searchSuggestionsSectionRenderer wrapper
+        if (content.searchSuggestionsSectionRenderer) {
+          const section = content.searchSuggestionsSectionRenderer;
+          console.log('TitleBar: Section renderer:', section);
+          console.log('TitleBar: Section keys:', Object.keys(section));
           
-          console.log('TitleBar: Processing item', index, ':', item.tagName, item.className);
+          // Look for contents inside the section
+          if (section.contents) {
+            console.log('TitleBar: Section contents:', section.contents);
+            console.log('TitleBar: Section contents length:', section.contents.length);
+            
+            for (const item of section.contents) {
+              console.log('TitleBar: Processing section item:', item);
+              console.log('TitleBar: Section item keys:', Object.keys(item));
+              
+              // Now process the actual suggestions
+              if (item.searchSuggestion) {
+                const suggestion = item.searchSuggestion.suggestion;
+                const text = suggestion.runs?.[0]?.text || '';
+                console.log('TitleBar: Found searchSuggestion:', text);
+                if (text) {
+                  suggestions.push({ text });
+                }
+              } else if (item.historySuggestion) {
+                const text = item.historySuggestion.suggestion.runs?.[0]?.text || '';
+                console.log('TitleBar: Found historySuggestion:', text);
+                if (text) {
+                  suggestions.push({ text });
+                }
+              } else if (item.musicResponsiveListItemRenderer) {
+                console.log('TitleBar: Found musicResponsiveListItemRenderer');
+                const renderer = item.musicResponsiveListItemRenderer;
+                
+                // Extract title
+                const text = renderer.flexColumns?.[0]?.musicResponsiveListItemFlexColumnRenderer?.text?.runs?.[0]?.text || '';
+                
+                // Extract subtitle (artist, album info)
+                const subtitleRuns = renderer.flexColumns?.[1]?.musicResponsiveListItemFlexColumnRenderer?.text?.runs || [];
+                const subtitle = subtitleRuns.map((r: any) => r.text).join('').trim();
+                
+                // Extract thumbnail
+                const thumbnails = renderer.thumbnail?.musicThumbnailRenderer?.thumbnail?.thumbnails || [];
+                const icon = thumbnails.length > 0 ? thumbnails[thumbnails.length - 1].url : undefined;
+                
+                // Determine type and URL from navigation endpoint
+                let type: string | undefined = undefined;
+                let url = '';
+                
+                if (renderer.navigationEndpoint?.watchEndpoint) {
+                  type = 'Song';
+                  const videoId = renderer.navigationEndpoint.watchEndpoint.videoId;
+                  url = `https://music.youtube.com/watch?v=${videoId}`;
+                  if (renderer.navigationEndpoint.watchEndpoint.playlistId) {
+                    url += `&list=${renderer.navigationEndpoint.watchEndpoint.playlistId}`;
+                  }
+                } else if (renderer.navigationEndpoint?.browseEndpoint) {
+                  const browseId = renderer.navigationEndpoint.browseEndpoint.browseId;
+                  url = `https://music.youtube.com/browse/${browseId}`;
+                  
+                  const pageType = renderer.navigationEndpoint.browseEndpoint.browseEndpointContextSupportedConfigs?.browseEndpointContextMusicConfig?.pageType;
+                  if (pageType === 'MUSIC_PAGE_TYPE_ARTIST') type = 'Artist';
+                  else if (pageType === 'MUSIC_PAGE_TYPE_ALBUM') type = 'Album';
+                  else if (pageType === 'MUSIC_PAGE_TYPE_PLAYLIST') type = 'Playlist';
+                  else if (pageType === 'MUSIC_PAGE_TYPE_USER_CHANNEL') type = 'Channel';
+                }
+                
+                console.log('TitleBar: Extracted rich suggestion:', { text, subtitle, icon: !!icon, type, url: !!url });
+                
+                if (text) {
+                  suggestions.push({
+                    text,
+                    url: url || undefined,
+                    icon,
+                    subtitle: subtitle || undefined,
+                    type
+                  });
+                }
+              }
+            }
+          }
+        }
+        // Old handling (keep as fallback)
+        else if (content.searchSuggestion) {
+          // Simple text suggestion
+          const suggestion = content.searchSuggestion.suggestion;
+          const text = suggestion.runs?.[0]?.text || '';
+          if (text) {
+            suggestions.push({ text });
+          }
+        } else if (content.historyItem) {
+          // History suggestion
+          const text = content.historyItem.suggestion.runs?.[0]?.text || '';
+          if (text) {
+            suggestions.push({ text });
+          }
+        } else if (content.musicResponsiveListItemRenderer) {
+          // Rich suggestion with thumbnail, artist info, etc.
+          const renderer = content.musicResponsiveListItemRenderer;
           
-          // Extract all text content
-          const text = item.textContent?.trim() || '';
-          console.log('TitleBar: Item text:', text.substring(0, 50));
+          // Extract title
+          const text = renderer.flexColumns?.[0]?.musicResponsiveListItemFlexColumnRenderer?.text?.runs?.[0]?.text || '';
           
-          // Try to find thumbnail/icon
-          const imgEl = item.querySelector('img');
-          const icon = imgEl?.src || '';
+          // Extract subtitle (artist, album info)
+          const subtitleRuns = renderer.flexColumns?.[1]?.musicResponsiveListItemFlexColumnRenderer?.text?.runs || [];
+          const subtitle = subtitleRuns.map((r: any) => r.text).join('').trim();
           
-          // Try to extract URL from navigation
+          // Extract thumbnail
+          const thumbnails = renderer.thumbnail?.musicThumbnailRenderer?.thumbnail?.thumbnails || [];
+          const icon = thumbnails.length > 0 ? thumbnails[thumbnails.length - 1].url : undefined;
+          
+          // Determine type and URL from navigation endpoint
+          let type: string | undefined = undefined;
           let url = '';
-          if (item instanceof HTMLAnchorElement) {
-            url = item.href;
-          } else {
-            const link = item.querySelector('a');
-            if (link) url = link.href;
+          
+          if (renderer.navigationEndpoint?.watchEndpoint) {
+            type = 'Song';
+            const videoId = renderer.navigationEndpoint.watchEndpoint.videoId;
+            url = `https://music.youtube.com/watch?v=${videoId}`;
+            if (renderer.navigationEndpoint.watchEndpoint.playlistId) {
+              url += `&list=${renderer.navigationEndpoint.watchEndpoint.playlistId}`;
+            }
+          } else if (renderer.navigationEndpoint?.browseEndpoint) {
+            const browseId = renderer.navigationEndpoint.browseEndpoint.browseId;
+            url = `https://music.youtube.com/browse/${browseId}`;
+            
+            const pageType = renderer.navigationEndpoint.browseEndpoint.browseEndpointContextSupportedConfigs?.browseEndpointContextMusicConfig?.pageType;
+            if (pageType === 'MUSIC_PAGE_TYPE_ARTIST') type = 'Artist';
+            else if (pageType === 'MUSIC_PAGE_TYPE_ALBUM') type = 'Album';
+            else if (pageType === 'MUSIC_PAGE_TYPE_PLAYLIST') type = 'Playlist';
+            else if (pageType === 'MUSIC_PAGE_TYPE_USER_CHANNEL') type = 'Channel';
           }
           
-          if (text && text.length > 0 && text.length < 200) { // Sanity check on length
-            console.log('TitleBar: Extracted suggestion:', { text: text.substring(0, 50), icon: !!icon, url: !!url });
-            suggestions.push({ 
-              text, 
-              icon: icon || undefined,
-              url: url || undefined
+          if (text) {
+            suggestions.push({
+              text,
+              url: url || undefined,
+              icon,
+              subtitle: subtitle || undefined,
+              type
             });
           }
-        });
-      } else {
-        console.warn('TitleBar: No dropdown found anywhere in DOM');
-        console.log('TitleBar: Trying to type in native search and wait longer...');
+        }
         
-        // Try typing one character at a time to really trigger suggestions
-        await new Promise(resolve => setTimeout(resolve, 500));
-        
-        // Check again
-        dropdown = document.querySelector('ytmusic-search-suggestions-section, [role="listbox"]');
-        console.log('TitleBar: After longer wait, dropdown found?', !!dropdown);
+        // Limit to 10 suggestions
+        if (suggestions.length >= 10) break;
       }
       
-      // Restore original state
-      searchInput.value = originalValue;
-      if (!wasFocused) {
-        searchInput.blur();
-      } else {
-        searchInput.dispatchEvent(new Event('input', { bubbles: true }));
-      }
-      
-      console.log('TitleBar: Final extracted suggestions:', suggestions);
+      console.log('TitleBar: Parsed suggestions:', suggestions);
     } catch (e) {
       console.error('TitleBar: Failed to extract suggestions from native search:', e);
     }
