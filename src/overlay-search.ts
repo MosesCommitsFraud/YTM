@@ -494,7 +494,7 @@ function renderSuggestions() {
     const item = document.createElement('div');
     item.style.display = 'flex';
     item.style.alignItems = 'center';
-    item.style.padding = s.type === 'text-suggestion' ? '6px 12px' : '10px 12px';
+    item.style.padding = s.type === 'text-suggestion' ? '8px 12px' : '10px 12px';
     item.style.cursor = 'pointer';
     item.style.background = i === selectedIndex ? 'rgba(255,255,255,0.08)' : 'transparent';
     item.style.borderRadius = '4px';
@@ -532,7 +532,7 @@ function renderSuggestions() {
     const title = document.createElement('div');
     title.textContent = s.text;
     title.style.fontWeight = s.type === 'text-suggestion' ? '400' : '500';
-    title.style.fontSize = s.type === 'text-suggestion' ? '1.15em' : '1.25em';
+    title.style.fontSize = '1.25em';
     title.style.color = '#fff';
     textCol.appendChild(title);
     // Subtitle

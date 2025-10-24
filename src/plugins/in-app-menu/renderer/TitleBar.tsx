@@ -1064,7 +1064,7 @@ function SearchBar() {
                   'box-sizing': 'border-box',
                   display: 'flex',
                   'align-items': 'center',
-                  padding: suggestion.type === 'text-suggestion' ? '6px 12px' : '10px 12px',
+                  padding: suggestion.type === 'text-suggestion' ? '8px 12px' : '10px 12px',
                   cursor: 'pointer',
                   background: i === selectedIndex() ? 'rgba(255,255,255,0.08)' : 'transparent',
                   'border-radius': '4px',
@@ -1085,7 +1085,7 @@ function SearchBar() {
                   </>
                 )}
                 <div style={{ flex: '1', display: 'flex', 'flex-direction': 'column' }}>
-                  <div style={{ 'font-weight': suggestion.type === 'text-suggestion' ? 400 : 500, 'font-size': suggestion.type === 'text-suggestion' ? '1.15em' : '1.25em', color: '#fff' }}>{suggestion.text}</div>
+                  <div style={{ 'font-weight': suggestion.type === 'text-suggestion' ? 400 : 500, 'font-size': '1.25em', color: '#fff' }}>{suggestion.text}</div>
                   {suggestion.subtitle && <div style={{ 'font-size': '1.1em', color: '#aaa', 'margin-top': '2px' }}>{suggestion.subtitle}</div>}
                 </div>
                 {suggestion.type && suggestion.type !== 'text-suggestion' && <span style={{ background: 'rgba(255,255,255,0.12)', color: '#fff', 'font-size': '0.92em', padding: '2px 10px', 'border-radius': '6px', 'margin-left': '8px', 'font-weight': 400, 'letter-spacing': '0.03em', 'white-space': 'nowrap', 'max-width': '40%', 'overflow': 'hidden', 'text-overflow': 'ellipsis' }}>{suggestion.type}</span>}
