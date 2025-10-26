@@ -101,7 +101,6 @@ Interested in developing plugins for YTM? Check the plugin development documenta
 | Platform | Status | Architecture | Package Format |
 |----------|--------|--------------|----------------|
 | Windows 10/11 | ✅ Supported | x64, ARM64 | `.exe`, `.zip` |
-| macOS 10.13+ | ✅ Supported | x64, Apple Silicon | `.dmg` |
 | Linux (Ubuntu/Debian) | ✅ Supported | x64, ARM64 | `.deb`, `.AppImage` |
 | Linux (Fedora/RHEL) | ✅ Supported | x64, ARM64 | `.rpm`, `.AppImage` |
 
@@ -235,12 +234,6 @@ YTM is an unofficial, third-party desktop client for YouTube Music. This project
 - All trademarks belong to their respective owners
 
 **Users are responsible for ensuring their use complies with YouTube's Terms of Service.**
-
----
-
-## Acknowledgments
-
-Special thanks to all contributors who have helped improve YTM through code contributions, bug reports, feature suggestions, and feedback.
 
 ---
 
