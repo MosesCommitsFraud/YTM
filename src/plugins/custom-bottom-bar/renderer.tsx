@@ -326,8 +326,10 @@ function YTMusicPlayer() {
       }
     }
     
-    // Initial sync: prefer stored volume, then API, then native slider
+    // Initial sync: prefer stored volume (what we saved last time), then native slider will sync via MutationObserver
     let initialVolumeLevel = 1 // Default to 100%
+    
+    // First, try to read from localStorage (this is what we saved last time the user adjusted volume)
     try {
       const storedVolume = localStorage.getItem(VOLUME_KEY)
       if (storedVolume !== null) {
@@ -337,14 +339,16 @@ function YTMusicPlayer() {
         }
       }
     } catch {}
-
+    
+    // If no stored volume, try API
     if (initialVolumeLevel === 1 && api && typeof api.getVolume === 'function') {
       const apiVolume = api.getVolume()
       if (typeof apiVolume === 'number' && apiVolume >= 0) {
         initialVolumeLevel = clamp(apiVolume / 100, 0, 1)
       }
     }
-
+    
+    // If still default, try reading from native slider (might not be initialized yet though)
     if (initialVolumeLevel === 1) {
       const nativeValue = Number((nativeVolumeSlider as HTMLInputElement).value)
       if (nativeValue >= 0 && nativeValue <= 100) {
@@ -352,9 +356,9 @@ function YTMusicPlayer() {
       }
     }
 
-    // Apply to UI and YTM immediately for consistency
-    const initialPct = volumeToPercentage(initialVolumeLevel)
-    setPreciseVolume(initialPct, false)
+    // Update UI state to reflect the saved volume (don't SET it, just display it)
+    // The MutationObserver will keep us in sync with YouTube Music's actual volume
+    setVolume(initialVolumeLevel)
     hasAppliedInitialVolume = true
     // Ensure mute UI aligns with level
     setIsMuted(initialVolumeLevel === 0)
@@ -687,19 +691,65 @@ function YTMusicPlayer() {
     setupNativeProgressTracking()
     setupNativeVolumeTracking()
     
-    // If initial volume wasn't applied (e.g., native slider not ready), try once shortly after
-    setTimeout(() => {
+    // Poll for the actual volume from YouTube Music API
+    // YouTube Music sets volume via API after initialization, so we poll until we get a stable value
+    let volumePollAttempts = 0
+    const maxVolumePollAttempts = 10 // Poll for up to 2 seconds
+    let lastSeenVolume = -1
+    
+    const pollVolume = () => {
       if (hasAppliedInitialVolume) return
-      try {
-        const storedVolume = localStorage.getItem(VOLUME_KEY)
-        if (storedVolume !== null) {
-          const volumeLevel = clamp(Number(storedVolume), 0, 1)
-          const volumePct = volumeToPercentage(volumeLevel)
-          setPreciseVolume(volumePct, false)
-          hasAppliedInitialVolume = true
+      volumePollAttempts++
+      
+      // Try API first (most reliable source of truth)
+      let currentVolume = -1
+      if (api && typeof api.getVolume === 'function') {
+        const apiVolume = api.getVolume()
+        if (typeof apiVolume === 'number' && apiVolume >= 0) {
+          currentVolume = apiVolume
         }
-      } catch {}
-    }, 300)
+      }
+      
+      // If no API, try native slider
+      if (currentVolume < 0) {
+        const nativeVolumeSlider = document.querySelector('#volume-slider') as HTMLInputElement || 
+                                   document.querySelector('#expand-volume-slider') as HTMLInputElement
+        if (nativeVolumeSlider) {
+          const nativeValue = Number(nativeVolumeSlider.value)
+          if (nativeValue >= 0 && nativeValue <= 100) {
+            currentVolume = nativeValue
+          }
+        }
+      }
+      
+      // Check if volume has stabilized (same value on consecutive checks)
+      if (currentVolume >= 0) {
+        if (currentVolume === lastSeenVolume && volumePollAttempts >= 2) {
+          // Volume has stabilized, use this value
+          setVolume(clamp(currentVolume / 100, 0, 1))
+          setIsMuted(currentVolume === 0)
+          hasAppliedInitialVolume = true
+          return
+        }
+        lastSeenVolume = currentVolume
+      }
+      
+      // If we've polled long enough, accept the last value we saw
+      if (volumePollAttempts >= maxVolumePollAttempts) {
+        if (lastSeenVolume >= 0) {
+          setVolume(clamp(lastSeenVolume / 100, 0, 1))
+          setIsMuted(lastSeenVolume === 0)
+        }
+        hasAppliedInitialVolume = true
+        return
+      }
+      
+      // Try again after a delay
+      setTimeout(pollVolume, 200)
+    }
+    
+    // Start polling after initial setup
+    setTimeout(pollVolume, 500)
     
     // 2. Media Element Manager - For play/pause state and content type detection
     const setupMediaElementTracking = () => {
@@ -953,11 +1003,7 @@ function YTMusicPlayer() {
       if (!currentVideoId() && song().videoId) {
         setCurrentVideoId(song().videoId)
       }
-      // Apply stored volume to initial video
-      // Use the YTM API for volume
-      if (api && typeof api.setVolume === "function") {
-        api.setVolume(volume() * 100)
-      }
+      // Note: Don't set volume here - we read it from native slider on startup
     }
 
     // Setup enhanced volume features
